@@ -55,6 +55,8 @@ Then dispatch using `./reviewer-prompt.md` template with:
 - `{FEATURE_SUMMARY}` — what the feature does (1-2 sentences)
 - `{TASK_LIST}` — list of tasks that were implemented
 
+**Critical:** Always use `model: "opus"` for the reviewer subagent. Fresh-eyes review requires the strongest reasoning model to catch subtle cross-task issues.
+
 **Critical:** The diff range must cover ALL tasks, not just the last one. This is the entire point of the skill.
 
 ## What It Catches (That Per-Task Reviews Miss)
