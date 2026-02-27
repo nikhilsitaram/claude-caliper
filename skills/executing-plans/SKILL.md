@@ -76,10 +76,31 @@ After implementation review passes:
 - **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
 - Follow that skill to verify tests, present options, execute choice
 
+## Deviation Rules
+
+When reality diverges from the plan, follow these rules in order:
+
+| Rule | Trigger | Action | Permission |
+|------|---------|--------|------------|
+| **Rule 1: Auto-fix bugs** | Code doesn't work as intended | Fix inline, commit, document | No user permission needed |
+| **Rule 2: Auto-add missing critical** | Missing error handling, validation, auth | Fix inline, commit, document | No user permission needed |
+| **Rule 3: Auto-fix blockers** | Missing dep, broken import, wrong types | Fix inline, commit, document | No user permission needed |
+| **Rule 4: STOP for architectural changes** | New DB table, library swap, breaking API change | **Stop and ask user** | Requires explicit user decision |
+
+**Scope boundary:** Only auto-fix issues directly caused by the current task's changes. Pre-existing issues go to a deferred list — note them in the batch report but don't fix them.
+
+**Fix attempt limit:** After 3 auto-fix attempts on a single issue, stop and document the remaining problem. Don't loop indefinitely.
+
+**Documentation:** For every Rule 1-3 deviation, include in the batch report:
+- What deviated from the plan
+- What was done to fix it
+- Which rule applied
+
 ## When to Stop and Ask for Help
 
 **STOP executing immediately when:**
-- Hit a blocker mid-batch (missing dependency, test fails, instruction unclear)
+- Rule 4 deviation (architectural change needed)
+- Hit a blocker mid-batch after 3 fix attempts
 - Plan has critical gaps preventing starting
 - You don't understand an instruction
 - Verification fails repeatedly

@@ -94,6 +94,22 @@ Task tool (general-purpose):
     Flag: `pytest tests/path/test.py` but test file is at different path.
     Flag: `npm test` but project uses `yarn` or `pnpm`.
 
+    ### 8. "Different Claude" Test
+    For each task, evaluate: could a fresh Claude instance with ZERO
+    conversation history execute this task unambiguously?
+
+    Check each task for:
+    - Missing mandatory fields (Files, Verification, Done criteria, Avoid)
+    - Implied context not written down ("the function we discussed")
+    - Vague references ("update the config", "fix the handler")
+    - Missing file paths or partial paths
+    - Done criteria that aren't measurable
+
+    Flag: Task N says "modify the auth handler" but doesn't specify which file.
+    Flag: Task N has no verification command.
+    Flag: Task N's done criteria is "auth works" (not measurable).
+    Flag: Task N references context from conversation, not from the plan itself.
+
     ## Output Format
 
     ### Issues Found
@@ -115,6 +131,7 @@ Task tool (general-purpose):
     | Test-implementation coherence | PASS/FAIL | |
     | Completeness | PASS/FAIL | |
     | Command correctness | PASS/FAIL | |
+    | "Different Claude" test | PASS/FAIL | |
 
     ### Assessment
 

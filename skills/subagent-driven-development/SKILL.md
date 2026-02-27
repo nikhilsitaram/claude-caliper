@@ -203,6 +203,28 @@ Done!
 - Review loops add iterations
 - But catches issues early (cheaper than debugging later)
 
+## Deviation Rules
+
+When reality diverges from the plan, follow these rules in order:
+
+| Rule | Trigger | Action | Permission |
+|------|---------|--------|------------|
+| **Rule 1: Auto-fix bugs** | Code doesn't work as intended | Fix inline, commit, document | No user permission needed |
+| **Rule 2: Auto-add missing critical** | Missing error handling, validation, auth | Fix inline, commit, document | No user permission needed |
+| **Rule 3: Auto-fix blockers** | Missing dep, broken import, wrong types | Fix inline, commit, document | No user permission needed |
+| **Rule 4: STOP for architectural changes** | New DB table, library swap, breaking API change | **Stop and ask user** | Requires explicit user decision |
+
+**Scope boundary:** Only auto-fix issues directly caused by the current task's changes. Pre-existing issues go to a deferred list — note them in the task completion report but don't fix them.
+
+**Fix attempt limit:** After 3 auto-fix attempts on a single issue, stop and document the remaining problem. Don't loop indefinitely.
+
+**Documentation:** For every Rule 1-3 deviation, the implementer subagent must include in its completion report:
+- What deviated from the plan
+- What was done to fix it
+- Which rule applied
+
+The orchestrator includes deviation summaries in the final report.
+
 ## Red Flags
 
 **Never:**
