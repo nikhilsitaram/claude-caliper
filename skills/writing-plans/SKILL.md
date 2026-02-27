@@ -50,6 +50,8 @@ Before any exploration or planning, call `TaskList` to check for existing tasks 
 
 ## Task Structure
 
+Every task MUST include ALL of the following fields. Missing fields = incomplete plan.
+
 ````markdown
 ### Task N: [Component Name]
 
@@ -57,6 +59,14 @@ Before any exploration or planning, call `TaskList` to check for existing tasks 
 - Create: `exact/path/to/file.py`
 - Modify: `exact/path/to/existing.py:123-145`
 - Test: `tests/exact/path/to/test.py`
+
+**Verification:** `pytest tests/path/test.py -v` (must complete in <60s)
+
+**Done when:** [Measurable state — not "it works" or "authentication complete"]
+Example: "POST /api/auth/login returns 200 with valid JWT; 401 with invalid credentials; test_login_* 4/4 passing"
+
+**Avoid:** [What NOT to do + WHY]
+Example: "Use jose not jsonwebtoken — CommonJS issues with Edge runtime"
 
 **Step 1: Write the failing test**
 
@@ -91,12 +101,46 @@ git commit -m "feat: add specific feature"
 ```
 ````
 
+### Mandatory Task Field Checklist
+
+Before saving the plan, verify EVERY task has:
+
+| Field | Requirement | Bad Example | Good Example |
+|-------|-------------|-------------|--------------|
+| **Files** | Exact paths (create/modify/test) | "the auth files" | `src/auth/login.ts`, `tests/auth/login.test.ts` |
+| **Verification** | Automated, runnable, <60s | "check that it works" | `pytest tests/auth/ -v` |
+| **Done when** | Measurable end state | "authentication complete" | "login returns JWT, 4/4 tests pass" |
+| **Avoid + WHY** | Pitfalls with reasoning | "don't use X" | "Use jose not jsonwebtoken — CJS/Edge issues" |
+
+### Specificity Quality Bar
+
+> Could a fresh Claude instance with zero prior context execute this task without asking a single clarifying question? If not, add specificity.
+
+## Interface-First Task Ordering
+
+When a plan creates interfaces consumed by later tasks:
+
+1. **First task:** Define contracts (types, interfaces, exports) — embed the contract text in the plan itself
+2. **Middle tasks:** Implement against contracts
+3. **Last task:** Wire implementations to consumers
+
+Embed the contract in the plan so executors don't need to explore the codebase to understand dependencies.
+
+Example ordering:
+```
+Task 1: Define UserService interface and types     ← contract
+Task 2: Implement UserService against interface     ← implements contract
+Task 3: Implement UserRepository against interface  ← implements contract
+Task 4: Wire UserService into API routes            ← consumes implementations
+```
+
 ## Remember
 - Exact file paths always
 - Complete code in plan (not "add validation")
 - Exact commands with expected output
 - Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits
+- Every task passes the "fresh Claude" specificity test
 
 ## Task Persistence
 

@@ -68,6 +68,8 @@ Then dispatch using `./reviewer-prompt.md` template with:
 | Inconsistent naming | `UserService` in one task, `userService` in another | Each task written in isolation |
 | Impossible test expectations | Test expects return value X but implementation returns Y | Test and implementation steps written at different times |
 | Tech stack contradictions | Plan header says SQLite, Task 3 uses PostgreSQL syntax | Header written first, tasks written later with different assumptions |
+| Implied context | Task says "modify the auth handler" without specifying file | Planner has conversation context that won't exist during execution |
+| Missing mandatory fields | Task has no verification command or measurable done criteria | Planner assumes executor will figure it out |
 
 ## Red Flags
 
