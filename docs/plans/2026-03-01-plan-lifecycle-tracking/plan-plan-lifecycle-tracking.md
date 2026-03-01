@@ -1,5 +1,5 @@
 ---
-status: Not Yet Started
+status: Complete (2026-03-01)
 ---
 
 # Plan Lifecycle Tracking & Completion Reports — Implementation Plan
@@ -17,19 +17,19 @@ status: Not Yet Started
 ## Phases
 
 ### Phase 1 — Directory Convention & Plan Frontmatter
-**Status:** Not Yet Started
+**Status:** Complete (2026-03-01)
 
-- [ ] Task 1: Update brainstorming output path convention
-- [ ] Task 2: Update writing-plans output path and add frontmatter generation
-- [ ] Task 3: Commit phase 1 changes
+- [x] Task 1: Update brainstorming output path convention
+- [x] Task 2: Update writing-plans output path and add frontmatter generation
+- [x] Task 3: Commit phase 1 changes
 
 ### Phase 2 — Execution Lifecycle Tracking
-**Status:** Not Yet Started
+**Status:** Complete (2026-03-01)
 
-- [ ] Task 4: Add plan doc status updates to subagent-driven-development
-- [ ] Task 5: Add plan doc status updates to executing-plans
-- [ ] Task 6: Add completion report and handoff notes to implementation-review
-- [ ] Task 7: Commit phase 2 changes
+- [x] Task 4: Add plan doc status updates to subagent-driven-development
+- [x] Task 5: Add plan doc status updates to executing-plans
+- [x] Task 6: Add completion report and handoff notes to implementation-review
+- [x] Task 7: Commit phase 2 changes
 
 ---
 
@@ -449,3 +449,29 @@ documentation and cross-phase handoff notes.
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 ```
+
+---
+
+## Completion Report — Phase 1: Directory Convention & Plan Frontmatter
+
+**Completed:** 2026-03-01
+
+### Summary
+
+Updated brainstorming and writing-plans skills to use per-project folder convention (`docs/plans/YYYY-MM-DD-<project-name>/`) instead of flat file naming. Added YAML frontmatter with `status` field and per-phase status tracking with task checklists to the plan document header template.
+
+### Deviations from Plan
+
+None — implemented as planned.
+
+## Completion Report — Phase 2: Execution Lifecycle Tracking
+
+**Completed:** 2026-03-01
+
+### Summary
+
+Added "Plan Doc Updates" sections to both subagent-driven-development and executing-plans skills, documenting how orchestrators should update plan documents during execution (status flips, task checkboxes, completion reports). Added post-review plan doc update instructions to implementation-review (fixup documentation, handoff notes) and updated the reviewer prompt template with completion report context and handoff notes output section.
+
+### Deviations from Plan
+
+None — implemented as planned.
