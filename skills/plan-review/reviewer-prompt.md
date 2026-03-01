@@ -75,6 +75,9 @@ Task tool (general-purpose):
 
     Flag: Test expects function(a, b) but implementation defines function(a, b, c).
     Flag: Test asserts return value X but implementation returns Y.
+    Flag: Multi-task plan has no Task 0 (broad integration tests defining acceptance criteria).
+    Flag: Task 0 tests don't reference modules that later tasks create.
+    Flag: Task 0 is absent with no skip justification (single-module, no cross-task data flow).
 
     ### 6. Completeness
     - Does every "Create" file get populated by some task's implementation step?
