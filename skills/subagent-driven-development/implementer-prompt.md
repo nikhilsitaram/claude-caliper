@@ -30,8 +30,8 @@ Task tool (general-purpose):
     ## Your Job
 
     Once you're clear on requirements:
-    1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
+    1. Invoke the `superpowers:test-driven-development` skill — follow it for all implementation
+    2. Implement exactly what the task specifies using TDD (red/green/refactor)
     3. Verify implementation works
     4. Commit your work
     5. Self-review (see below)
@@ -63,7 +63,7 @@ Task tool (general-purpose):
 
     **Testing:**
     - Do tests actually verify behavior (not just mock behavior)?
-    - Did I follow TDD if required?
+    - Did I follow TDD (red/green/refactor)?
     - Are tests comprehensive?
 
     If you find issues during self-review, fix them now before reporting.
