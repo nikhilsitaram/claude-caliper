@@ -82,6 +82,12 @@ Task tool (general-purpose):
        - Return values computed but never used by callers
        - Interfaces defined in one task but not implemented where needed
 
+    7. **Inadequate integration test coverage**
+       - Cross-boundary interactions that the integration tests don't cover
+       - Integration tests that mock away the very boundaries they should verify
+       - Data flows through multiple modules where the integration test only checks part of the path
+       - Configuration consumed by multiple modules with no test that validates the full path
+
     ## How to Review
 
     1. Read the full diff to understand the feature as a whole
@@ -95,15 +101,26 @@ Task tool (general-purpose):
     ### Cross-Task Issues Found
 
     For each issue:
-    - **Category** (from the 6 above)
+    - **Category** (from the 7 above)
     - **Files involved** (with line references)
     - **What's wrong**
     - **Why per-task review missed it**
     - **Suggested fix**
 
+    ### Integration Test Coverage Assessment
+
+    Review the integration tests that were written before this review.
+    For each cross-boundary interaction in the feature:
+    - **Interaction**: Which components/modules connect
+    - **Covered?**: Yes/No — is there an integration test for this?
+    - **If gap**: What's missing and why it matters
+
+    If integration test coverage is adequate, write "Integration test coverage is adequate — [brief rationale]."
+
     ### Assessment
 
     **Issues found:** [count]
+    **Integration test gaps:** [count]
     **Severity:** [Critical / Important / Minor for each]
     **Ready to merge after fixing these?** [Yes/No]
 

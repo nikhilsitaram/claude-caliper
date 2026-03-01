@@ -7,7 +7,7 @@ description: Use when a multi-task implementation is complete and ready for holi
 
 Review the entire feature implementation with fresh eyes, focusing on issues that only surface when looking at all tasks together.
 
-**Core principle:** Per-task reviews verify each piece works. Implementation review verifies the pieces work together.
+**Core principle:** Per-task reviews verify each piece works. Implementation review verifies the pieces work together — through both code review and integration tests.
 
 ## When to Use
 
@@ -25,6 +25,7 @@ digraph process {
     rankdir=TB;
     "Get base branch SHA (origin/main or where feature diverged)" [shape=box];
     "Get HEAD SHA (current commit)" [shape=box];
+    "Write integration tests for cross-boundary interactions" [shape=box];
     "Dispatch reviewer subagent with ./reviewer-prompt.md" [shape=box];
     "Reviewer finds issues?" [shape=diamond];
     "Fix issues (dispatch implementer or fix directly)" [shape=box];
@@ -32,7 +33,8 @@ digraph process {
     "Proceed to superpowers:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
     "Get base branch SHA (origin/main or where feature diverged)" -> "Get HEAD SHA (current commit)";
-    "Get HEAD SHA (current commit)" -> "Dispatch reviewer subagent with ./reviewer-prompt.md";
+    "Get HEAD SHA (current commit)" -> "Write integration tests for cross-boundary interactions";
+    "Write integration tests for cross-boundary interactions" -> "Dispatch reviewer subagent with ./reviewer-prompt.md";
     "Dispatch reviewer subagent with ./reviewer-prompt.md" -> "Reviewer finds issues?";
     "Reviewer finds issues?" -> "Fix issues (dispatch implementer or fix directly)" [label="yes"];
     "Fix issues (dispatch implementer or fix directly)" -> "Re-run implementation review" [label="re-review"];
@@ -40,6 +42,18 @@ digraph process {
     "Reviewer finds issues?" -> "Proceed to superpowers:finishing-a-development-branch" [label="no"];
 }
 ```
+
+## Integration Tests (Before Review)
+
+After all tasks complete but before dispatching the reviewer, write integration tests that verify cross-boundary interactions:
+
+1. **Identify boundaries** — look at which tasks produce outputs consumed by other tasks (shared config, module interfaces, data flows)
+2. **Write tests at the seams** — test real interactions, not mocked ones. Integration tests should exercise the actual code paths between components.
+3. **Commit the integration tests** — they become part of the diff the reviewer evaluates
+
+**Skip integration tests when:** single-module change, no cross-task data flow, or purely additive tasks with no interactions (e.g., adding independent utility functions).
+
+The reviewer will then assess whether integration test coverage is adequate and flag gaps.
 
 ## How to Dispatch
 
@@ -70,6 +84,7 @@ Then dispatch using `./reviewer-prompt.md` template with:
 | Dead code from iteration | Conditional where both branches are identical | Emerged from incremental changes across tasks |
 | Documentation gaps | Feature supported in one module but not another, undocumented | Per-task reviewer sees one side |
 | Unclear/inconsistent errors | Multiple modules throw same generic message | Each reviewer sees one throw site |
+| Missing integration tests | Components interact but no test verifies the interaction | Each task only unit-tests its own piece |
 
 ## Red Flags
 
