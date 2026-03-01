@@ -336,6 +336,7 @@ Before marking work complete:
 - [ ] Output pristine (no errors, warnings)
 - [ ] Tests use real code (mocks only if unavoidable)
 - [ ] Edge cases and errors covered
+- [ ] If this task consumes cross-task output, boundary integration tests written with real components
 
 Can't check all boxes? You skipped TDD. Start over.
 
@@ -354,12 +355,34 @@ Bug found? Write failing test reproducing it. Follow TDD cycle. Test proves fix 
 
 Never fix bugs without a test.
 
+## Boundary Tests
+
+When your task consumes output from a prior task (imports a module, reads config, calls an API created earlier), write a narrow integration test at the boundary. Use real components, not mocks — this IS your TDD cycle, not a separate phase.
+
+The test follows red-green-refactor: write it RED (boundary fails because integration not wired yet), wire the integration to make it GREEN, then refactor.
+
+```typescript
+// Task 2 imports UserService created by Task 1
+// Boundary test: verify the real integration works
+test('repository queries return users from real database adapter', () => {
+  const repo = new UserRepository(new SqliteAdapter(':memory:'));
+  repo.save({ id: '1', name: 'Alice' });
+
+  const result = repo.findById('1');
+
+  expect(result.name).toBe('Alice');
+});
+```
+
+See @testing-anti-patterns.md Anti-Pattern 5 for the full three-level framework and boundary test gate function.
+
 ## Testing Anti-Patterns
 
 When adding mocks or test utilities, read @testing-anti-patterns.md to avoid common pitfalls:
 - Testing mock behavior instead of real behavior
 - Adding test-only methods to production classes
 - Mocking without understanding dependencies
+- Three-level integration testing (when to write broad vs boundary vs verification tests)
 
 ## Final Rule
 
