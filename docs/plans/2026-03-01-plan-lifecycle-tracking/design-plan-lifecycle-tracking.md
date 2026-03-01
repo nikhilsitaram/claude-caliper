@@ -12,6 +12,8 @@ Make the plan doc a **living document** with three additions:
 2. **Completion section** — written by the orchestrator after execution, summarizing what was done
 3. **Implementation-review updates** — the reviewer reads the completion notes, appends its own changes, and writes handoff notes directly into future phase sections
 
+All phases live in a single plan doc. The frontmatter checklist provides a scannable overview; agents read specific sections as needed. One doc avoids cross-referencing problems that splitting would create.
+
 ## Where Each Piece Gets Written
 
 | Who | When | What they write |
@@ -95,18 +97,49 @@ Brief narrative of what was built. 2-3 sentences covering the scope delivered.
 - Extracted duplicated timeout constant to shared config
 ```
 
+## Plan Doc Directory Convention
+
+Plan documents are organized in per-project folders under `docs/plans/`:
+
+```
+docs/plans/
+  YYYY-MM-DD-project-name/
+    design-project-name.md
+    plan-project-name.md
+```
+
+**File naming:** `{design|plan}-{project name}.md`
+
+- `design-` prefix for design docs (output of brainstorming)
+- `plan-` prefix for implementation plans (output of writing-plans)
+- One plan doc per project containing all phases
+
+**Skills affected:** brainstorming (writes design docs) and writing-plans (writes plan docs) need their output path conventions updated to use this structure.
+
 ## Skills Modified
 
-### 1. writing-plans
+### 1. brainstorming
 
-Generate frontmatter status block and phase structure at plan creation:
+Update output path convention:
 
+- Create project folder `docs/plans/YYYY-MM-DD-<project-name>/` if it doesn't exist
+- Write design doc as `design-<project-name>.md` inside that folder
+- Previously: `docs/plans/YYYY-MM-DD-<topic>-design.md` (flat)
+
+### 2. writing-plans
+
+Update output path convention and generate lifecycle frontmatter:
+
+- Write plan doc into the project folder created by brainstorming: `docs/plans/YYYY-MM-DD-<project-name>/`
+- Name as `plan-<project-name>.md`
+- All phases go in one document
+- Previously: `docs/plans/YYYY-MM-DD-<feature-name>.md` (flat)
 - Add `status: Not Yet Started` to frontmatter
 - Add `**Status:** Not Yet Started` line under each phase heading
 - Generate task checklist with unchecked boxes under each phase
 - All statuses initialized to `Not Yet Started`
 
-### 2. subagent-driven-development & executing-plans
+### 3. subagent-driven-development & executing-plans
 
 Three new behaviors during execution:
 
@@ -116,7 +149,7 @@ Three new behaviors during execution:
   - **Summary** — what was built (2-3 sentences)
   - **Deviations from Plan** — each deviation with what changed, why, and impact on files/scope
 
-### 3. implementation-review (reviewer-prompt.md)
+### 4. implementation-review (reviewer-prompt.md)
 
 Two new behaviors after the review pass:
 
@@ -125,7 +158,7 @@ Two new behaviors after the review pass:
 
 ## What This Does NOT Add
 
-- No new skill file — changes are to three existing skills
+- No new skill file — changes are to four existing skills
 - No new subagent — the orchestrator writes the completion section inline (it has the execution context)
 - No separate completion document — everything lives in the plan doc
-- No changes to brainstorming, plan-review, finishing-a-development-branch, or ship
+- No changes to plan-review, finishing-a-development-branch, or ship
