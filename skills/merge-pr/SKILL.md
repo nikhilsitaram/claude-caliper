@@ -150,6 +150,12 @@ gh api repos/{owner}/{repo}/branches/$DEFAULT_BRANCH/protection 2>/dev/null | gr
 ```
 If reviews are required and the PR hasn't been approved, tell the user the PR needs human approval and provide the URL. Stop here.
 
+**CRITICAL — If in a worktree (`$IS_WORKTREE` is true), move CWD to the main repo BEFORE merging.** `gh pr merge` can trigger remote branch deletion which bricks the shell if CWD is still inside the worktree.
+
+```bash
+cd "$MAIN_REPO"
+```
+
 Merge with squash:
 ```bash
 gh pr merge $PR_NUMBER --squash
@@ -163,28 +169,25 @@ Never use `--delete-branch` on `gh pr merge` — branch cleanup is handled in St
 
 **CRITICAL: Run each sub-step as a separate Bash tool call.** Never chain with `&&`.
 
-**Step 9a** — Move CWD to main repo:
-```bash
-cd "$MAIN_REPO"
-```
+CWD is already at `$MAIN_REPO` (moved in Step 8).
 
-**Step 9b** — Remove the worktree:
+**Step 9a** — Remove the worktree:
 ```bash
 git worktree remove <worktree-path>
 ```
-If it fails due to untracked files, retry with `--force`. If path doesn't exist, skip to 9d.
+If it fails due to untracked files, retry with `--force`. If path doesn't exist, skip to 9c.
 
-**Step 9c** — Delete the branch:
+**Step 9b** — Delete the branch:
 ```bash
 git branch -D $BRANCH_NAME
 ```
 
-**Step 9d** — Prune stale worktree refs:
+**Step 9c** — Prune stale worktree refs:
 ```bash
 git worktree prune
 ```
 
-**Step 9e** — Sync main:
+**Step 9d** — Sync main:
 ```bash
 git pull --rebase
 git remote prune origin
@@ -227,7 +230,7 @@ Provide a summary:
 |---------|-----|
 | Blindly implementing all CodeRabbit suggestions | Verify each against codebase. Push back on incorrect ones. |
 | Merging with failing tests | Always run tests after fixes. Never merge red. |
-| Removing worktree while CWD is inside it | `cd "$MAIN_REPO"` first. Run each cleanup sub-step as separate Bash call. |
+| Merging while CWD is inside worktree | `cd "$MAIN_REPO"` before `gh pr merge` — remote branch deletion bricks the shell. |
 | Chaining Step 9 cleanup with `&&` | CWD change may not persist if later command fails — bricks the shell. |
 | Deleting branch before removing worktree | Git refuses. Remove worktree first. |
 | Using `--delete-branch` on `gh pr merge` | Fails in worktree flows. Delete branch manually after worktree removal. |
@@ -249,4 +252,4 @@ Provide a summary:
 - Never use `--force` (use `--force-with-lease` only if push rejected after rebase)
 - Always run tests after fixes, before merging
 - Always comment on PR before merging
-- In worktrees: cd out before removing, run each cleanup as separate Bash call
+- In worktrees: cd to main repo before merging (not just before cleanup), run each cleanup as separate Bash call
