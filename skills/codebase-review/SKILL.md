@@ -79,7 +79,7 @@ digraph codebase_review {
 3. Discover top-level directories as review units:
    ```bash
    # List directories, excluding hidden dirs and common non-code dirs
-   find "$SCOPE" -maxdepth 1 -type d ! -name '.*' ! -name 'node_modules' ! -name 'vendor' ! -name '__pycache__' | sort
+   find "$SCOPE" -mindepth 1 -maxdepth 1 -type d ! -name '.*' ! -name 'node_modules' ! -name 'vendor' ! -name '__pycache__' | sort
    ```
 4. Create one task per review unit using `TaskCreate`
 

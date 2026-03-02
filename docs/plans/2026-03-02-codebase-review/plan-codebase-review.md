@@ -8,7 +8,7 @@ status: Complete (2026-03-02)
 
 **Goal:** Create a `codebase-review` skill that audits an entire repository (or user-specified directory) for code quality issues across 5 categories, produces a ranked markdown report, creates GitHub issues for complex findings, and routes inline fixes through the normal superpowers pipeline.
 
-**Architecture:** Single SKILL.md with embedded reviewer prompt template and process instructions. The skill dispatches parallel Explore subagents (one per top-level directory), runs a cross-scope reconciliation pass, aggregates findings into a persistent report, then triages: complex work → GH issues, inline fixes → writing-plans pipeline.
+**Architecture:** SKILL.md with process documentation, plus separate reviewer prompt and cross-scope reconciliation prompt templates. The skill dispatches parallel Explore subagents (one per top-level directory), runs a cross-scope reconciliation pass, aggregates findings into a persistent report, then triages: complex work → GH issues, inline fixes → writing-plans pipeline.
 
 **Tech Stack:** Markdown skill file, bash (git/gh CLI), Claude Code Agent tool for parallel dispatch.
 

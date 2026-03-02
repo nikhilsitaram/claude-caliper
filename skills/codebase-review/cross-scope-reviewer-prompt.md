@@ -6,7 +6,7 @@ Use this template after all parallel scope reviewers have completed.
 
 **Dispatch once** — after all scope reviewers return.
 
-```
+```yaml
 Agent tool (Explore):
   description: "Cross-scope reconciliation for codebase review"
   prompt: |

@@ -27,7 +27,9 @@ Agent tool (Explore):
     - Copy-pasted logic with minor variations that should be a shared function
 
     ### 2. YAGNI (You Aren't Gonna Need It)
-    - Unused exports, functions, or classes (defined but never imported/called)
+    - Unused exports, functions, or classes:
+      - Only flag as confirmed unused if you can verify no references in the reviewed scope
+      - Otherwise flag as **candidate unused** and note that repo-wide verification is needed
     - Dead code paths (unreachable branches, commented-out code)
     - Speculative features or unnecessary config options
     - Over-parameterized functions where only one call pattern is ever used

@@ -125,7 +125,7 @@ Approach: Parallel scope review + cross-scope reconciliation
 
 ## Implementation Approach
 
-Single-phase implementation. The skill is one SKILL.md file plus a reviewer prompt template. No dependency layers — all components are part of the same skill file.
+Single-phase implementation. The skill includes one SKILL.md file plus two prompt templates (`reviewer-prompt.md` and `cross-scope-reviewer-prompt.md`), with supporting trigger-test and README updates. No dependency layers — all components are part of the same skill directory.
 
 ## Decisions Made
 
