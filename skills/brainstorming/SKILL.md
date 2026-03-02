@@ -106,7 +106,17 @@ The user then reconsiders the assumption entirely, saving implementation effort.
 - Scale each section to its complexity: a few sentences if straightforward, up to 200-300 words if nuanced
 - Ask after each section whether it looks right so far
 - Cover: architecture, components, data flow, error handling, testing
+- When the architecture reveals shared foundations (utilities, interfaces, schemas) consumed by downstream components, note these as **phasing candidates**
 - Be ready to go back and clarify if something doesn't make sense
+
+**Phasing recommendation:**
+
+After presenting all design sections, present a phasing recommendation before moving to worktree setup:
+
+- **Simple work (single phase):** "This is straightforward — single phase, no dependency layers. Sound right?"
+- **Complex work (multi-phase):** "This has N dependency layers. Proposed phases: Phase 1 — [name + rationale], Phase 2 — [name + rationale], ... Does this phasing look right, or would you restructure it?"
+
+Use AskUserQuestion with options like "Looks good" / "Adjust phases" so the user can approve, adjust, merge, split, or override to single-phase.
 
 ## After the Design
 
@@ -117,6 +127,7 @@ The user then reconsiders the assumption entirely, saving implementation effort.
 **Documentation:**
 - Create topic folder `docs/plans/YYYY-MM-DD-<topic>/` if it doesn't exist
 - Write the validated design to `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`
+- When multi-phase work was approved, include an **Implementation Approach** section in the design doc: approved phase names, ordering rationale, which layers must land first
 - Commit the design document to git
 
 **Implementation:**

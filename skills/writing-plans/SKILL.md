@@ -77,6 +77,26 @@ The orchestrator (subagent-driven-development) updates these statuses during exe
 
 For single-phase plans, use one phase section. The phase structure is required even for single-phase work — it keeps the format consistent and supports future phase additions.
 
+## Phasing Decision
+
+Before writing tasks, determine whether the plan needs multiple phases.
+
+**Use multiple phases when ANY of these apply:**
+
+1. **Dependency layers** — Phase N creates things (utilities, interfaces, schemas) consumed by Phase N+1. Example: shared utility extraction must land before bug fixes that import those utilities.
+2. **Verification gates** — Phase N must be verified working before Phase N+1 can meaningfully start. Example: database schema changes must be tested before API routes that depend on the new schema.
+3. **Independent shippability** — each phase should be deployable and revertible on its own. Example: "critical bugs" phase can ship independently of "code quality" phase.
+
+**Stay single-phase when:** All tasks are independent or share only a linear dependency chain with no natural cut points. Don't phase for phasing's sake — one phase with 5 tasks is better than 5 phases with 1 task each.
+
+**Phase boundary rules:**
+
+- A boundary falls where "run full suite and verify" is meaningful — the work so far stands alone
+- Each phase ends with a verification task ("Phase N commit — run full suite")
+- Phase rationale required: one sentence per phase explaining why it exists and why it's in this position (e.g., "Everything downstream imports these. Must land first.")
+
+**Design doc inheritance:** If the design doc includes an **Implementation Approach** section with approved phases from brainstorming, use those as the starting structure. You may refine (split a phase, add verification tasks) but should not contradict approved phasing without flagging the deviation to the user.
+
 ## Task Structure
 
 Every task MUST include ALL of the following fields. Missing fields = incomplete plan.
