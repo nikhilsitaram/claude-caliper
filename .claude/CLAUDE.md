@@ -24,7 +24,7 @@ SKILL.md files are injected into context when the skill triggers. Every excess w
 
 ### Cross-Referencing Syntax
 
-```
+```text
 **REQUIRED SUB-SKILL:** Use superpowers:skill-name
 **REQUIRED BACKGROUND:** Read superpowers:skill-name first
 **See:** filename.md
@@ -40,7 +40,7 @@ Replace heavy-handed `MUST`/`NEVER`/`ALWAYS` patterns with reasoning that explai
 
 ## Repo Structure
 
-```
+```text
 skills/           — One directory per skill (SKILL.md + optional supporting files)
 hooks/            — Claude Code plugin hooks (SessionStart)
 commands/         — Slash command redirects
