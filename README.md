@@ -115,6 +115,7 @@ Start a new session in your chosen platform and ask for something that should tr
 - **using-git-worktrees** - Parallel development branches
 - **ship** - Commit, push, and create PR workflow
 - **merge-pr** - Address review feedback, merge, and clean up
+- **codebase-review** - Whole-repo code quality audit with parallel review, ranked report, and fix routing
 - **subagent-driven-development** - Fast iteration with two-stage review (spec compliance, then code quality)
 
 **Meta**

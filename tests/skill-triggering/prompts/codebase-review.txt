@@ -1,0 +1,1 @@
+I want to do a full code quality audit of this repo. Check for duplicated code, dead code, unnecessary complexity, and anything that could be simplified or refactored. Give me a report of everything you find.
