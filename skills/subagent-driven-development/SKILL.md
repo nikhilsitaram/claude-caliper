@@ -82,6 +82,7 @@ digraph process {
 - `./implementer-prompt.md` - Dispatch implementer subagent
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
+- `skills/implementation-review/reviewer-prompt.md` - Auto-dispatched final implementation reviewer
 
 ## Example Workflow
 

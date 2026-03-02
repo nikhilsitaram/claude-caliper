@@ -209,7 +209,7 @@ Ready to implement auth feature
 ## Integration
 
 **Called by:**
-- **brainstorming** - REQUIRED after design approval, before writing design doc
+- **brainstorming** - REQUIRED after design approval, before implementation begins
 - **subagent-driven-development** - REQUIRED before executing any tasks
 - Any skill needing isolated workspace
 

@@ -27,7 +27,7 @@ status: Complete (2026-03-01)
 **Status:** Complete (2026-03-01)
 
 - [x] Task 4: Add plan doc status updates to subagent-driven-development
-- [x] Task 5: Add plan doc status updates to subagent-driven-development
+- [x] Task 5: Consolidate legacy execution references into subagent-driven-development flow
 - [x] Task 6: Add completion report and handoff notes to implementation-review
 - [x] Task 7: Commit phase 2 changes
 
@@ -154,7 +154,7 @@ status: Not Yet Started
 
 **Status values:** `Not Yet Started` | `In Development` | `Complete (YYYY-MM-DD)`
 
-The orchestrator (subagent-driven-development or subagent-driven-development) updates these statuses during execution. The plan author only sets the initial `Not Yet Started` values.
+The orchestrator (subagent-driven-development) updates these statuses during execution. The plan author only sets the initial `Not Yet Started` values.
 
 For single-phase plans, use one phase section. The phase structure is required even for single-phase work — it keeps the format consistent and supports future phase additions.
 ````
@@ -426,7 +426,6 @@ Read both `skills/implementation-review/SKILL.md` and `skills/implementation-rev
 
 **Files:**
 - Commit: `skills/subagent-driven-development/SKILL.md`
-- Commit: `skills/subagent-driven-development/SKILL.md`
 - Commit: `skills/implementation-review/SKILL.md`
 - Commit: `skills/implementation-review/reviewer-prompt.md`
 
@@ -439,11 +438,11 @@ Read both `skills/implementation-review/SKILL.md` and `skills/implementation-rev
 **Step 1: Stage and commit**
 
 ```bash
-git add skills/subagent-driven-development/SKILL.md skills/subagent-driven-development/SKILL.md skills/implementation-review/SKILL.md skills/implementation-review/reviewer-prompt.md
+git add skills/subagent-driven-development/SKILL.md skills/implementation-review/SKILL.md skills/implementation-review/reviewer-prompt.md
 git commit -m "feat(skills): plan lifecycle tracking, completion reports, and handoff notes
 
-Add plan doc update instructions to subagent-driven-development and
-subagent-driven-development: status flips, task checkboxes, completion reports.
+Add plan doc update instructions to subagent-driven-development:
+status flips, task checkboxes, completion reports.
 Add post-review plan doc updates to implementation-review: fixup
 documentation and cross-phase handoff notes.
 
@@ -470,7 +469,7 @@ None — implemented as planned.
 
 ### Summary
 
-Added "Plan Doc Updates" sections to both subagent-driven-development and subagent-driven-development skills, documenting how orchestrators should update plan documents during execution (status flips, task checkboxes, completion reports). Added post-review plan doc update instructions to implementation-review (fixup documentation, handoff notes) and updated the reviewer prompt template with completion report context and handoff notes output section.
+Added "Plan Doc Updates" section to the subagent-driven-development skill, documenting how orchestrators should update plan documents during execution (status flips, task checkboxes, completion reports). Added post-review plan doc update instructions to implementation-review (fixup documentation, handoff notes) and updated the reviewer prompt template with completion report context and handoff notes output section.
 
 ### Deviations from Plan
 

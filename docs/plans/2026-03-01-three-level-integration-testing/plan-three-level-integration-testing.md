@@ -599,7 +599,7 @@ Then manually verify: open each modified skill file and confirm internal consist
 
 ### Summary
 
-Replaced the single-point integration testing approach (all tests written at implementation-review time) with a three-level framework: Level 1 broad acceptance tests written first as Task 0, Level 2 narrow boundary tests written per-task during TDD at cross-task seams, and Level 3 coverage verification at implementation review. Changes span 8 skill files across testing anti-patterns, TDD, implementer prompt, writing-plans, subagent-driven-development, subagent-driven-development, implementation-review, and plan-review.
+Replaced the single-point integration testing approach (all tests written at implementation-review time) with a three-level framework: Level 1 broad acceptance tests written first as Task 0, Level 2 narrow boundary tests written per-task during TDD at cross-task seams, and Level 3 coverage verification at implementation review. Changes span 8 skill files across testing anti-patterns, TDD, implementer prompt, writing-plans, subagent-driven-development, implementation-review, reviewer-prompt, and plan-review.
 
 ### Deviations from Plan
 
