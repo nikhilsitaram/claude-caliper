@@ -214,4 +214,5 @@ Ready to implement auth feature
 - Any skill needing isolated workspace
 
 **Pairs with:**
-- **finishing-a-development-branch** - REQUIRED for cleanup after work complete
+- **ship** - Commits, pushes, creates PR after work complete
+- **merge-pr** - Addresses review feedback, merges PR, cleans up worktree and branch

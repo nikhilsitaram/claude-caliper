@@ -253,13 +253,13 @@ The orchestrator prompt MUST include:
 1. The full path to the plan file (e.g. `docs/plans/YYYY-MM-DD-topic/plan-topic.md`)
 2. The working directory (worktree path)
 3. Instruction to use `superpowers:subagent-driven-development` skill
-4. Instruction to use `superpowers:finishing-a-development-branch` when complete
+4. Instruction to use `superpowers:ship` when complete to commit, push, and create PR
 
 Example Task dispatch:
-```
+```text
 Task(
   description: "Execute implementation plan",
   model: "opus",
-  prompt: "You are an orchestrator. Read the plan at docs/plans/<topic-folder>/plan-<topic>.md and execute it using the superpowers:subagent-driven-development skill. When all tasks are complete and completion report is written, use superpowers:implementation-review for fresh-eyes review, then superpowers:finishing-a-development-branch to wrap up. Working directory: <worktree-path>"
+  prompt: "You are an orchestrator. Read the plan at docs/plans/<topic-folder>/plan-<topic>.md and execute it using the superpowers:subagent-driven-development skill. When all tasks are complete and completion report is written, use superpowers:implementation-review for fresh-eyes review, then superpowers:ship to commit, push, and create a PR. Working directory: <worktree-path>"
 )
 ```

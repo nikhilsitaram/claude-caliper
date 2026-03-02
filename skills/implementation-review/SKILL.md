@@ -29,7 +29,7 @@ digraph process {
     "Reviewer finds issues?" [shape=diamond];
     "Fix issues (dispatch implementer or fix directly)" [shape=box];
     "Re-run implementation review" [shape=box];
-    "Proceed to superpowers:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+    "Proceed to superpowers:ship" [shape=box style=filled fillcolor=lightgreen];
 
     "Get base branch SHA (origin/main or where feature diverged)" -> "Get HEAD SHA (current commit)";
     "Get HEAD SHA (current commit)" -> "Verify integration test coverage (Level 1 pass, Level 2 exist, fill gaps)";
@@ -38,7 +38,7 @@ digraph process {
     "Reviewer finds issues?" -> "Fix issues (dispatch implementer or fix directly)" [label="yes"];
     "Fix issues (dispatch implementer or fix directly)" -> "Re-run implementation review" [label="re-review"];
     "Re-run implementation review" -> "Reviewer finds issues?";
-    "Reviewer finds issues?" -> "Proceed to superpowers:finishing-a-development-branch" [label="no"];
+    "Reviewer finds issues?" -> "Proceed to superpowers:ship" [label="no"];
 }
 ```
 
@@ -101,7 +101,7 @@ Then dispatch using `./reviewer-prompt.md` template with:
 - Treat this as optional for multi-task features
 
 **If reviewer finds issues:**
-- Fix them before proceeding to finishing-a-development-branch
+- Fix them before proceeding to ship
 - Re-run the review after fixes
 - Don't skip re-review
 
@@ -133,4 +133,4 @@ After the implementation review passes (all issues fixed, re-review clean), the 
 **For standalone use:** Invoke this skill directly when reviewing an implementation outside the normal workflow.
 
 **Leads to:**
-- **superpowers:finishing-a-development-branch** — once review passes
+- **superpowers:ship** — once review passes, auto-invoked to commit, push, and create PR

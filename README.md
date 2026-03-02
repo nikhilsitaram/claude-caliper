@@ -89,7 +89,9 @@ Start a new session in your chosen platform and ask for something that should tr
 
 6. **requesting-code-review** - Activates between tasks. Reviews against plan, reports issues by severity. Critical issues block progress.
 
-7. **finishing-a-development-branch** - Activates when tasks complete. Verifies tests, presents options (merge/PR/keep/discard), cleans up worktree.
+7. **ship** - Activates when tasks complete. Reviews docs, runs tests, commits, pushes, creates PR. Stops for CodeRabbit review.
+
+8. **merge-pr** - Activates after CodeRabbit review. Addresses feedback, comments on PR, merges, cleans up branch and worktree.
 
 **The agent checks for relevant skills before any task.** Mandatory workflows, not suggestions.
 
@@ -111,7 +113,8 @@ Start a new session in your chosen platform and ask for something that should tr
 - **requesting-code-review** - Pre-review checklist
 - **receiving-code-review** - Responding to feedback
 - **using-git-worktrees** - Parallel development branches
-- **finishing-a-development-branch** - Merge/PR decision workflow
+- **ship** - Commit, push, and create PR workflow
+- **merge-pr** - Address review feedback, merge, and clean up
 - **subagent-driven-development** - Fast iteration with two-stage review (spec compliance, then code quality)
 
 **Meta**

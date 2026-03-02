@@ -50,7 +50,7 @@ digraph process {
     "More tasks remain?" [shape=diamond];
     "Verify Task 0 broad integration tests pass (GREEN)" [shape=box];
     "Auto-dispatch implementation reviewer (skills/implementation-review/reviewer-prompt.md)" [shape=box];
-    "Use superpowers:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+    "Auto-invoke superpowers:ship" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan, extract all tasks with full text, note context, TaskCreate for each\n(Task 0 is first: broad integration tests)" -> "TaskList to find next pending task";
     "TaskList to find next pending task" -> "Dispatch implementer subagent (./implementer-prompt.md)";
@@ -73,7 +73,7 @@ digraph process {
     "More tasks remain?" -> "Write completion report to plan doc" [label="no"];
     "Write completion report to plan doc" -> "Verify Task 0 broad integration tests pass (GREEN)";
     "Verify Task 0 broad integration tests pass (GREEN)" -> "Auto-dispatch implementation reviewer (skills/implementation-review/reviewer-prompt.md)";
-    "Auto-dispatch implementation reviewer (skills/implementation-review/reviewer-prompt.md)" -> "Use superpowers:finishing-a-development-branch";
+    "Auto-dispatch implementation reviewer (skills/implementation-review/reviewer-prompt.md)" -> "Auto-invoke superpowers:ship";
 }
 ```
 
@@ -173,8 +173,8 @@ Implementation reviewer: Found 2 cross-task issues:
 [Fix cross-task issues, re-dispatch implementation reviewer]
 Implementation reviewer: No cross-task issues remaining
 
-[Use superpowers:finishing-a-development-branch]
-Done!
+[Auto-invoke superpowers:ship — commits, pushes, creates PR]
+PR created! Waiting for CodeRabbit review. Use /merge-pr after review.
 ```
 
 **Integration test levels:** Task 0 provides Level 1 (broad acceptance tests, written first). Each implementer writes Level 2 (boundary tests at cross-task seams, during TDD). Implementation-review provides Level 3 (coverage verification). See test-driven-development/testing-anti-patterns.md Anti-Pattern 5 for details.
@@ -314,7 +314,8 @@ Use the Agent tool (general-purpose, model: "opus") with the prompt template fro
 - **superpowers:writing-plans** - Creates the plan this skill executes
 - **superpowers:requesting-code-review** - Code review template for reviewer subagents
 - **superpowers:implementation-review** - Fresh-eyes review of entire feature after all tasks
-- **superpowers:finishing-a-development-branch** - Complete development after all tasks
+- **superpowers:ship** - Auto-invoked after implementation review to commit, push, and create PR
+- **superpowers:merge-pr** - Used after CodeRabbit review to address feedback, merge, and clean up
 
 **Subagents should use:**
 - **superpowers:test-driven-development** - Subagents follow TDD for each task
