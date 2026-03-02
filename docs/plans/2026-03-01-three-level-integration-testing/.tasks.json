@@ -34,7 +34,7 @@
     },
     {
       "id": 6,
-      "title": "Task 6: Add Task 0 and verify-not-write to executing-plans",
+      "title": "Task 6: Add Task 0 and verify-not-write to subagent-driven-development",
       "status": "pending",
       "blockedBy": [4]
     },

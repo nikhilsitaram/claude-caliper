@@ -1,6 +1,6 @@
 ---
 name: plan-review
-description: Use when a plan has been written and before execution begins, to catch internal inconsistencies, design doc mismatches, and missing dependencies that would waste implementation effort
+description: Use when a plan has been written and before execution begins
 ---
 
 # Plan Review
@@ -16,7 +16,7 @@ Dispatch an Opus subagent to review a written plan for internal consistency and 
 ## When to Use
 
 - After writing-plans produces a plan document
-- Before executing-plans or subagent-driven-development begins
+- Before subagent-driven-development begins
 - When resuming work on a plan that's been idle (context may have drifted)
 
 **Not needed for:** Single-task plans, hotfix plans, plans with no design doc reference.
@@ -86,9 +86,10 @@ Then dispatch using `./reviewer-prompt.md` template with:
 
 ## Integration
 
-**Called by:**
-- **superpowers:writing-plans** — after plan is saved, before execution handoff
+**Auto-dispatched by:**
+- **superpowers:writing-plans** — reviewer subagent dispatched directly after plan is saved
+
+**For standalone use:** Invoke this skill directly when reviewing a plan outside the writing-plans workflow.
 
 **Leads to:**
-- **superpowers:executing-plans** — once review passes
 - **superpowers:subagent-driven-development** — once review passes

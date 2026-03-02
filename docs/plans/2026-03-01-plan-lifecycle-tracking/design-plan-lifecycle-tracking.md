@@ -19,7 +19,7 @@ All phases live in a single plan doc. The frontmatter checklist provides a scann
 | Who | When | What they write |
 |-----|------|----------------|
 | **writing-plans** | Plan creation | Frontmatter with `status: Not Yet Started`, phase/task checklist |
-| **Orchestrator** (subagent-driven-dev / executing-plans) | During & after execution | Flips status to `In Development`, checks off tasks, appends `## Completion Report` section |
+| **Orchestrator** (subagent-driven-development) | During & after execution | Flips status to `In Development`, checks off tasks, appends `## Completion Report` section |
 | **Implementation-review** | After review pass | Updates completion section with fixup changes, writes handoff notes into future phase sections |
 | **Orchestrator** (at end) | After final review passes | Flips phase status to `Complete (YYYY-MM-DD)`, flips overall status if all phases done |
 
@@ -139,7 +139,7 @@ Update output path convention and generate lifecycle frontmatter:
 - Generate task checklist with unchecked boxes under each phase
 - All statuses initialized to `Not Yet Started`
 
-### 3. subagent-driven-development & executing-plans
+### 3. subagent-driven-development
 
 Three new behaviors during execution:
 

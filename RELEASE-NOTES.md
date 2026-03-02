@@ -91,7 +91,7 @@ Updated `~/.codex/skills/` reference (deprecated) to `~/.agents/skills/` for nat
 
 **Worktree isolation now required before implementation**
 
-Added `using-git-worktrees` as a required skill for both `subagent-driven-development` and `executing-plans`. Implementation workflows now explicitly require setting up an isolated worktree before starting work, preventing accidental work directly on main.
+Added `using-git-worktrees` as a required skill for `subagent-driven-development`. Implementation workflows now explicitly require setting up an isolated worktree before starting work, preventing accidental work directly on main.
 
 **Main branch protection softened to require explicit consent**
 
@@ -188,9 +188,9 @@ New test suite in `tests/explicit-skill-requests/` that verifies Claude correctl
 
 **Slash commands now user-only**
 
-Added `disable-model-invocation: true` to all three slash commands (`/brainstorm`, `/execute-plan`, `/write-plan`). Claude can no longer invoke these commands via the Skill tool—they're restricted to manual user invocation only.
+Added `disable-model-invocation: true` to slash commands (`/brainstorm`, `/write-plan`). Claude can no longer invoke these commands via the Skill tool—they're restricted to manual user invocation only.
 
-The underlying skills (`superpowers:brainstorming`, `superpowers:executing-plans`, `superpowers:writing-plans`) remain available for Claude to invoke autonomously. This change prevents confusion when Claude would invoke a command that just redirects to a skill anyway.
+The underlying skills (`superpowers:brainstorming`, `superpowers:writing-plans`) remain available for Claude to invoke autonomously. This change prevents confusion when Claude would invoke a command that just redirects to a skill anyway.
 
 ## v4.0.1 (2025-12-23)
 
@@ -473,7 +473,7 @@ These changes address observed agent behavior where they rationalize around skil
 - Updated format: `superpowers:test-driven-development` (previously just `test-driven-development`)
 - Affects all REQUIRED SUB-SKILL, RECOMMENDED SUB-SKILL, and REQUIRED BACKGROUND references
 - Aligns with how skills are invoked using the Skill tool
-- Files updated: brainstorming, executing-plans, subagent-driven-development, systematic-debugging, testing-skills-with-subagents, writing-plans, writing-skills
+- Files updated: brainstorming, subagent-driven-development, systematic-debugging, testing-skills-with-subagents, writing-plans, writing-skills
 
 ### Improvements
 

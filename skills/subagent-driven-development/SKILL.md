@@ -15,25 +15,15 @@ Execute plan by dispatching fresh subagent per task, with two-stage review after
 digraph when_to_use {
     "Have implementation plan?" [shape=diamond];
     "Tasks mostly independent?" [shape=diamond];
-    "Stay in this session?" [shape=diamond];
     "subagent-driven-development" [shape=box];
-    "executing-plans" [shape=box];
     "Manual execution or brainstorm first" [shape=box];
 
     "Have implementation plan?" -> "Tasks mostly independent?" [label="yes"];
     "Have implementation plan?" -> "Manual execution or brainstorm first" [label="no"];
-    "Tasks mostly independent?" -> "Stay in this session?" [label="yes"];
+    "Tasks mostly independent?" -> "subagent-driven-development" [label="yes"];
     "Tasks mostly independent?" -> "Manual execution or brainstorm first" [label="no - tightly coupled"];
-    "Stay in this session?" -> "subagent-driven-development" [label="yes"];
-    "Stay in this session?" -> "executing-plans" [label="no - parallel session"];
 }
 ```
-
-**vs. Executing Plans (parallel session):**
-- Same session (no context switch)
-- Fresh subagent per task (no context pollution)
-- Two-stage review after each task: spec compliance first, then code quality
-- Faster iteration (no human-in-loop between tasks)
 
 ## The Process
 
@@ -59,7 +49,7 @@ digraph process {
     "Read plan, extract all tasks with full text, note context, TaskCreate for each\n(Task 0 is first: broad integration tests)" [shape=box];
     "More tasks remain?" [shape=diamond];
     "Verify Task 0 broad integration tests pass (GREEN)" [shape=box];
-    "Use superpowers:implementation-review for fresh-eyes review of entire feature" [shape=box];
+    "Auto-dispatch implementation reviewer (skills/implementation-review/reviewer-prompt.md)" [shape=box];
     "Use superpowers:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan, extract all tasks with full text, note context, TaskCreate for each\n(Task 0 is first: broad integration tests)" -> "TaskList to find next pending task";
@@ -82,8 +72,8 @@ digraph process {
     "Write completion report to plan doc" [shape=box];
     "More tasks remain?" -> "Write completion report to plan doc" [label="no"];
     "Write completion report to plan doc" -> "Verify Task 0 broad integration tests pass (GREEN)";
-    "Verify Task 0 broad integration tests pass (GREEN)" -> "Use superpowers:implementation-review for fresh-eyes review of entire feature";
-    "Use superpowers:implementation-review for fresh-eyes review of entire feature" -> "Use superpowers:finishing-a-development-branch";
+    "Verify Task 0 broad integration tests pass (GREEN)" -> "Auto-dispatch implementation reviewer (skills/implementation-review/reviewer-prompt.md)";
+    "Auto-dispatch implementation reviewer (skills/implementation-review/reviewer-prompt.md)" -> "Use superpowers:finishing-a-development-branch";
 }
 ```
 
@@ -92,6 +82,7 @@ digraph process {
 - `./implementer-prompt.md` - Dispatch implementer subagent
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
+- `skills/implementation-review/reviewer-prompt.md` - Auto-dispatched final implementation reviewer
 
 ## Example Workflow
 
@@ -174,19 +165,19 @@ Code reviewer: ✅ Approved
 [After all tasks]
 [Verify Task 0 broad integration tests now pass (GREEN)]
 
-[Use superpowers:implementation-review — fresh-eyes review of entire feature]
+[Auto-dispatch implementation reviewer (skills/implementation-review/reviewer-prompt.md)]
 Implementation reviewer: Found 2 cross-task issues:
   - Duplicated constant in fetcher.ts and cache.ts
   - Error message in cli.ts doesn't explain what went wrong
 
-[Fix cross-task issues, re-run implementation review]
+[Fix cross-task issues, re-dispatch implementation reviewer]
 Implementation reviewer: No cross-task issues remaining
 
 [Use superpowers:finishing-a-development-branch]
 Done!
 ```
 
-**Integration test levels:** Task 0 provides Level 1 (broad acceptance tests, written first). Each implementer writes Level 2 (boundary tests at cross-task seams, during TDD). Implementation-review provides Level 3 (coverage verification). See @testing-anti-patterns.md Anti-Pattern 5 for details.
+**Integration test levels:** Task 0 provides Level 1 (broad acceptance tests, written first). Each implementer writes Level 2 (boundary tests at cross-task seams, during TDD). Implementation-review provides Level 3 (coverage verification). See test-driven-development/testing-anti-patterns.md Anti-Pattern 5 for details.
 
 ## Advantages
 
@@ -195,11 +186,6 @@ Done!
 - Fresh context per task (no confusion)
 - Parallel-safe (subagents don't interfere)
 - Subagent can ask questions (before AND during work)
-
-**vs. Executing Plans:**
-- Same session (no handoff)
-- Continuous progress (no waiting)
-- Review checkpoints automatic
 
 **Efficiency gains:**
 - No file reading overhead (controller provides full text)
@@ -265,6 +251,31 @@ The orchestrator updates the plan document during execution to maintain a living
 1. Change the current phase's status to `**Status:** Complete (YYYY-MM-DD)`
 2. If all phases are complete, change the frontmatter to `status: Complete (YYYY-MM-DD)`
 
+## Implementation Review (Auto-Dispatched)
+
+After the completion report is written and Task 0 integration tests pass GREEN:
+
+**Gather inputs:**
+- `{BASE_SHA}` — `git merge-base HEAD origin/main`
+- `{HEAD_SHA}` — `git rev-parse HEAD`
+- `{FEATURE_SUMMARY}` — 1-2 sentence summary from the plan
+- `{TASK_LIST}` — list of tasks implemented
+- `{PLAN_FILE_PATH}` — path to plan doc (contains completion report)
+- `{REPO_PATH}` — codebase root
+
+**Dispatch reviewer:**
+
+Use the Agent tool (general-purpose, model: "opus") with the prompt template from `skills/implementation-review/reviewer-prompt.md`, substituting all variables above.
+
+**Handle result:**
+- If issues found: dispatch a fix subagent or fix directly, re-dispatch reviewer
+- Repeat until clean
+
+**Post-review plan doc updates:**
+- Append `### Implementation Review Changes` to the completion report (if fixups were made)
+- Write handoff notes to next phase (if multi-phase plan)
+- Update phase status to `Complete (YYYY-MM-DD)`
+
 ## Red Flags
 
 **Never:**
@@ -308,5 +319,3 @@ The orchestrator updates the plan document during execution to maintain a living
 **Subagents should use:**
 - **superpowers:test-driven-development** - Subagents follow TDD for each task
 
-**Alternative workflow:**
-- **superpowers:executing-plans** - Use for parallel session instead of same-session execution

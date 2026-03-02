@@ -4,7 +4,7 @@ status: Complete (2026-03-01)
 
 # Three-Level Integration Testing Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task.
 
 **Goal:** Replace the current single-point integration testing (all tests written at implementation-review time) with a three-level approach: broad acceptance tests first (Level 1), narrow boundary tests per-task (Level 2), coverage verification at review (Level 3).
 
@@ -24,7 +24,7 @@ status: Complete (2026-03-01)
 - [x] Task 3: Add boundary test instruction to implementer prompt
 - [x] Task 4: Add Task 0 convention to writing-plans
 - [x] Task 5: Add Task 0 to subagent-driven-development flow
-- [x] Task 6: Add Task 0 and verify-not-write to executing-plans
+- [x] Task 6: Add Task 0 and verify-not-write to subagent-driven-development
 - [x] Task 7: Shift implementation-review from write to verify
 - [x] Task 8: Update reviewer prompt for three-level assessment
 - [x] Task 9: Add Task 0 validation to plan-review
@@ -358,11 +358,11 @@ git commit -m "feat: add Task 0 to subagent-driven-development flow"
 
 ---
 
-### Task 6: Add Task 0 and verify-not-write to executing-plans
+### Task 6: Add Task 0 and verify-not-write to subagent-driven-development
 
 **Files:**
-- Modify: `skills/executing-plans/SKILL.md:43-52` (Step 2: Execute Batch)
-- Modify: `skills/executing-plans/SKILL.md:65-70` (Step 5: Implementation Review)
+- Modify: `skills/subagent-driven-development/SKILL.md:43-52` (Step 2: Execute Batch)
+- Modify: `skills/subagent-driven-development/SKILL.md:65-70` (Step 5: Implementation Review)
 
 **Verification:** Read the file. Step 2 mentions Task 0. Step 5 says "verify" not "write."
 
@@ -393,8 +393,8 @@ After all tasks complete and verified:
 **Step 3: Commit**
 
 ```bash
-git add skills/executing-plans/SKILL.md
-git commit -m "feat: add Task 0 reference and verify-not-write to executing-plans"
+git add skills/subagent-driven-development/SKILL.md
+git commit -m "feat: add Task 0 reference and verify-not-write to subagent-driven-development"
 ```
 
 ---
@@ -573,7 +573,7 @@ git commit -m "feat: add Task 0 validation to plan-review"
 Task 1 (anti-patterns: vocabulary)
   ├── Task 2 (TDD: boundary tests) ──── Task 3 (implementer prompt)
   ├── Task 4 (writing-plans: Task 0) ── Task 5 (subagent-driven-dev)
-  │                                  └── Task 6 (executing-plans)
+  │                                  └── Task 6 (subagent-driven-development)
   └── Task 7 (impl-review: verify) ──── Task 8 (reviewer prompt)
                                     └── Task 9 (plan-review)
 ```
@@ -599,7 +599,7 @@ Then manually verify: open each modified skill file and confirm internal consist
 
 ### Summary
 
-Replaced the single-point integration testing approach (all tests written at implementation-review time) with a three-level framework: Level 1 broad acceptance tests written first as Task 0, Level 2 narrow boundary tests written per-task during TDD at cross-task seams, and Level 3 coverage verification at implementation review. Changes span 8 skill files across testing anti-patterns, TDD, implementer prompt, writing-plans, subagent-driven-development, executing-plans, implementation-review, and plan-review.
+Replaced the single-point integration testing approach (all tests written at implementation-review time) with a three-level framework: Level 1 broad acceptance tests written first as Task 0, Level 2 narrow boundary tests written per-task during TDD at cross-task seams, and Level 3 coverage verification at implementation review. Changes span 8 skill files across testing anti-patterns, TDD, implementer prompt, writing-plans, subagent-driven-development, implementation-review, reviewer-prompt, and plan-review.
 
 ### Deviations from Plan
 

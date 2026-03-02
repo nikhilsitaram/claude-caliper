@@ -13,7 +13,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
-**Context:** This should be run in a dedicated worktree (created by brainstorming skill).
+**Context:** This should be run in a dedicated worktree (created by brainstorming skill after design approval).
 
 **Save plans to:** `docs/plans/YYYY-MM-DD-<topic>/plan-<topic>.md` (inside the topic folder created by brainstorming)
 
@@ -41,7 +41,7 @@ status: Not Yet Started
 
 # [Feature Name] Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -73,7 +73,7 @@ status: Not Yet Started
 
 **Status values:** `Not Yet Started` | `In Development` | `Complete (YYYY-MM-DD)`
 
-The orchestrator (subagent-driven-development or executing-plans) updates these statuses during execution. The plan author only sets the initial `Not Yet Started` values.
+The orchestrator (subagent-driven-development) updates these statuses during execution. The plan author only sets the initial `Not Yet Started` values.
 
 For single-phase plans, use one phase section. The phase structure is required even for single-phase work — it keeps the format consistent and supports future phase additions.
 
@@ -239,39 +239,28 @@ When tasks are completed during execution, the executing skill updates this file
 ## Plan Review (Required)
 
 <HARD-GATE>
-After saving the plan and `.tasks.json`, run plan-review BEFORE offering execution options. Do NOT skip this step. Do NOT proceed to execution without a passing review.
+After saving the plan and `.tasks.json`, auto-dispatch a plan review subagent BEFORE offering execution options. Do NOT skip. Do NOT proceed to execution without a passing review.
 </HARD-GATE>
 
-**REQUIRED SUB-SKILL:** Use superpowers:plan-review to validate the plan.
+**Announce:** "Running plan review before execution."
 
-Provide the reviewer with:
-- The plan file path
-- The design doc path (if one exists from brainstorming)
-- The codebase root (worktree path)
+**Gather inputs:**
+- `{PLAN_PATH}` — the plan file just saved
+- `{DESIGN_DOC_PATH}` — design doc from brainstorming (or "None")
+- `{REPO_PATH}` — codebase root (worktree path)
 
-**If issues found:** Fix the plan, update `.tasks.json` if structure changed, re-run review.
+**Dispatch reviewer:**
 
-**If clean:** Proceed to execution handoff.
+Use the Agent tool (general-purpose, model: "opus") with the prompt template from `skills/plan-review/reviewer-prompt.md`, substituting the three variables above.
+
+**Handle result:**
+- If issues found: fix the plan, update `.tasks.json` if structure changed, re-dispatch reviewer
+- Repeat until clean
+- Once clean: proceed to execution handoff
 
 ## Execution Handoff
 
-<HARD-GATE>
-After plan review passes, use `AskUserQuestion` to present the execution choice. Do NOT proceed to implementation without an explicit answer.
-</HARD-GATE>
-
-Use `AskUserQuestion` with these options:
-
-**Question:** "Plan reviewed and validated. Saved to `docs/plans/<topic-folder>/plan-<topic>.md`. How would you like to execute?"
-
-**Option 1: Subagent-Driven (this session)**
-- Description: "Dispatch an Opus orchestrator subagent with fresh context to run subagent-driven-development. Fast iteration, two-stage review per task."
-
-**Option 2: Parallel Session (separate)**
-- Description: "Open a new session in the worktree directory and use executing-plans. Batch execution with human checkpoints between batches."
-
-**After user answers:**
-
-**If Subagent-Driven chosen:**
+After plan review passes, dispatch execution automatically.
 
 Dispatch a fresh **Opus** orchestrator subagent via the `Task` tool with `model: "opus"`. The orchestrator starts with zero prior context — all planning baggage stays in the parent. This is the automatic equivalent of `/clear` before execution.
 
@@ -286,10 +275,6 @@ Example Task dispatch:
 Task(
   description: "Execute implementation plan",
   model: "opus",
-  prompt: "You are an orchestrator. Read the plan at docs/plans/<topic-folder>/plan-<topic>.md and execute it using the superpowers:subagent-driven-development skill. When all tasks are complete, use superpowers:finishing-a-development-branch to wrap up. Working directory: <worktree-path>"
+  prompt: "You are an orchestrator. Read the plan at docs/plans/<topic-folder>/plan-<topic>.md and execute it using the superpowers:subagent-driven-development skill. When all tasks are complete and completion report is written, use superpowers:implementation-review for fresh-eyes review, then superpowers:finishing-a-development-branch to wrap up. Working directory: <worktree-path>"
 )
 ```
-
-**If Parallel Session chosen:**
-- Guide them to open new session in worktree
-- **REQUIRED SUB-SKILL:** New session uses superpowers:executing-plans

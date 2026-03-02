@@ -1,6 +1,6 @@
 ---
 name: implementation-review
-description: Use when a multi-task implementation is complete and ready for holistic review before merging — catches cross-task inconsistencies, duplication, and dead code that per-task reviews miss
+description: Use when a multi-task implementation is complete and ready for holistic review before merging
 ---
 
 # Implementation Review
@@ -12,7 +12,6 @@ Review the entire feature implementation with fresh eyes, focusing on issues tha
 ## When to Use
 
 - After all tasks complete in subagent-driven-development (auto-suggested)
-- After executing-plans completes all batches
 - Before merging any multi-task feature branch
 - When asked to "review the whole thing" or "look at everything with fresh eyes"
 
@@ -128,9 +127,10 @@ After the implementation review passes (all issues fixed, re-review clean), the 
 
 ## Integration
 
-**Called by:**
-- **superpowers:subagent-driven-development** — auto-suggested after all tasks complete
-- **superpowers:executing-plans** — after all batches complete
+**Auto-dispatched by:**
+- **superpowers:subagent-driven-development** — reviewer dispatched after all tasks complete
+
+**For standalone use:** Invoke this skill directly when reviewing an implementation outside the normal workflow.
 
 **Leads to:**
 - **superpowers:finishing-a-development-branch** — once review passes
