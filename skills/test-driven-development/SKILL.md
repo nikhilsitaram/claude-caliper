@@ -374,11 +374,11 @@ test('repository queries return users from real database adapter', () => {
 });
 ```
 
-See @testing-anti-patterns.md Anti-Pattern 5 for the full three-level framework and boundary test gate function.
+See testing-anti-patterns.md Anti-Pattern 5 for the full three-level framework and boundary test gate function.
 
 ## Testing Anti-Patterns
 
-When adding mocks or test utilities, read @testing-anti-patterns.md to avoid common pitfalls:
+When adding mocks or test utilities, read testing-anti-patterns.md to avoid common pitfalls:
 - Testing mock behavior instead of real behavior
 - Adding test-only methods to production classes
 - Mocking without understanding dependencies
