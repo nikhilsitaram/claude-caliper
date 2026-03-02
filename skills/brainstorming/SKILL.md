@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
+description: Use when creating features, building components, adding functionality, or modifying behavior - before any creative or implementation work begins
 ---
 
 # Brainstorming Ideas Into Designs
@@ -28,8 +28,9 @@ You MUST create a task for each of these items and complete them in order:
 3. **Ask clarifying questions** — in smart batches, understand purpose/constraints/success criteria
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
 5. **Present design** — in sections scaled to their complexity, get user approval after each section
-6. **Write design doc** — save to `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md` and commit
-7. **Transition to implementation** — invoke writing-plans skill to create implementation plan
+6. **Set up worktree** — **REQUIRED SUB-SKILL:** Use superpowers:using-git-worktrees to create isolated workspace
+7. **Write design doc** — save to `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md` in the worktree and commit
+8. **Transition to implementation** — invoke writing-plans skill to create implementation plan
 
 ## Process Flow
 
@@ -50,12 +51,13 @@ digraph brainstorming {
     "Propose 2-3 approaches" -> "Present design sections";
     "Present design sections" -> "User approves design?";
     "User approves design?" -> "Present design sections" [label="no, revise"];
-    "User approves design?" -> "Write design doc" [label="yes"];
+    "User approves design?" -> "Set up worktree\n(superpowers:using-git-worktrees)" [label="yes"];
+    "Set up worktree\n(superpowers:using-git-worktrees)" -> "Write design doc";
     "Write design doc" -> "Invoke writing-plans skill";
 }
 ```
 
-**The terminal state is invoking writing-plans.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is writing-plans.
+**The terminal state is invoking writing-plans.** Do NOT invoke any implementation skill. The ONLY skill you invoke after brainstorming is writing-plans.
 
 ## Challenging Product Assumptions
 
@@ -108,10 +110,13 @@ The user then reconsiders the assumption entirely, saving implementation effort.
 
 ## After the Design
 
+**Set up worktree:**
+- **REQUIRED SUB-SKILL:** Use superpowers:using-git-worktrees to create an isolated workspace
+- All subsequent work (design doc, plan, implementation) happens in the worktree
+
 **Documentation:**
 - Create topic folder `docs/plans/YYYY-MM-DD-<topic>/` if it doesn't exist
 - Write the validated design to `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`
-- Use elements-of-style:writing-clearly-and-concisely skill if available
 - Commit the design document to git
 
 **Implementation:**
@@ -122,7 +127,7 @@ The user then reconsiders the assumption entirely, saving implementation effort.
 
 Use Claude Code's native task management to track checklist progress:
 
-- **At skill start:** Call `TaskCreate` for each checklist item (explore context, challenge assumptions, ask questions, propose approaches, present design, write doc, transition)
+- **At skill start:** Call `TaskCreate` for each checklist item (explore context, challenge assumptions, ask questions, propose approaches, present design, set up worktree, write doc, transition)
 - **Set dependencies:** Each task should have `blockedBy` referencing the previous task, enforcing sequential completion
 - **During execution:** Call `TaskUpdate` to mark tasks `in_progress` when starting, `completed` when done
 - **Before handoff:** Call `TaskList` to verify all brainstorming tasks are complete before invoking writing-plans
