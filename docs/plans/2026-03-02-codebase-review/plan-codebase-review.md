@@ -597,4 +597,8 @@ Created the `codebase-review` skill with a SKILL.md containing the full process 
 
 ### Deviations from Plan
 
-None -- implemented as planned.
+None — implemented as planned.
+
+### Implementation Review Changes
+
+- Fixed dash style inconsistency: all three skill files used ASCII double-dashes (`--`) where the rest of the repo uses Unicode em-dashes (`—`). Updated all occurrences in SKILL.md, reviewer-prompt.md, and cross-scope-reviewer-prompt.md to match repo convention.
