@@ -1,199 +1,85 @@
 ---
 name: merge-pr
-description: Use when a PR has been reviewed by CodeRabbit and is ready to merge. Triggers include "/merge-pr", "merge the PR", "address review feedback", "coderabbit reviewed". Handles fixing review issues, commenting on PR, merging, and cleaning up branch/worktree.
+description: Use when a PR has been reviewed and is ready to merge, or when triggered by "/merge-pr", "merge the PR", "address review feedback", "review feedback ready".
 ---
 
 # Merge PR
 
-Address CodeRabbit review feedback, comment on the PR with what was fixed, merge, and clean up.
+Address review feedback, comment on the PR, merge with squash, and clean up.
 
-**Prerequisite:** A PR created by `/ship` that has been reviewed by CodeRabbit.
+**Prerequisite:** A PR created by `/ship` that has been reviewed.
 
-**REQUIRED BACKGROUND:** Follow receiving-code-review principles when evaluating CodeRabbit feedback — verify before implementing, push back on incorrect suggestions, no performative agreement.
+**REQUIRED SUB-SKILL:** Use superpowers:receiving-code-review
 
 ## Workflow
 
-### Step 1: Identify PR
+### Step 1: Setup
 
-Determine the PR to merge:
+Identify the PR from argument or current branch. If neither works, run `gh pr list --author @me --state open` and ask the user to pick one (never auto-select when multiple candidates exist). Store PR number, branch name, and URL.
 
-**If PR number provided** (`/merge-pr 42`):
-```bash
-gh pr view 42 --json number,title,headRefName,url,state
-```
+Detect environment:
+- `DEFAULT_BRANCH` from `refs/remotes/origin/HEAD` (fallback: main/master)
+- `MAIN_REPO` from `git rev-parse --path-format=absolute --git-common-dir` (strip `/.git`)
+- `IS_WORKTREE` — true when `--git-dir` differs from `--git-common-dir`
+- `WORKTREE_PATH` — look up from `git worktree list` by matching `$BRANCH_NAME` (works regardless of CWD)
 
-**If no PR number** — detect from current branch:
-```bash
-gh pr view --json number,title,headRefName,url,state
-```
+If not on the PR branch, check it out.
 
-**If not on a feature branch** — list recent PRs:
-```bash
-gh pr list --author @me --state open --limit 5
-```
+### Step 2: Read & Assess Feedback
 
-Store `PR_NUMBER`, `BRANCH_NAME`, and `PR_URL` for later steps.
+Fetch PR conversation comments, inline review comments, and review status via `gh`.
 
-### Step 2: Detect Environment
-
-```bash
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
-if [ -z "$DEFAULT_BRANCH" ]; then
-  DEFAULT_BRANCH=$(git branch -r | grep -oP 'origin/\K(main|master)' | head -1)
-fi
-MAIN_REPO=$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/.git$||')
-IS_WORKTREE=false
-if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then IS_WORKTREE=true; fi
-```
-
-**If not on the PR branch**, check it out:
-```bash
-gh pr checkout $PR_NUMBER
-```
-
-### Step 3: Read Review Comments
-
-Fetch both conversation comments and inline review comments:
-
-```bash
-# PR conversation comments (includes CodeRabbit summary)
-gh pr view $PR_NUMBER --comments --json comments
-
-# Inline review comments (file-specific suggestions)
-gh api repos/{owner}/{repo}/pulls/$PR_NUMBER/comments --paginate
-```
-
-Also check the review status:
-```bash
-gh pr view $PR_NUMBER --json reviews --jq '.reviews[] | {author: .author.login, state: .state, body: .body}'
-```
-
-### Step 4: Assess Feedback
-
-Categorize each CodeRabbit comment:
+Categorize each comment:
 
 | Category | Action |
 |----------|--------|
-| **Actionable fix** — bug, security issue, correctness problem | Fix it |
-| **Suggestion** — style improvement, refactor, nice-to-have | Evaluate: is it actually better? Fix if yes, dismiss with reason if no |
-| **Informational** — explanation, context, praise | Acknowledge, no code change |
-| **False positive** — incorrect analysis, doesn't apply | Dismiss with technical reasoning |
+| **Actionable fix** — bug, security, correctness | Fix it |
+| **Suggestion** — style, refactor, nice-to-have | Evaluate per receiving-code-review: fix if it improves correctness/readability, dismiss with reason if not |
+| **Informational** — explanation, praise | Acknowledge, no change |
+| **False positive** — incorrect analysis | Dismiss with technical reasoning |
 
-**Show the user a summary** of what will be addressed vs dismissed before proceeding.
+Show the user a summary of what will be addressed vs dismissed before proceeding.
 
-**Apply receiving-code-review principles:** Verify each suggestion against the codebase. Don't blindly implement. Push back on incorrect suggestions with technical reasoning.
+### Step 3: Fix, Test, Push
 
-### Step 5: Fix Issues
+If `--skip-fixes` was passed, skip this entire step.
 
-For each actionable item:
-1. Make the fix
-2. Verify it doesn't break existing functionality
+For each actionable item: make the fix. Run project tests — do not merge with failing tests. Commit and push.
 
-After all fixes, run tests:
+### Step 4: Comment on PR
 
-| Indicator | Command |
-|-----------|---------|
-| `tests/` dir + Python files | `python3 -m pytest tests/ -v 2>&1 \| tail -30` |
-| `package.json` with `test` script | `npm test 2>&1 \| tail -30` |
-| `Cargo.toml` | `cargo test 2>&1 \| tail -30` |
-| `go.mod` | `go test ./... 2>&1 \| tail -30` |
-| `Makefile` with `test` target | `make test 2>&1 \| tail -30` |
+Post a `gh pr comment` summarizing what was fixed, what was dismissed (with reasons), and what needed no action. Omit empty sections.
 
-If tests fail, fix before continuing. Do NOT merge with failing tests.
+### Step 5: Merge
 
-### Step 6: Commit and Push
+If branch protection requires human approval and the PR lacks it, tell the user and stop with the PR URL.
 
-Stage and commit the fixes:
-```bash
-git add <specific files>
-git commit -m "$(cat <<'EOF'
-fix: address CodeRabbit review feedback
-
-<brief description of what was fixed>
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-EOF
-)"
-git push
-```
-
-### Step 7: Comment on PR
-
-Leave a PR comment summarizing what was addressed:
-
-```bash
-gh pr comment $PR_NUMBER --body "$(cat <<'EOF'
-## Review feedback addressed
-
-### Fixed
-- <item 1: what was wrong and what was fixed>
-- <item 2: ...>
-
-### Dismissed
-- <item: reason it was dismissed (e.g., false positive, YAGNI, technically incorrect)>
-
-### No action needed
-- <informational items acknowledged>
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-EOF
-)"
-```
-
-If nothing was dismissed, omit the Dismissed section. If everything was fixed, just list the fixes.
-
-### Step 8: Merge PR
-
-**Before merging**, check branch protection:
-```bash
-gh api repos/{owner}/{repo}/branches/$DEFAULT_BRANCH/protection 2>/dev/null | grep -q "required_pull_request_reviews"
-```
-If reviews are required and the PR hasn't been approved, tell the user the PR needs human approval and provide the URL. Stop here.
-
-**CRITICAL — If in a worktree (`$IS_WORKTREE` is true), move CWD to the main repo BEFORE merging.** `gh pr merge` can trigger remote branch deletion which bricks the shell if CWD is still inside the worktree.
+**CWD safety:** Always `cd "$MAIN_REPO"` before merging. In worktrees, the merge triggers remote branch deletion which bricks the shell if CWD is inside the worktree. Running from the main repo is safe in all cases.
 
 ```bash
 cd "$MAIN_REPO"
+gh pr merge $PR_NUMBER --squash  # adjust flag if repo uses merge or rebase
 ```
 
-Merge with squash:
+Never use `--delete-branch` — branch cleanup is handled in Step 6.
+
+### Step 6: Clean Up
+
+**Worktree — run each sub-step as a SEPARATE Bash tool call.** Never chain with `&&` — CWD changes don't persist if a later chained command fails, bricking the shell.
+
+Derive `WORKTREE_PATH` if not already captured (exact branch match — grep substring would collide on similar names like `feature` vs `feature-2`):
 ```bash
-gh pr merge $PR_NUMBER --squash
+git worktree list --porcelain | awk -v b="refs/heads/$BRANCH_NAME" '$1=="worktree"{wt=$2} $1=="branch" && $2==b{print wt; exit}'
 ```
 
-Never use `--delete-branch` on `gh pr merge` — branch cleanup is handled in Step 9.
+1. `git worktree remove "$WORKTREE_PATH"` (retry with `--force` if untracked files)
+2. `git branch -D $BRANCH_NAME`
+3. `git worktree prune`
+4. `git pull --rebase`
+5. `git remote prune origin`
 
-### Step 9: Clean Up
+**Not in a worktree:**
 
-**If in a worktree (`$IS_WORKTREE` is true):**
-
-**CRITICAL: Run each sub-step as a separate Bash tool call.** Never chain with `&&`.
-
-CWD is already at `$MAIN_REPO` (moved in Step 8).
-
-**Step 9a** — Remove the worktree:
-```bash
-git worktree remove <worktree-path>
-```
-If it fails due to untracked files, retry with `--force`. If path doesn't exist, skip to 9c.
-
-**Step 9b** — Delete the branch:
-```bash
-git branch -D $BRANCH_NAME
-```
-
-**Step 9c** — Prune stale worktree refs:
-```bash
-git worktree prune
-```
-
-**Step 9d** — Sync main:
-```bash
-git pull --rebase
-git remote prune origin
-```
-
-**If NOT in a worktree:**
 ```bash
 git checkout $DEFAULT_BRANCH
 git branch -D $BRANCH_NAME
@@ -201,55 +87,25 @@ git pull --rebase
 git remote prune origin
 ```
 
-### Step 10: Summary
+### Step 7: Summary
 
-Provide a summary:
-- PR number and URL
-- Review items: fixed, dismissed, informational
-- Comment posted on PR
-- Merge status
-- Cleanup status (branch deleted, worktree removed if applicable)
+Report: PR number/URL, review items (fixed/dismissed/informational), merge status, cleanup status.
 
 ## Arguments
 
-- `<PR number>`: Specific PR to merge (e.g., `/merge-pr 42`)
-- No arguments: Detect PR from current branch
-- `--skip-fixes` or `-S`: Skip fixing issues — just comment, merge, and clean up
+| Arg | Effect |
+|-----|--------|
+| `<PR number>` | Target specific PR (`/merge-pr 42`) |
+| *(none)* | Detect from current branch |
+| `--skip-fixes` / `-S` | Skip fixing — just comment, merge, clean up |
 
-## Examples
+## Pitfalls
 
-```text
-/merge-pr                  # Detect PR from current branch, full workflow
-/merge-pr 42               # Merge specific PR
-/merge-pr -S               # Skip fixes, just merge and clean up
-```
-
-## Common Mistakes
-
-| Mistake | Fix |
+| Mistake | Why |
 |---------|-----|
-| Blindly implementing all CodeRabbit suggestions | Verify each against codebase. Push back on incorrect ones. |
-| Merging with failing tests | Always run tests after fixes. Never merge red. |
-| Merging while CWD is inside worktree | `cd "$MAIN_REPO"` before `gh pr merge` — remote branch deletion bricks the shell. |
-| Chaining Step 9 cleanup with `&&` | CWD change may not persist if later command fails — bricks the shell. |
+| Merging while CWD is inside worktree | Remote branch deletion bricks the shell. `cd "$MAIN_REPO"` before merge. |
+| Chaining Step 6 with `&&` | CWD change doesn't persist if later command fails. Use separate Bash calls. |
 | Deleting branch before removing worktree | Git refuses. Remove worktree first. |
-| Using `--delete-branch` on `gh pr merge` | Fails in worktree flows. Delete branch manually after worktree removal. |
-| Not commenting on PR before merging | Always leave a comment detailing what was addressed. |
-| Performative agreement with CodeRabbit | Follow receiving-code-review principles. Evaluate technically. |
-
-## Integration
-
-**Follows:**
-- **superpowers:ship** — creates the PR that this skill merges
-
-**Pairs with:**
-- **superpowers:receiving-code-review** — principles for evaluating CodeRabbit feedback
-- **superpowers:using-git-worktrees** — merge-pr handles worktree cleanup automatically
-
-## Safety
-
-- Never use `--no-verify` to bypass pre-commit hooks
-- Never use `--force` (use `--force-with-lease` only if push rejected after rebase)
-- Always run tests after fixes, before merging
-- Always comment on PR before merging
-- In worktrees: cd to main repo before merging (not just before cleanup), run each cleanup as separate Bash call
+| Using `--delete-branch` on `gh pr merge` | Fails in worktree flows. Delete branch manually after. |
+| Blindly implementing review suggestions | Follow receiving-code-review: verify each, push back on incorrect ones. |
+| Merging without commenting | Always post what was addressed before merging. |
