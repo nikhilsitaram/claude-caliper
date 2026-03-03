@@ -19,7 +19,7 @@ Periodic whole-repo audits catch issues that per-task reviews miss — cross-mod
 ### Phase 1 — Resolve Scope
 
 1. Determine scope: path argument or `git rev-parse --show-toplevel`
-2. Discover review units (top-level directories, excluding `.*/node_modules/vendor/__pycache__`)
+2. Discover review units (top-level directories, excluding `.*`, `node_modules`, `vendor`, `__pycache__`)
 3. Create one task per review unit via `TaskCreate`
 
 ### Phase 2 — Parallel Scope Reviews
