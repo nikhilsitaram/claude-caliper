@@ -23,195 +23,94 @@ Execute plan by dispatching fresh subagent per task, with two-stage review after
 
 ## Prompt Templates
 
-- `./implementer-prompt.md` - Dispatch implementer subagent
-- `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
-- `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
-- `skills/implementation-review/reviewer-prompt.md` - Auto-dispatched final implementation reviewer
+| Template | Purpose |
+|----------|---------|
+| `./implementer-prompt.md` | Dispatch implementer subagent |
+| `./spec-reviewer-prompt.md` | Spec compliance reviewer |
+| `./code-quality-reviewer-prompt.md` | Code quality reviewer |
+| `skills/implementation-review/reviewer-prompt.md` | Final implementation reviewer |
 
 ## Example Workflow
 
 ```
-You: I'm using Subagent-Driven Development to execute this plan.
-
-[Read plan file once: docs/plans/YYYY-MM-DD-feature/plan-feature.md]
-[Extract all 5 tasks with full text and context]
-[Create TaskCreate/TaskUpdate with all tasks]
+[Read plan once, extract all tasks, create TaskCreate for each]
 
 Task 0: Broad integration tests
+[Dispatch implementer] → Creates failing tests + stubs, commits
+[Spec + code review pass] → Mark complete
 
-[Dispatch implementer subagent for Task 0]
-Implementer: Created test_feature_e2e.py with 4 failing tests.
-  Created stub files for modules. All tests RED as expected. Committed.
-
-[Spec + code quality review pass]
-[Mark Task 0 complete]
-
-Task 1: Hook installation script
-
-[Get Task 1 text and context (already extracted)]
-[Dispatch implementation subagent with full task text + context]
-
-Implementer: "Before I begin - should the hook be installed at user or system level?"
-
-You: "User level (~/.config/superpowers/hooks/)"
-
-Implementer: "Got it. Implementing now..."
-[Later] Implementer:
-  - Implemented install-hook command
-  - Added tests, 5/5 passing
-  - Self-review: Found I missed --force flag, added it
-  - Committed
-
-[Dispatch spec compliance reviewer]
-Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
-
-[Get git SHAs, dispatch code quality reviewer]
-Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
-
-[Mark Task 1 complete]
+Task 1: Hook installation
+[Dispatch implementer]
+Implementer: "Should hook be user or system level?"
+You: "User level (~/.config/)"
+Implementer: Implemented, 5/5 tests pass, committed
+[Spec review: ✅] → [Code review: ✅] → Mark complete
 
 Task 2: Recovery modes
-
-[Get Task 2 text and context (already extracted)]
-[Dispatch implementation subagent with full task text + context]
-
-Implementer: [No questions, proceeds]
-Implementer:
-  - Added verify/repair modes
-  - 8/8 tests passing
-  - Self-review: All good
-  - Committed
-
-[Dispatch spec compliance reviewer]
-Spec reviewer: ❌ Issues:
-  - Missing: Progress reporting (spec says "report every 100 items")
-  - Extra: Added --json flag (not requested)
-
-[Implementer fixes issues]
-Implementer: Removed --json flag, added progress reporting
-
-[Spec reviewer reviews again]
-Spec reviewer: ✅ Spec compliant now
-
-[Dispatch code quality reviewer]
-Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
-
-[Implementer fixes]
-Implementer: Extracted PROGRESS_INTERVAL constant
-
-[Code reviewer reviews again]
-Code reviewer: ✅ Approved
-
-[Mark Task 2 complete]
-
-...
+[Dispatch implementer] → Implemented, 8/8 tests pass
+[Spec review: ❌ Missing progress reporting, extra --json flag]
+[Implementer fixes] → [Spec review: ✅]
+[Code review: ❌ Magic number]
+[Implementer extracts constant] → [Code review: ✅]
+Mark complete
 
 [After all tasks]
-[Verify Task 0 broad integration tests now pass (GREEN)]
-
-[Auto-dispatch implementation reviewer (skills/implementation-review/reviewer-prompt.md)]
-Implementation reviewer: Found 2 cross-task issues:
-  - Duplicated constant in fetcher.ts and cache.ts
-  - Error message in cli.ts doesn't explain what went wrong
-
-[Fix cross-task issues, re-dispatch implementation reviewer]
-Implementation reviewer: No cross-task issues remaining
-
-[Auto-invoke superpowers:ship — commits, pushes, creates PR]
-PR created! Waiting for CodeRabbit review. Use /merge-pr after review.
+[Verify Task 0 tests now GREEN]
+[Implementation review] → Found duplicated constant
+[Fix] → [Implementation review: ✅]
+[Auto-invoke ship → PR created]
 ```
 
-**Integration test levels:** Task 0 provides Level 1 (broad acceptance tests, written first). Each implementer writes Level 2 (boundary tests at cross-task seams, during TDD). Implementation-review provides Level 3 (coverage verification). See test-driven-development/testing-anti-patterns.md Anti-Pattern 5 for details.
+**Integration test levels:** Task 0 provides broad acceptance tests (Level 1). Implementers write boundary tests at cross-task seams (Level 2). Implementation-review verifies coverage (Level 3). See `test-driven-development/testing-anti-patterns.md` Anti-Pattern 5.
 
 ## Deviation Rules
 
-When reality diverges from the plan, follow these rules in order:
+When reality diverges from the plan:
 
-| Rule | Trigger | Action | Permission |
-|------|---------|--------|------------|
-| **Rule 1: Auto-fix bugs** | Code doesn't work as intended | Fix inline, commit, document | No user permission needed |
-| **Rule 2: Auto-add missing critical** | Missing error handling, validation, auth | Fix inline, commit, document | No user permission needed |
-| **Rule 3: Auto-fix blockers** | Missing dep, broken import, wrong types | Fix inline, commit, document | No user permission needed |
-| **Rule 4: STOP for architectural changes** | New DB table, library swap, breaking API change | **Stop and ask user** | Requires explicit user decision |
+| Rule | Trigger | Action |
+|------|---------|--------|
+| **Rule 1: Auto-fix bugs** | Code doesn't work as intended | Fix inline, document |
+| **Rule 2: Auto-add critical** | Missing error handling, validation, auth | Fix inline, document |
+| **Rule 3: Auto-fix blockers** | Missing dep, broken import, wrong types | Fix inline, document |
+| **Rule 4: STOP** | New DB table, library swap, breaking API | **Ask user first** |
 
-**Scope boundary:** Only auto-fix issues directly caused by the current task's changes. Pre-existing issues go to a deferred list — note them in the task completion report but don't fix them.
+**Scope:** Only auto-fix issues caused by current task. Pre-existing issues go to a deferred list.
 
-**Fix attempt limit:** After 3 auto-fix attempts on a single issue, stop and document the remaining problem. Don't loop indefinitely.
+**Limit:** After 3 fix attempts on same issue, stop and document.
 
-**Documentation:** For every Rule 1-3 deviation, the implementer subagent must include in its completion report:
-- What deviated from the plan
-- What was done to fix it
-- Which rule applied
-
-The orchestrator includes deviation summaries in the final report.
+**Documentation:** Every Rule 1-3 deviation must include: what deviated, what was done, which rule applied.
 
 ## Plan Doc Updates
 
-The orchestrator updates the plan document during execution to maintain a living record.
+Update the plan document as execution progresses:
 
-**On first task start:**
-1. Read the plan file
-2. Change the frontmatter `status: Not Yet Started` to `status: In Development`
-3. Change the current phase's `**Status:** Not Yet Started` to `**Status:** In Development`
+| When | Update |
+|------|--------|
+| First task starts | Frontmatter: `status: In Development` |
+| Task completes | Change `- [ ] Task N` to `- [x] Task N` |
+| All tasks done | Append `## Completion Report` with summary + deviations |
+| Implementation-review passes | Phase status: `Complete (YYYY-MM-DD)` |
 
-**On each task completion:**
-1. In the plan file's phase checklist, change `- [ ] Task N: ...` to `- [x] Task N: ...` for the completed task
+## Implementation Review
 
-**After all tasks complete (before invoking implementation-review):**
-1. Append a `## Completion Report — [Phase Name]` section to the end of the plan doc
-2. Include:
-   - `**Completed:** YYYY-MM-DD`
-   - `### Summary` — 2-3 sentences describing what was built
-   - `### Deviations from Plan` — each deviation with: what changed, why, and impact (files/scope affected). Include Rule 1-3 auto-fixes from the deviation log. If no deviations, write "None — implemented as planned."
+After completion report written and Task 0 tests pass GREEN:
 
-**After implementation-review passes:**
-1. Change the current phase's status to `**Status:** Complete (YYYY-MM-DD)`
-2. If all phases are complete, change the frontmatter to `status: Complete (YYYY-MM-DD)`
-
-## Implementation Review (Auto-Dispatched)
-
-After the completion report is written and Task 0 integration tests pass GREEN:
-
-**Gather inputs:**
-- `{BASE_SHA}` — `git merge-base HEAD origin/main`
-- `{HEAD_SHA}` — `git rev-parse HEAD`
-- `{FEATURE_SUMMARY}` — 1-2 sentence summary from the plan
-- `{TASK_LIST}` — list of tasks implemented
-- `{PLAN_FILE_PATH}` — path to plan doc (contains completion report)
-- `{REPO_PATH}` — codebase root
-
-**Dispatch reviewer:**
-
-Use the Agent tool (general-purpose, model: "opus") with the prompt template from `skills/implementation-review/reviewer-prompt.md`, substituting all variables above.
-
-**Handle result:**
-- If issues found: dispatch a fix subagent or fix directly, re-dispatch reviewer
-- Repeat until clean
-
-**Post-review plan doc updates:**
-- Append `### Implementation Review Changes` to the completion report (if fixups were made)
-- Write handoff notes to next phase (if multi-phase plan)
-- Update phase status to `Complete (YYYY-MM-DD)`
+1. Get `BASE_SHA` (merge-base) and `HEAD_SHA`
+2. Dispatch reviewer using `skills/implementation-review/reviewer-prompt.md`
+3. If issues found → fix → re-dispatch until clean
+4. Update phase status to Complete
 
 ## Key Constraints
 
-| Constraint | Why it matters |
-|-----------|---------------|
-| One implementer at a time | Parallel implementers cause git conflicts and file overwrites |
-| Provide full task text, don't make subagent read the plan file | Reading wastes subagent context on irrelevant tasks; controller curates what's needed |
-| Spec compliance before code quality review | Code quality review is wasted effort if the implementation doesn't match spec |
-| Answer subagent questions before they proceed | Subagents working on assumptions produce work that needs to be redone |
+| Constraint | Why |
+|------------|-----|
+| One implementer at a time | Parallel implementers cause git conflicts |
+| Provide full task text | Reading plan wastes subagent context |
+| Spec compliance before code quality | Code review is wasted if spec is wrong |
+| Answer questions before proceeding | Assumptions produce rework |
 
 ## Integration
 
-**Required workflow skills:**
-- **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:requesting-code-review** - Code review template for reviewer subagents
-- **superpowers:implementation-review** - Fresh-eyes review of entire feature after all tasks
-- **superpowers:ship** - Auto-invoked after implementation review to commit, push, and create PR
-- **superpowers:merge-pr** - Used after CodeRabbit review to address feedback, merge, and clean up
+**Workflow:** using-git-worktrees (before) → writing-plans (creates plan) → **this skill** → implementation-review → ship → merge-pr (after CodeRabbit)
 
-**Subagents should use:**
-- **superpowers:test-driven-development** - Subagents follow TDD for each task
-
+**Subagents use:** test-driven-development
