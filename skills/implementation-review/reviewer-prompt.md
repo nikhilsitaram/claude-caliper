@@ -2,7 +2,7 @@
 
 Dispatch a fresh-eyes reviewer subagent for the entire feature. Only dispatch after all tasks are complete and per-task reviews have passed.
 
-```
+```text
 Agent tool (general-purpose):
   model: "opus"
   description: "Fresh-eyes implementation review"
