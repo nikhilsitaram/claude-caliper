@@ -2,7 +2,7 @@
 
 ## What This Repo Is
 
-A Claude Code plugin containing composable agent skills for software development workflows (TDD, debugging, brainstorming, planning, shipping). Skills live in `skills/<name>/SKILL.md` with optional supporting files alongside.
+A Claude Code plugin containing composable agent skills for software development workflows (TDD, brainstorming, planning, shipping). Skills live in `skills/<name>/SKILL.md` with optional supporting files alongside.
 
 ## Skill Conventions
 
@@ -42,8 +42,6 @@ Replace heavy-handed `MUST`/`NEVER`/`ALWAYS` patterns with reasoning that explai
 
 ```text
 skills/           — One directory per skill (SKILL.md + optional supporting files)
-hooks/            — Claude Code plugin hooks (SessionStart)
-commands/         — Slash command redirects
 docs/plans/       — Design docs and implementation plans
 .claude-plugin/   — Plugin manifest and marketplace config
 ```

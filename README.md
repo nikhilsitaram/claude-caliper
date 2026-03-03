@@ -40,13 +40,11 @@ Start a new session and ask to build something. The agent should trigger the bra
 - **merge-pr** — Address CodeRabbit feedback, merge, clean up branch/worktree
 
 ### Quality
-- **systematic-debugging** — 4-phase root cause process with bundled techniques
 - **codebase-review** — Whole-repo quality audit with parallel reviewers and fix routing
 - **implementation-review** — Cross-task holistic review before merging
 - **plan-review** — Validates plans before execution begins
 
 ### Infrastructure
-- **using-superpowers** — Skill system entry point and priority routing
 - **using-git-worktrees** — Isolated workspaces for feature development
 
 ## License
