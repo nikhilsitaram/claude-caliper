@@ -42,7 +42,6 @@ Start a new session and ask to build something. The agent should trigger the bra
 ### Quality
 - **systematic-debugging** — 4-phase root cause process with bundled techniques
 - **verification-before-completion** — Verify before declaring success
-- **requesting-code-review** — Pre-review checklist and reviewer dispatch
 - **codebase-review** — Whole-repo quality audit with parallel reviewers and fix routing
 - **implementation-review** — Cross-task holistic review before merging
 - **plan-review** — Validates plans before execution begins
