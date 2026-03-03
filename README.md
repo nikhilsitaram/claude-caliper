@@ -17,22 +17,13 @@ Skills trigger automatically based on what you're doing. You don't invoke them m
 
 ## Installation
 
-### Claude Code (Plugin Marketplace)
-
-```bash
-/plugin marketplace add obra/superpowers-marketplace
-/plugin install superpowers@superpowers-marketplace
-```
-
-### From This Fork
-
-Clone the repo and symlink skills into your Claude Code config:
+Clone the repo and register as a local plugin:
 
 ```bash
 git clone https://github.com/nikhilsitaram/superpowers.git ~/personal/superpowers
 ```
 
-Then register as a local plugin or symlink `skills/` into `~/.claude/skills/superpowers/`.
+Then symlink `skills/` into `~/.claude/skills/superpowers/` or register via `/plugin add`.
 
 ### Verify Installation
 
@@ -70,12 +61,6 @@ Start a new session and ask to build something. The agent should trigger the bra
 5. Submit a PR
 
 See `.claude/CLAUDE.md` for project conventions.
-
-## Updating
-
-```bash
-/plugin update superpowers
-```
 
 ## License
 

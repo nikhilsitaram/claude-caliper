@@ -161,4 +161,4 @@ Two new behaviors after the review pass:
 - No new skill file — changes are to four existing skills
 - No new subagent — the orchestrator writes the completion section inline (it has the execution context)
 - No separate completion document — everything lives in the plan doc
-- No changes to plan-review, finishing-a-development-branch, or ship
+- No changes to plan-review or ship
