@@ -1,19 +1,15 @@
 # Implementation Review Prompt Template
 
-Use this template when dispatching a fresh-eyes reviewer subagent for the entire feature.
+Dispatch a fresh-eyes reviewer subagent for the entire feature. Only dispatch after all tasks are complete and per-task reviews have passed.
 
-**Purpose:** Catch cross-task issues that per-task reviews miss — inconsistencies, duplication, dead code, documentation gaps.
-
-**Only dispatch after all tasks are complete and their individual reviews have passed.**
-
-```
-Task tool (general-purpose):
+```text
+Agent tool (general-purpose):
   model: "opus"
   description: "Fresh-eyes implementation review"
   prompt: |
     You are performing a fresh-eyes review of an entire feature implementation.
-    Per-task spec and code quality reviews have already passed. Your job is different:
-    find issues that only become visible when looking at ALL tasks together.
+    Per-task reviews have passed. Your job: find issues that only become visible
+    when looking at ALL tasks together.
 
     ## Feature Summary
 
@@ -32,120 +28,72 @@ Task tool (general-purpose):
     git diff {BASE_SHA}..{HEAD_SHA}
     ```
 
-    Review ALL files in the diff. Read every file that was changed.
+    Read every file in the diff.
 
-    ## Completion Report
+    ## Context
 
-    The orchestrator has written a completion report for this phase in the plan document.
-    Read the plan file at {PLAN_FILE_PATH} to understand:
+    Read the plan at {PLAN_FILE_PATH} for:
     - What was completed (Summary section)
     - What deviated from the plan and why (Deviations section)
 
-    Use this context to distinguish intentional deviations from accidental inconsistencies.
-    An intentional deviation documented in the completion report is NOT a review issue.
+    Intentional deviations documented in the completion report are NOT review issues.
 
-    ## Your Focus: Cross-Task Issues
+    ## Cross-Task Issue Categories
 
-    Per-task reviewers already checked code quality, test coverage, and spec compliance
-    for each task individually. You are looking for what they CANNOT see — issues that
-    span task boundaries.
+    Hunt for issues that span task boundaries:
 
-    **Actively hunt for these categories:**
+    1. **Cross-task inconsistencies** — values that should match but don't (ports, URLs, defaults), naming drift, contradictory behavior assumptions
 
-    1. **Cross-task inconsistencies**
-       - Values that should match but don't (ports, URLs, defaults, config keys)
-       - Naming conventions that drift between tasks
-       - Behavior assumptions that contradict across modules
+    2. **Duplicated code or constants** — same logic under different names, same magic number defined independently, utilities that should be extracted
 
-    2. **Duplicated code or constants**
-       - Same logic implemented in multiple files under different names
-       - Same magic number or constant defined independently
-       - Shared utilities that should be extracted
+    3. **Dead code from iteration** — conditionals where both branches do the same thing, functions added but never called, unreachable code paths
 
-    3. **Dead code from incremental development**
-       - Conditionals where both branches do the same thing
-       - Functions that were added early but never called
-       - Code paths made unreachable by later tasks
+    4. **Documentation gaps** — features not wired up, README contradicts behavior, missing limitation explanations
 
-    4. **Documentation gaps**
-       - Features supported in one module but not wired up in another
-       - README/docs that contradict actual behavior
-       - Missing explanation of intentional limitations
+    5. **Inconsistent error handling** — same generic error from multiple locations, errors that don't explain what went wrong
 
-    5. **Inconsistent error handling**
-       - Same generic error message from multiple locations
-       - Error messages that don't explain what the user did wrong
-       - Missing error context (status codes, input values, expected formats)
+    6. **Integration gaps** — config flags never checked, return values never used, interfaces not implemented where needed
 
-    6. **Integration gaps**
-       - Config flags defined but never checked
-       - Return values computed but never used by callers
-       - Interfaces defined in one task but not implemented where needed
-
-    7. **Inadequate integration test coverage (three levels)**
-       - **Level 1 (broad acceptance tests):** Do they exist from Task 0? Do they all pass?
-       - **Level 2 (boundary tests):** At each cross-task seam, is there a test using real components?
-       - **Level 3 (gaps):** Are there cross-boundary interactions not covered by Level 1 or 2?
-       - Integration tests that mock away the boundaries they should verify
-
-    ## How to Review
-
-    1. Read the full diff to understand the feature as a whole
-    2. For each file, note what it exports and what other files consume
-    3. Cross-reference: do producers and consumers agree on types, values, behavior?
-    4. Look for patterns that repeat across files (duplication signal)
-    5. Check documentation against actual implementation
+    7. **Inadequate integration test coverage** — missing broad acceptance tests (Level 1), missing boundary tests at cross-task seams (Level 2), tests that mock away the boundaries they should verify
 
     ## Output Format
 
     ### Cross-Task Issues Found
 
     For each issue:
-    - **Category** (from the 7 above)
-    - **Files involved** (with line references)
-    - **What's wrong**
-    - **Why per-task review missed it**
+    - **Category** (1-7)
+    - **Files** (with line references)
+    - **Problem**
     - **Suggested fix**
 
-    ### Integration Test Coverage Assessment
+    ### Integration Test Coverage
 
-    **Level 1 — Broad Acceptance Tests (from Task 0):**
-    - Exist? [Yes/No]
-    - All passing? [Yes/No — list failures if any]
+    | Level | Status | Notes |
+    |-------|--------|-------|
+    | L1: Broad acceptance tests | Pass/Fail/Missing | |
+    | L2: Boundary tests at seams | Pass/Fail/Missing | List seams without tests |
+    | L3: Coverage gaps | None/List | |
 
-    **Level 2 — Boundary Tests (from per-task TDD):**
-    For each cross-task seam:
-    - **Seam**: [Component A] → [Component B]
-    - **Test exists?**: Yes/No
-    - **Uses real components?**: Yes/No
-
-    **Level 3 — Gaps:**
-    - [List any cross-boundary interactions not covered by Level 1 or 2]
-
-    If coverage is adequate across all three levels, write "Integration test coverage is adequate — [brief rationale]."
+    If adequate: "Integration test coverage is adequate — [brief rationale]."
 
     ### Assessment
 
-    **Issues found:** [count]
-    **Integration test gaps:** Level 1: [count], Level 2: [count], Level 3: [count]
-    **Severity:** [Critical / Important / Minor for each]
-    **Ready to merge after fixing these?** [Yes/No]
+    **Issues found:** [count] | **Severity:** [Critical/Important/Minor]
+    **Ready to merge after fixing?** [Yes/No]
 
-    ### Handoff Notes for Next Phase (if multi-phase)
+    ### Handoff Notes (multi-phase only)
 
-    If this is a multi-phase plan and there are future phases, list anything
-    the next phase's implementer needs to know:
-    - API/interface shapes that differ from what the plan assumed
-    - New dependencies or config that future phases will need
-    - Scope changes that affect future phase planning
+    If future phases exist, list what the next implementer needs to know:
+    - API/interface differences from plan assumptions
+    - New dependencies or config needed
+    - Scope changes affecting future phases
 
-    If nothing to hand off, write "No handoff notes needed."
+    If nothing: "No handoff notes needed."
 
-    ## Critical Rules
+    ## Rules
 
-    - DO NOT re-review per-task concerns (code style, individual test coverage)
-    - DO focus exclusively on cross-task and integration issues
+    - Focus exclusively on cross-task and integration issues
     - Be specific: file:line references, not vague suggestions
-    - If you find zero cross-task issues, say so — don't invent problems
-    - DO NOT modify any files. Read-only review.
+    - If zero issues found, say so — don't invent problems
+    - Read-only review — do not modify files
 ```
