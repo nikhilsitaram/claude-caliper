@@ -43,6 +43,7 @@ Start a new session and ask to build something. The agent should trigger the bra
 - **codebase-review** — Whole-repo quality audit with parallel reviewers and fix routing
 - **implementation-review** — Cross-task holistic review before merging
 - **plan-review** — Validates plans before execution begins
+- **skill-eval** — Assertion-based skill output evaluation with blind A/B comparison and variance analysis
 
 ### Infrastructure
 - **using-git-worktrees** — Isolated workspaces for feature development

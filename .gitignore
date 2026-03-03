@@ -4,3 +4,4 @@
 .claude/*
 !.claude/CLAUDE.md
 .DS_Store
+.skill-evals/
