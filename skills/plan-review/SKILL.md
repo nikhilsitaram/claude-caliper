@@ -5,55 +5,66 @@ description: Use when a plan has been written and before execution begins
 
 # Plan Review
 
-## Overview
+Dispatch an Opus subagent to validate a plan before execution. Catches issues that are cheap to fix in a plan but expensive to fix mid-implementation.
 
-Dispatch an Opus subagent to review a written plan for internal consistency and alignment with the design doc before any code gets written. Catches issues that are cheap to fix in a plan but expensive to fix mid-implementation.
-
-**Core principle:** Plans are hypotheses about how to build something. Validate the hypothesis before running the experiment.
+**Core principle:** Plans are hypotheses. Validate before running the experiment.
 
 ## When to Use
 
 - After writing-plans produces a plan document
 - Before subagent-driven-development begins
-- When resuming work on a plan that's been idle (context may have drifted)
+- When resuming work on an idle plan (context may have drifted)
 
-**Not needed for:** Single-task plans, hotfix plans, plans with no design doc reference.
+**Skip for:** Single-task plans, hotfix plans, trivially small plans (no design doc needed).
 
-## How to Dispatch
+## Dispatch
 
 Gather inputs:
-- **Plan file path** — e.g. `docs/plans/2026-02-25-feature.md`
-- **Design doc path** — if one exists (from brainstorming or prior work)
-- **Codebase root** — the repo/worktree the plan targets
+- **Plan file** — `docs/plans/YYYY-MM-DD-topic/plan-topic.md`
+- **Design doc** — if one exists (or "None")
+- **Repo root** — the worktree the plan targets
 
-Then dispatch using `./reviewer-prompt.md` template with:
-- `{PLAN_PATH}` — path to the plan document
-- `{DESIGN_DOC_PATH}` — path to design doc (or "None" if no design doc)
-- `{REPO_PATH}` — codebase root for verifying file paths against existing code
+Dispatch with `model: "opus"` — consistency checking requires strong reasoning.
 
-**Critical:** Always use `model: "opus"` for the reviewer subagent. Consistency checking requires strong reasoning to trace dependencies across tasks.
+**See:** reviewer-prompt.md
 
 ## What It Catches
 
-| Category | Example | Why the Planner Misses It |
-|----------|---------|--------------------------|
-| Dependency ordering | Task 4 imports a util created in Task 6 | Planner thinks about tasks as units, not their sequencing |
-| File path drift | Task 2 creates `src/utils.ts`, Task 5 imports from `src/helpers.ts` | Renaming during planning without updating all references |
-| Design doc mismatch | Design says REST API, plan implements GraphQL | Plan diverged from design during task decomposition |
-| Missing tasks | Design specifies auth middleware, plan has no auth task | Scope items lost during decomposition |
-| Phantom dependencies | Task tests a function that no task ever creates | Copy-paste from similar plan, not adapted |
-| Inconsistent naming | `UserService` in one task, `userService` in another | Each task written in isolation |
-| Impossible test expectations | Test expects return value X but implementation returns Y | Test and implementation steps written at different times |
-| Tech stack contradictions | Plan header says SQLite, Task 3 uses PostgreSQL syntax | Header written first, tasks written later with different assumptions |
-| Implied context | Task says "modify the auth handler" without specifying file | Planner has conversation context that won't exist during execution |
-| Missing mandatory fields | Task has no verification command or measurable done criteria | Planner assumes executor will figure it out |
+| Category | Example | Why Planners Miss It |
+|----------|---------|---------------------|
+| Dependency ordering | Task 4 imports util created in Task 6 | Thinks about tasks as units, not sequence |
+| Artifact drift | Creates `utils.ts`, imports from `helpers.ts` | Renamed during planning without updating refs |
+| Design mismatch | Design says REST, plan implements GraphQL | Diverged during decomposition |
+| Missing tasks | Design specifies auth middleware, no auth task | Lost during decomposition |
+| Implied context | "Modify the handler" without specifying file | Planner has context executor won't |
+| Missing fields | No verification command or measurable done | Assumes executor will figure it out |
+| Phase boundary issues | 9 tasks in single phase, no verification gates | Didn't apply complexity gates |
+
+## 6-Point Checklist
+
+1. **Dependency Ordering** — Everything a task USES is CREATED by a prior task or exists in codebase
+2. **Artifact Consistency** — Same file/function/variable referenced with same name everywhere
+3. **Design Doc Alignment** — Scope, architecture, tech stack match design (skip if no design doc)
+4. **Test-Implementation Coherence** — TDD structure intact, Task 0 present (or justified skip), signatures match
+5. **Completeness** — All 5 task fields present (Files, Verification, Done, Avoid+WHY, Steps), commands runnable
+6. **Different Claude Test** — Each task executable by fresh Claude with zero context
+
+**For multi-phase plans, also verify:**
+- Phase boundaries at meaningful verification points
+- Complexity gates respected (8+ tasks → needs phasing, 7+ per phase → examine cut points)
+- Interface-first ordering (contracts defined before implementations)
+
+## Output
+
+Reviewer produces:
+- Issues Found (category, tasks involved, what's wrong, suggested fix)
+- Assessment (issue count, severity breakdown, ready for execution?)
+
+**Pass:** Zero issues, or all issues fixed and re-reviewed
+**Fail:** Return to writing-plans to fix, then re-run plan-review
 
 ## Integration
 
-**Auto-dispatched by:**
-- **superpowers:writing-plans** — reviewer subagent dispatched directly after plan is saved
+**Auto-dispatched by:** superpowers:writing-plans (after plan saved)
 
-**For standalone use:** Invoke this skill directly when reviewing a plan outside the writing-plans workflow.
-
-**Leads to:**
-- **superpowers:subagent-driven-development** — once review passes
+**Leads to:** superpowers:subagent-driven-development (once review passes)

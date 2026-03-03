@@ -1,153 +1,148 @@
 # Plan Review Prompt Template
 
-Use this template when dispatching an Opus reviewer subagent to validate a plan before execution.
-
-**Purpose:** Catch internal inconsistencies, design doc mismatches, and missing dependencies before any code gets written.
+Dispatch an Opus reviewer subagent to validate a plan before execution.
 
 **Only dispatch after the plan is fully written and saved.**
 
 ```
-Task tool (general-purpose):
+Agent tool (general-purpose):
   model: "opus"
   description: "Plan consistency review"
   prompt: |
     You are reviewing an implementation plan BEFORE any code is written.
-    Your job: find every inconsistency, missing dependency, and design
-    mismatch that would cause problems during implementation.
+    Find every inconsistency, missing dependency, and design mismatch
+    that would cause problems during implementation.
 
-    ## Plan File
+    ## Inputs
 
-    Read the full plan at: {PLAN_PATH}
+    **Plan:** {PLAN_PATH}
+    **Design doc:** {DESIGN_DOC_PATH} (if "None", skip design checks)
+    **Codebase:** {REPO_PATH} (read existing files to verify paths/imports)
 
-    ## Design Doc
+    ## 6-Point Checklist
 
-    {DESIGN_DOC_PATH}
-    (If "None": skip design doc checks, focus on internal consistency only)
-
-    ## Codebase
-
-    The plan targets the codebase at: {REPO_PATH}
-    Read existing files as needed to verify paths, imports, and assumptions.
-
-    ## Review Checklist
-
-    Work through each category systematically. For each, read ALL tasks
-    in the plan and cross-reference.
+    Work through each systematically. Read ALL tasks and cross-reference.
 
     ### 1. Dependency Ordering
-    For each task, list what it USES (imports, calls, extends) and what
-    it CREATES (files, functions, classes, types). Verify that everything
-    a task USES is CREATED by a prior task or already exists in the codebase.
+    For each task, list what it USES (imports, calls, extends) and CREATES
+    (files, functions, types). Verify everything USED is CREATED earlier
+    or exists in codebase.
 
-    Flag: Task N uses X, but X is created in Task M where M > N.
-    Flag: Task N uses X, but no task creates X and it doesn't exist in the codebase.
+    - Flag: Task N uses X, but X created in Task M where M > N
+    - Flag: Task N uses X, but nothing creates X and it doesn't exist
 
-    ### 2. File Path Consistency
-    Extract every file path mentioned across all tasks. Group by intended
-    file. Verify the same file is referenced with the same path everywhere.
+    ### 2. Artifact Consistency
+    Extract every file path, function name, and variable across all tasks.
+    Verify the same artifact is referenced consistently everywhere.
 
-    Flag: Same logical file referenced with different paths across tasks.
-    Flag: File path in plan doesn't match existing codebase conventions.
+    - Flag: Same file with different paths (`utils.ts` vs `helpers.ts`)
+    - Flag: Same concept with different names (`UserService` vs `userService`)
+    - Flag: Path doesn't match codebase conventions
 
     ### 3. Design Doc Alignment (skip if no design doc)
-    Compare the plan's scope against the design doc's requirements:
-    - Every design doc requirement should map to at least one task
-    - Plan's architecture should match design doc's architecture
-    - Tech stack should be consistent
-    - Data models / schemas should match
+    Compare plan scope against design requirements:
+    - Every requirement maps to at least one task
+    - Architecture matches (REST vs GraphQL, etc.)
+    - Tech stack consistent
+    - Data models match
 
-    Flag: Design doc specifies X but no task implements it.
-    Flag: Plan uses approach A but design doc specifies approach B.
+    - Flag: Design specifies X but no task implements it
+    - Flag: Plan uses approach A but design specifies B
 
-    ### 4. Naming Consistency
-    Track every named entity (functions, classes, variables, config keys,
-    API endpoints) across all tasks. Verify consistent naming.
+    ### 4. Test-Implementation Coherence
+    For each task with test steps:
+    - Test imports from correct path?
+    - Function signatures match between test and implementation?
+    - Return values consistent?
+    - TDD 5-step cycle present? (write fail, verify fail, implement, verify pass, commit)
 
-    Flag: Same concept with different names in different tasks.
-    Flag: Name in test doesn't match name in implementation step.
+    For multi-task plans:
+    - Task 0 (broad integration tests) present?
+    - Task 0 references modules that later tasks create?
+    - Skip justification if no Task 0? (single-module, no cross-task flow)
 
-    ### 5. Test-Implementation Coherence
-    For each task that has test steps and implementation steps:
-    - Does the test import from the correct path?
-    - Does the test call functions with the correct signature?
-    - Does the test expect return values consistent with the implementation?
-    - Would the test actually fail before implementation (as TDD requires)?
+    - Flag: Test expects `fn(a, b)` but implementation defines `fn(a, b, c)`
+    - Flag: Multi-task plan missing Task 0 with no skip justification
 
-    Flag: Test expects function(a, b) but implementation defines function(a, b, c).
-    Flag: Test asserts return value X but implementation returns Y.
-    Flag: Multi-task plan has no Task 0 (broad integration tests defining acceptance criteria).
-    Flag: Task 0 tests don't reference modules that later tasks create.
-    Flag: Task 0 is absent with no skip justification (single-module, no cross-task data flow).
+    ### 5. Completeness
+    Verify every task has all 5 required fields:
 
-    ### 6. Completeness
-    - Does every "Create" file get populated by some task's implementation step?
-    - Does every "Modify" file actually exist (check codebase)?
-    - Are there tasks that create files but no task ever imports/uses them?
-    - Does the plan cover error handling, edge cases, or config that the
-      design doc specifies?
+    | Field | Check |
+    |-------|-------|
+    | Files | Exact paths (create/modify/test) — not "the auth files" |
+    | Verification | Runnable command <60s — not "check it works" |
+    | Done when | Measurable — not "authentication complete" |
+    | Avoid + WHY | Pitfall with reasoning — not just "don't use X" |
+    | Steps | TDD cycle with actual code — not "add validation" |
 
-    Flag: File listed in "Create" but never populated with code.
-    Flag: "Modify: path/to/file.py:123-145" but file doesn't exist or has fewer lines.
+    Also verify:
+    - Commands reference correct file paths
+    - Commands match project tooling (npm vs yarn vs pnpm)
+    - Every "Create" file gets populated
+    - Every "Modify" file exists in codebase
 
-    ### 7. Command Correctness
-    - Do test commands reference the correct test file paths?
-    - Do commit commands stage the right files?
-    - Are build/run commands consistent with the project's tooling?
+    - Flag: Task missing required field
+    - Flag: `pytest tests/path.py` but file at different path
+    - Flag: File in "Modify" doesn't exist or wrong line range
 
-    Flag: `pytest tests/path/test.py` but test file is at different path.
-    Flag: `npm test` but project uses `yarn` or `pnpm`.
+    ### 6. Different Claude Test
+    For each task: Could a fresh Claude with ZERO conversation history
+    execute this task unambiguously?
 
-    ### 8. "Different Claude" Test
-    For each task, evaluate: could a fresh Claude instance with ZERO
-    conversation history execute this task unambiguously?
-
-    Check each task for:
-    - Missing mandatory fields (Files, Verification, Done criteria, Avoid)
-    - Implied context not written down ("the function we discussed")
-    - Vague references ("update the config", "fix the handler")
+    Check for:
+    - Vague references ("the handler", "the config")
     - Missing file paths or partial paths
+    - Context from conversation not written in plan
     - Done criteria that aren't measurable
 
-    Flag: Task N says "modify the auth handler" but doesn't specify which file.
-    Flag: Task N has no verification command.
-    Flag: Task N's done criteria is "auth works" (not measurable).
-    Flag: Task N references context from conversation, not from the plan itself.
+    - Flag: "modify the auth handler" without specifying file
+    - Flag: Done says "auth works" (not measurable)
+    - Flag: References conversation context not in plan
 
-    ## Output Format
+    ### Phase Checks (multi-phase plans only)
+    If plan has multiple phases:
+    - Phase boundaries at meaningful verification points?
+    - Each phase ends with verification task?
+    - Phase rationale sentence present?
+    - Complexity gates: 8+ tasks in single-phase → should have phases
+    - Complexity gates: 7+ tasks per phase → examine cut points
+    - Interface-first: Contracts defined before implementations?
+
+    - Flag: 10 tasks with no phases
+    - Flag: Phase 2 starts without Phase 1 verification complete
+
+    ## Output
 
     ### Issues Found
 
     For each issue:
-    - **Category** (1-7 from above)
-    - **Tasks involved** (Task N, Task M)
-    - **What's wrong** (specific, with quotes from the plan)
-    - **Suggested fix**
-
-    ### Consistency Matrix (summary)
-
-    | Check | Status | Notes |
-    |-------|--------|-------|
-    | Dependency ordering | PASS/FAIL | |
-    | File path consistency | PASS/FAIL | |
-    | Design doc alignment | PASS/FAIL/SKIPPED | |
-    | Naming consistency | PASS/FAIL | |
-    | Test-implementation coherence | PASS/FAIL | |
-    | Completeness | PASS/FAIL | |
-    | Command correctness | PASS/FAIL | |
-    | "Different Claude" test | PASS/FAIL | |
+    - **Category** (1-6 or Phase)
+    - **Tasks** (which tasks involved)
+    - **Problem** (specific, quote the plan)
+    - **Fix** (what to change)
 
     ### Assessment
 
-    **Issues found:** [count]
-    **Severity:** [Critical / Important / Minor for each]
-    **Ready for execution?** [Yes / Yes after fixes / No, needs rework]
+    | Check | Status |
+    |-------|--------|
+    | Dependency ordering | PASS/FAIL |
+    | Artifact consistency | PASS/FAIL |
+    | Design doc alignment | PASS/FAIL/SKIP |
+    | Test-implementation coherence | PASS/FAIL |
+    | Completeness | PASS/FAIL |
+    | Different Claude test | PASS/FAIL |
+    | Phase boundaries | PASS/FAIL/N/A |
 
-    ## Critical Rules
+    **Issues:** [count]
+    **Severity:** Critical (blocks execution) / High (likely causes failure) / Medium (may cause confusion) / Low (cosmetic)
+    **Ready for execution?** Yes / Yes after fixes / No, needs rework
 
-    - DO NOT review code style or testing philosophy — this is a consistency check
-    - DO trace dependencies across tasks — this is the primary value
-    - Be specific: quote the plan, reference task numbers
-    - If you find zero issues, say so — don't invent problems
-    - DO NOT modify any files. Read-only review.
-    - DO check existing codebase files when the plan references them
+    ## Rules
+
+    - This is a CONSISTENCY check, not a code style review
+    - Trace dependencies across tasks — this is the primary value
+    - Be specific: quote plan text, reference task numbers
+    - If zero issues, say so — don't invent problems
+    - READ-ONLY: Do not modify any files
+    - DO check codebase when plan references existing files
 ```
