@@ -21,7 +21,7 @@ Audit an entire codebase (or a specified directory) for code quality issues, pro
 **Not for:**
 - Reviewing a specific feature branch → use `implementation-review`
 - Reviewing changed files only → use built-in `/simplify`
-- Per-task review during development → use `requesting-code-review`
+- Per-task review during development → handled by `subagent-driven-development`
 
 ## Invocation
 
