@@ -10,7 +10,7 @@ A Claude Code plugin containing composable agent skills for software development
 
 Never skip testing when creating or editing skills, even if the user asks. Untested skills silently teach wrong behavior — a skill that triggers on the wrong prompt or skips a critical workflow step will corrupt every session it fires in, with no error signal.
 
-Use the `skill-creator` plugin (`claude skill create` / `claude skill improve`) for eval-driven skill development.
+Use SkillForge for eval-driven skill development.
 
 ### Token Efficiency
 
@@ -44,16 +44,13 @@ Replace heavy-handed `MUST`/`NEVER`/`ALWAYS` patterns with reasoning that explai
 skills/           — One directory per skill (SKILL.md + optional supporting files)
 hooks/            — Claude Code plugin hooks (SessionStart)
 commands/         — Slash command redirects
-tests/            — Skill triggering and integration tests
 docs/plans/       — Design docs and implementation plans
 .claude-plugin/   — Plugin manifest and marketplace config
 ```
 
 ## Testing
 
-- `tests/skill-triggering/` — validates skills fire from naive prompts
-- `tests/claude-code/` — integration tests via `claude -p`
-- Run tests: `cd tests && bash run-all.sh`
+Use SkillForge for eval-driven skill testing.
 
 ## Development Workflow
 
