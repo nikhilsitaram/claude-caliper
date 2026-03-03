@@ -14,13 +14,13 @@ Use SkillForge for eval-driven skill development.
 
 ### Token Efficiency
 
-SKILL.md files are injected into context when the skill triggers. Every excess word displaces working memory.
+SKILL.md files are injected into context when the skill triggers. Every excess word displaces working memory. Hard cap: 1,000 words. The more concise, the better.
 
-- Target <500 words for SKILL.md (<600 for discipline skills like TDD/debugging, <300 for using-superpowers)
+Challenge every line: Does the agent already know this? Does this paragraph justify its token cost? Only add context Claude doesn't already have — library knowledge, common patterns, and standard practices are already in the model.
+
 - Never use `@filename` references in SKILL.md — they force-load the file immediately into context
-- Use `**See:** filename.md` for on-demand references the agent reads only when needed
+- Use `**See:** filename.md` for on-demand references the agent reads only when needed, but only when the content is truly conditional (not every invocation)
 - One good example, not three. If the agent needs more examples, put them in a supporting file
-- Content the agent only needs during a subtask belongs in a supporting file, not SKILL.md
 
 ### Cross-Referencing Syntax
 
