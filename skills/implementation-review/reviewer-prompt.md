@@ -30,6 +30,16 @@ Agent tool (general-purpose):
 
     Read every file in the diff.
 
+    ## Phase Context (inter-phase reviews only)
+
+    {PHASE_CONTEXT}
+
+    If phase context is provided, this is an inter-phase review (not a final review).
+    Pay special attention to:
+    - Interface contracts that downstream phases depend on
+    - Config, types, or APIs that downstream phases will consume
+    - Anything that would be expensive to change after the next phase builds on it
+
     ## Context
 
     Read the plan at {PLAN_FILE_PATH} for:
@@ -73,6 +83,7 @@ Agent tool (general-purpose):
     | L1: Broad acceptance tests | Pass/Fail/Missing | |
     | L2: Boundary tests at seams | Pass/Fail/Missing | List seams without tests |
     | L3: Coverage gaps | None/List | |
+    | L4: Cross-phase boundary tests | Pass/Fail/Missing | List interface contracts downstream phases depend on that lack tests |
 
     If adequate: "Integration test coverage is adequate — [brief rationale]."
 
@@ -80,13 +91,17 @@ Agent tool (general-purpose):
 
     **Issues found:** [count] | **Severity:** [Critical/Important/Minor]
     **Ready to merge after fixing?** [Yes/No]
+    **Ready for next phase?** [Yes/No] (inter-phase reviews only)
 
-    ### Handoff Notes (multi-phase only)
+    ### Handoff Notes
 
-    If future phases exist, list what the next implementer needs to know:
+    For inter-phase reviews, this is primary output. For final reviews, include if future work exists.
+
+    List what the next implementer needs to know:
     - API/interface differences from plan assumptions
     - New dependencies or config needed
     - Scope changes affecting future phases
+    - Interface contracts that downstream phases depend on — flag any without boundary tests
 
     If nothing: "No handoff notes needed."
 
