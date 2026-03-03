@@ -11,8 +11,6 @@ Audit an entire codebase (or a specified directory) for code quality issues, pro
 
 **Core principle:** Periodic whole-repo audits catch issues that per-task and per-feature reviews miss — cross-module duplication, accumulated complexity, and style drift.
 
-**Announce at start:** "I'm using the codebase-review skill to audit the codebase."
-
 ## When to Use
 
 - Periodic codebase health checks ("review the codebase", "audit code quality")
@@ -45,32 +43,6 @@ Audit an entire codebase (or a specified directory) for code quality issues, pro
 - **High** — Significant maintenance burden or correctness risk
 - **Medium** — Code smell that makes the codebase harder to work with
 - **Low** — Minor style/convention issue
-
-## The Process
-
-```dot
-digraph codebase_review {
-    "Resolve scope" [shape=box];
-    "Discover review units" [shape=box];
-    "Dispatch parallel reviewers" [shape=box];
-    "Cross-scope reconciliation" [shape=box];
-    "Aggregate & write report" [shape=box];
-    "Present findings" [shape=box];
-    "Triage: complex vs inline" [shape=diamond];
-    "Create GH issues for complex work" [shape=box];
-    "Invoke writing-plans for inline fixes" [shape=doublecircle];
-
-    "Resolve scope" -> "Discover review units";
-    "Discover review units" -> "Dispatch parallel reviewers";
-    "Dispatch parallel reviewers" -> "Cross-scope reconciliation";
-    "Cross-scope reconciliation" -> "Aggregate & write report";
-    "Aggregate & write report" -> "Present findings";
-    "Present findings" -> "Triage: complex vs inline";
-    "Triage: complex vs inline" -> "Create GH issues for complex work" [label="needs own plan"];
-    "Triage: complex vs inline" -> "Invoke writing-plans for inline fixes" [label="inline fixes"];
-    "Create GH issues for complex work" -> "Invoke writing-plans for inline fixes";
-}
-```
 
 ### Phase 1 — Resolve Scope & Discover Review Units
 
@@ -164,19 +136,6 @@ Approach: Parallel scope review (N units) + cross-scope reconciliation
 ### Skipping cross-scope reconciliation
 - **Problem:** Cross-directory DRY violations and naming drift go undetected
 - **Fix:** Always run the reconciliation pass after parallel reviews
-
-## Red Flags
-
-**Never:**
-- Skip the cross-scope reconciliation pass
-- Auto-create GH issues without user confirmation
-- Route complex multi-file refactors through inline fixes
-- Proceed to fixes without writing the report first
-
-**Always:**
-- Let the user decide which complex items become GH issues
-- Write the report before starting any fixes
-- Route inline fixes through writing-plans (not ad-hoc edits)
 
 ## Integration
 

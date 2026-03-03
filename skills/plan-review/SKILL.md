@@ -11,8 +11,6 @@ Dispatch an Opus subagent to review a written plan for internal consistency and 
 
 **Core principle:** Plans are hypotheses about how to build something. Validate the hypothesis before running the experiment.
 
-**Announce at start:** "I'm using the plan-review skill to validate this plan before execution."
-
 ## When to Use
 
 - After writing-plans produces a plan document
@@ -20,27 +18,6 @@ Dispatch an Opus subagent to review a written plan for internal consistency and 
 - When resuming work on a plan that's been idle (context may have drifted)
 
 **Not needed for:** Single-task plans, hotfix plans, plans with no design doc reference.
-
-## The Process
-
-```dot
-digraph process {
-    rankdir=TB;
-    "Locate plan file and design doc" [shape=box];
-    "Dispatch Opus reviewer with ./reviewer-prompt.md" [shape=box];
-    "Issues found?" [shape=diamond];
-    "Fix plan (not code)" [shape=box];
-    "Re-run plan review" [shape=box];
-    "Proceed to execution" [shape=box style=filled fillcolor=lightgreen];
-
-    "Locate plan file and design doc" -> "Dispatch Opus reviewer with ./reviewer-prompt.md";
-    "Dispatch Opus reviewer with ./reviewer-prompt.md" -> "Issues found?";
-    "Issues found?" -> "Fix plan (not code)" [label="yes"];
-    "Fix plan (not code)" -> "Re-run plan review" [label="re-review"];
-    "Re-run plan review" -> "Issues found?";
-    "Issues found?" -> "Proceed to execution" [label="no"];
-}
-```
 
 ## How to Dispatch
 
@@ -70,18 +47,6 @@ Then dispatch using `./reviewer-prompt.md` template with:
 | Tech stack contradictions | Plan header says SQLite, Task 3 uses PostgreSQL syntax | Header written first, tasks written later with different assumptions |
 | Implied context | Task says "modify the auth handler" without specifying file | Planner has conversation context that won't exist during execution |
 | Missing mandatory fields | Task has no verification command or measurable done criteria | Planner assumes executor will figure it out |
-
-## Red Flags
-
-**Never:**
-- Skip this because "the plan looks fine" (that's what the planner always thinks)
-- Fix issues by editing code (there is no code yet — fix the plan)
-- Let minor issues slide (they compound during implementation)
-
-**If reviewer finds issues:**
-- Fix the plan document
-- Re-run review after fixes
-- Don't skip re-review
 
 ## Integration
 

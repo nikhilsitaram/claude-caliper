@@ -17,31 +17,6 @@ Review the entire feature implementation with fresh eyes, focusing on issues tha
 
 **Not needed for:** Single-task changes, hotfixes, documentation-only PRs.
 
-## The Process
-
-```dot
-digraph process {
-    rankdir=TB;
-    "Get base branch SHA (origin/main or where feature diverged)" [shape=box];
-    "Get HEAD SHA (current commit)" [shape=box];
-    "Verify integration test coverage (Level 1 pass, Level 2 exist, fill gaps)" [shape=box];
-    "Dispatch reviewer subagent with ./reviewer-prompt.md" [shape=box];
-    "Reviewer finds issues?" [shape=diamond];
-    "Fix issues (dispatch implementer or fix directly)" [shape=box];
-    "Re-run implementation review" [shape=box];
-    "Proceed to superpowers:ship" [shape=box style=filled fillcolor=lightgreen];
-
-    "Get base branch SHA (origin/main or where feature diverged)" -> "Get HEAD SHA (current commit)";
-    "Get HEAD SHA (current commit)" -> "Verify integration test coverage (Level 1 pass, Level 2 exist, fill gaps)";
-    "Verify integration test coverage (Level 1 pass, Level 2 exist, fill gaps)" -> "Dispatch reviewer subagent with ./reviewer-prompt.md";
-    "Dispatch reviewer subagent with ./reviewer-prompt.md" -> "Reviewer finds issues?";
-    "Reviewer finds issues?" -> "Fix issues (dispatch implementer or fix directly)" [label="yes"];
-    "Fix issues (dispatch implementer or fix directly)" -> "Re-run implementation review" [label="re-review"];
-    "Re-run implementation review" -> "Reviewer finds issues?";
-    "Reviewer finds issues?" -> "Proceed to superpowers:ship" [label="no"];
-}
-```
-
 ## Integration Test Verification (Before Review)
 
 By this point, integration tests should already exist from the implementation phase:
@@ -92,18 +67,6 @@ Then dispatch using `./reviewer-prompt.md` template with:
 | Documentation gaps | Feature supported in one module but not another, undocumented | Per-task reviewer sees one side |
 | Unclear/inconsistent errors | Multiple modules throw same generic message | Each reviewer sees one throw site |
 | Missing boundary tests | Components interact but no Level 2 boundary test at the seam | Per-task reviewer sees one side |
-
-## Red Flags
-
-**Never:**
-- Use per-task SHA range (defeats the purpose)
-- Skip this because per-task reviews passed (that's exactly when cross-task issues hide)
-- Treat this as optional for multi-task features
-
-**If reviewer finds issues:**
-- Fix them before proceeding to ship
-- Re-run the review after fixes
-- Don't skip re-review
 
 ## Post-Review: Plan Doc Updates
 

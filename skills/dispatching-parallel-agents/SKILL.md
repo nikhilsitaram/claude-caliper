@@ -13,24 +13,6 @@ When you have multiple unrelated failures (different test files, different subsy
 
 ## When to Use
 
-```dot
-digraph when_to_use {
-    "Multiple failures?" [shape=diamond];
-    "Are they independent?" [shape=diamond];
-    "Single agent investigates all" [shape=box];
-    "One agent per problem domain" [shape=box];
-    "Can they work in parallel?" [shape=diamond];
-    "Sequential agents" [shape=box];
-    "Parallel dispatch" [shape=box];
-
-    "Multiple failures?" -> "Are they independent?" [label="yes"];
-    "Are they independent?" -> "Single agent investigates all" [label="no - related"];
-    "Are they independent?" -> "Can they work in parallel?" [label="yes"];
-    "Can they work in parallel?" -> "Parallel dispatch" [label="yes"];
-    "Can they work in parallel?" -> "Sequential agents" [label="no - shared state"];
-}
-```
-
 **Use when:**
 - 3+ test files failing with different root causes
 - Multiple subsystems broken independently
@@ -155,13 +137,6 @@ Agent 3 → Fix tool-approval-race-conditions.test.ts
 
 **Time saved:** 3 problems solved in parallel vs sequentially
 
-## Key Benefits
-
-1. **Parallelization** - Multiple investigations happen simultaneously
-2. **Focus** - Each agent has narrow scope, less context to track
-3. **Independence** - Agents don't interfere with each other
-4. **Speed** - 3 problems solved in time of 1
-
 ## Verification
 
 After agents return:
@@ -170,21 +145,3 @@ After agents return:
 3. **Run full suite** - Verify all fixes work together
 4. **Spot check** - Agents can make systematic errors
 
-## Native Task Integration
-
-Use Claude Code's native task management to track parallel agent work:
-
-- **Before dispatch:** Call `TaskCreate` for each agent's scope — one task per agent. Parallel tasks have NO `blockedBy` dependencies (they run concurrently).
-- **During execution:** Each agent's task should be marked `in_progress` before dispatch.
-- **After completion:** `TaskUpdate` each task to `completed` as agents return results.
-- **Monitoring:** Call `TaskList` to see which agents have completed and which are still running.
-- **Integration task:** Create a final `TaskCreate` with `blockedBy` referencing all agent tasks — this blocks until all agents finish, then you review and integrate results.
-
-## Real-World Impact
-
-From debugging session (2025-10-03):
-- 6 failures across 3 files
-- 3 agents dispatched in parallel
-- All investigations completed concurrently
-- All fixes integrated successfully
-- Zero conflicts between agent changes
