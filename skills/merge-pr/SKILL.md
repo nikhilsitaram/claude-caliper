@@ -15,7 +15,7 @@ Address review feedback, comment on the PR, merge with squash, and clean up.
 
 ### Step 1: Setup
 
-Identify the PR from argument or current branch. If neither works, run `gh pr list --author @me --state open` and ask the user to pick one (never auto-select when multiple candidates exist). Store PR number, branch name, and URL.
+Identify the PR from argument, current branch (`gh pr view`), or `gh pr list --author @me --state open`. If the list returns multiple candidates and you're not on a branch with an associated PR, ask the user to pick. Store PR number, branch name, and URL.
 
 Detect environment:
 - `DEFAULT_BRANCH` from `refs/remotes/origin/HEAD` (fallback: main/master)
