@@ -56,6 +56,10 @@ Use SkillForge for eval-driven skill testing.
 
 This repo uses its own skills. The typical flow: brainstorming -> worktree -> writing-plans -> subagent-driven-development -> ship -> merge-pr.
 
+## Markdown
+
+- Always add a language label to fenced code blocks (MD040) — CodeRabbit flags this on every PR
+
 ## Git
 
 - Use `nikhil5890@gmail.com` for commits (personal repo)
