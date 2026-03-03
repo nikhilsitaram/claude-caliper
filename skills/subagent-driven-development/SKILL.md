@@ -19,7 +19,7 @@ Execute plan by dispatching fresh subagent per task, with two-stage review after
 
 **Per task:** Dispatch implementer → spec compliance review → code quality review → mark complete
 
-**After all tasks:** Write completion report → verify Task 0 integration tests pass → implementation review → ship
+**After all tasks (per phase for multi-phase):** Write completion report → verify Task 0 integration tests → implementation review → handoff notes (if more phases) → next phase or ship
 
 ## Prompt Templates
 
@@ -63,6 +63,30 @@ Mark complete
 
 **Integration test levels:** Task 0 provides broad acceptance tests (Level 1). Implementers write boundary tests at cross-task seams (Level 2). Implementation-review verifies coverage (Level 3).
 
+## Multi-Phase Execution
+
+For plans with multiple phases, the per-task flow runs within each phase. Between phases:
+
+1. Record `PHASE_BASE_SHA` — commit before the phase's first task
+2. Run full Task 0 test suite — failures in current phase scope are real issues; failures targeting future phases are expected (note and continue)
+3. Dispatch implementation-review with phase-scoped diff (`PHASE_BASE_SHA..HEAD`) and `PHASE_CONTEXT` describing what downstream phases expect
+4. Triage findings through deviation rules — dispatch fresh implementer for Rule 1-3 fixes, escalate Rule 4 to user
+5. Verify cross-phase boundary tests exist for interface contracts downstream phases depend on (from reviewer handoff notes) — dispatch implementer to write missing ones
+6. Orchestrator writes authoritative handoff notes into plan doc before next phase's checklist (reflects post-fix state, not reviewer suggestions)
+7. Update phase status: `Complete (YYYY-MM-DD)`
+
+After the final phase: write completion report (summary + deviations across all phases), then ship.
+
+Single-phase plans skip this loop entirely — existing behavior unchanged.
+
+## Re-Review Gate
+
+Applies to all review stages (spec, code quality, implementation review, plan review):
+
+If a reviewer finds **more than 5 fix-needed issues**, after all fixes are applied, dispatch a fresh subagent with the same full review scope to confirm clean. Bulk fixes risk introducing new issues or incomplete resolution — a fresh reviewer catches what the fixer missed.
+
+Under 5 issues: orchestrator verifies fixes and proceeds.
+
 ## Deviation Rules
 
 When reality diverges from the plan:
@@ -82,14 +106,13 @@ When reality diverges from the plan:
 
 ## Plan Doc Updates
 
-Update the plan document as execution progresses:
-
 | When | Update |
 |------|--------|
 | First task starts | Frontmatter: `status: In Development` |
 | Task completes | Change `- [ ] Task N` to `- [x] Task N` |
-| All tasks done | Append `## Completion Report` with summary + deviations |
-| Implementation-review passes | Phase status: `Complete (YYYY-MM-DD)` |
+| Phase completes (multi-phase) | Insert handoff notes before next phase's checklist |
+| Phase review passes | Phase status: `Complete (YYYY-MM-DD)` |
+| All phases done | Append `## Completion Report` with summary + deviations |
 
 ## Implementation Review
 
