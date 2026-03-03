@@ -32,7 +32,7 @@ Execute plan by dispatching fresh subagent per task, with two-stage review after
 
 ## Example Workflow
 
-```
+```text
 [Read plan once, extract all tasks, create TaskCreate for each]
 
 Task 0: Broad integration tests
