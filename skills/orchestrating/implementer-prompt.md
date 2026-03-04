@@ -2,7 +2,7 @@
 
 Use this template when dispatching an implementer subagent.
 
-```
+```text
 Task tool (general-purpose):
   model: "sonnet"
   description: "Implement Task N: [task name]"
