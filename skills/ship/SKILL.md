@@ -129,7 +129,7 @@ Report: branch name, test results, files changed, commit hash, PR URL. Note: "PR
 
 ## Integration
 
-**Auto-invoked by:** superpowers:subagent-driven-development — after implementation-review passes
+**Auto-invoked by:** superpowers:orchestrating — after implementation-review passes
 
 **Followed by:** superpowers:merge-pr — after CodeRabbit reviews
 

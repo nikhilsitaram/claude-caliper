@@ -12,7 +12,7 @@ Dispatch an Opus subagent to validate a plan before execution. Catches issues th
 ## When to Use
 
 - After writing-plans produces a plan document
-- Before subagent-driven-development begins
+- Before orchestrating begins
 - When resuming work on an idle plan (context may have drifted)
 
 **Skip for:** Single-task plans, hotfix plans, trivially small plans (no design doc needed).
@@ -69,4 +69,4 @@ Reviewer produces:
 
 **Auto-dispatched by:** superpowers:writing-plans (after plan saved)
 
-**Leads to:** superpowers:subagent-driven-development (once review passes)
+**Leads to:** superpowers:orchestrating (once review passes)

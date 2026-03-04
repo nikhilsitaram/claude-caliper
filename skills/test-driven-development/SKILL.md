@@ -135,6 +135,6 @@ Use real components at boundaries, not mocks. Mocks at boundaries hide integrati
 
 ## Integration
 
-**Called by:** superpowers:subagent-driven-development (implementer subagents)
+**Called by:** superpowers:orchestrating (implementer subagents)
 
 **Works with:** Plans from superpowers:writing-plans (tasks have TDD structure embedded)

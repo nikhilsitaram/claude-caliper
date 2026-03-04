@@ -64,7 +64,7 @@ Ready to implement <feature-name>
 
 **Called by:**
 - **brainstorming** — after design approval, before implementation begins
-- **subagent-driven-development** — before executing any tasks
+- **orchestrating** — before executing any tasks
 
 **Pairs with:**
 - **ship** — commits, pushes, creates PR after work complete

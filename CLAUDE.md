@@ -52,7 +52,7 @@ Use SkillForge for eval-driven skill testing.
 
 ## Development Workflow
 
-This repo uses its own skills. The typical flow: brainstorming -> worktree -> writing-plans -> subagent-driven-development -> ship -> merge-pr.
+This repo uses its own skills. The typical flow: brainstorming -> worktree -> writing-plans -> orchestrating -> ship -> merge-pr.
 
 ## Markdown
 

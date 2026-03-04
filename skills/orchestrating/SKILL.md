@@ -1,9 +1,9 @@
 ---
-name: subagent-driven-development
+name: orchestrating
 description: Use when executing implementation plans with independent tasks in the current session
 ---
 
-# Subagent-Driven Development
+# Orchestrating
 
 Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
 
@@ -55,6 +55,7 @@ Task 2: Recovery modes
 Mark complete
 
 [After all tasks]
+[Write completion report into plan doc]
 [Verify Task 0 tests now GREEN]
 [Implementation review] → Found duplicated constant
 [Fix] → [Implementation review: ✅]
@@ -62,6 +63,26 @@ Mark complete
 ```
 
 **Integration test levels:** Task 0 provides broad acceptance tests (Level 1). Implementers write boundary tests at cross-task seams (Level 2). Implementation-review verifies coverage (Level 3).
+
+## Completion Report
+
+After all tasks complete, before implementation review, append to the plan doc:
+
+```markdown
+## Completion Report
+
+**Date:** YYYY-MM-DD
+**Status:** Complete
+
+### Summary
+[2-4 sentences describing what was built across all tasks]
+
+### Deviations
+[List each deviation with rule applied — or "None" if plan was followed exactly]
+- Task N: [what changed] — Rule [1-3]: [one-line reason] / Rule 4: [user approved on YYYY-MM-DD]
+```
+
+This is not optional. Skipping it loses the record of what actually shipped vs. what was planned, which makes debugging regressions and reviewing PRs significantly harder.
 
 ## Multi-Phase Execution
 
@@ -72,12 +93,27 @@ For plans with multiple phases, the per-task flow runs within each phase. Betwee
 3. Dispatch implementation-review with phase-scoped diff (`PHASE_BASE_SHA..HEAD`) and `PHASE_CONTEXT` describing what downstream phases expect
 4. Triage findings through deviation rules — dispatch fresh implementer for Rule 1-3 fixes, escalate Rule 4 to user
 5. Verify cross-phase boundary tests exist for interface contracts downstream phases depend on (from reviewer handoff notes) — dispatch implementer to write missing ones
-6. Orchestrator writes authoritative handoff notes into plan doc before next phase's checklist (reflects post-fix state, not reviewer suggestions)
+6. Write handoff notes into plan doc before next phase's checklist (see format below)
 7. Update phase status: `Complete (YYYY-MM-DD)`
 
 After the final phase: write completion report (summary + deviations across all phases), then ship.
 
 Single-phase plans skip this loop entirely — existing behavior unchanged.
+
+### Handoff Notes Format
+
+Insert before the next phase's task checklist:
+
+```markdown
+### Phase N Handoff Notes
+
+**Interface contracts:** [Function signatures, API shapes, config keys that Phase N+1 depends on — copy exact signatures]
+**Integration test status:** [Which tests pass, which are xfail for future phases, any flaky ones]
+**Known issues:** [Anything deferred, workarounds applied, tech debt taken on]
+**Decisions made:** [Any plan deviations approved by user or auto-fixed, with rationale]
+```
+
+Handoff notes must reflect the post-fix state of the phase, not the reviewer's suggestions before fixes were applied. A Phase 2 implementer who reads these should have everything they need to build on Phase 1's output without re-reading the full conversation.
 
 ## Re-Review Gate
 

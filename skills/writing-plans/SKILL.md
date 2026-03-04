@@ -30,7 +30,7 @@ status: Not Yet Started
 
 # [Feature Name] Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:orchestrating
 
 **Goal:** [One sentence]
 **Architecture:** [2-3 sentences]
@@ -144,14 +144,14 @@ Skipping review risks plans with missing paths or ordering bugs reaching executi
 
 After review passes, dispatch a fresh Opus orchestrator with zero planning context (automatic `/clear`).
 
-Prompt includes: plan file path, working directory, instruction to use `superpowers:subagent-driven-development`, instruction to use `superpowers:ship` when complete.
+Prompt includes: plan file path, working directory, instruction to use `superpowers:orchestrating`, instruction to use `superpowers:ship` when complete.
 
 ```
 Agent(
   subagent_type: "general-purpose",
   model: "opus",
   prompt: "Read the plan at docs/plans/<folder>/plan-<topic>.md and execute
-    using superpowers:subagent-driven-development. When complete, use
+    using superpowers:orchestrating. When complete, use
     superpowers:implementation-review then superpowers:ship.
     Working directory: <worktree-path>"
 )

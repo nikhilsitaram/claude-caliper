@@ -34,7 +34,7 @@ Start a new session and ask to build something. The agent should trigger the bra
 ### Core Workflow
 - **brainstorming** — Socratic design refinement before any code
 - **writing-plans** — Detailed implementation plans from approved designs
-- **subagent-driven-development** — Parallel task execution with two-stage review
+- **orchestrating** — Parallel task execution with two-stage review
 - **test-driven-development** — RED-GREEN-REFACTOR cycle with anti-patterns reference
 - **ship** — Commit, push, create PR
 - **merge-pr** — Address CodeRabbit feedback, merge, clean up branch/worktree
