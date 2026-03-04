@@ -170,6 +170,6 @@ After completion report written and Task 0 tests pass GREEN:
 
 ## Integration
 
-**Workflow:** using-git-worktrees (before) → writing-plans (creates plan) → **this skill** → implementation-review → ship → merge-pr (after CodeRabbit)
+**Workflow:** worktree setup (before) → writing-plans (creates plan) → **this skill** → implementation-review → ship → merge-pr (after CodeRabbit)
 
 **Subagents use:** test-driven-development

@@ -132,5 +132,3 @@ Report: branch name, test results, files changed, commit hash, PR URL. Note: "PR
 **Auto-invoked by:** superpowers:orchestrating — after implementation-review passes
 
 **Followed by:** superpowers:merge-pr — after CodeRabbit reviews
-
-**Pairs with:** superpowers:using-git-worktrees — ship detects worktree context automatically

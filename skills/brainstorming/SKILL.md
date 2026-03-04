@@ -25,7 +25,7 @@ Complete in order:
 4. **Propose 2-3 approaches** — trade-offs and your recommendation
 5. **Present design** — sections scaled to complexity, approval after each
 6. **Get verbal approval** — explicit "yes" before proceeding
-7. **Set up worktree** — **REQUIRED SUB-SKILL:** superpowers:using-git-worktrees
+7. **Set up worktree** — `git worktree add .worktrees/<branch-name> -b <branch-name>`; run tests to establish a clean baseline
 8. **Write design doc** — `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`, commit
 9. **Invoke writing-plans** — the ONLY next skill
 
