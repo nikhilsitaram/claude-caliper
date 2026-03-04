@@ -45,9 +45,6 @@ Start a new session and ask to build something. The agent should trigger the bra
 - **plan-review** — Validates plans before execution begins
 - **skill-eval** — Assertion-based skill output evaluation with blind A/B comparison and variance analysis
 
-### Infrastructure
-- **using-git-worktrees** — Isolated workspaces for feature development
-
 ## License
 
 MIT License — see LICENSE file for details.
