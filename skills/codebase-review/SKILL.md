@@ -72,7 +72,8 @@ Summary: X findings (N Critical, N High, N Medium, N Low) | Y deferred → GH is
 
 ## Categories
 
-**See:** agents/reviewer.md for full definitions. Summary:
+**See:** agents/reviewer.md
+
 - **DRY** — duplicated logic, repeated constants
 - **YAGNI** — unused code, dead paths, speculative features
 - **Simplicity & Efficiency** — over-abstraction, unnecessary indirection
