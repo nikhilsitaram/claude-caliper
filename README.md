@@ -60,16 +60,14 @@ Every task gets a fresh implementer. Every review gets a fresh reviewer. No agen
 
 ## Installation
 
+In a Claude Code session:
+
 ```
-/plugin add claude-caliper
+/plugin marketplace add nikhilsitaram/claude-caliper
+/plugin install claude-caliper
 ```
 
-Or via the CLI:
-
-```bash
-claude plugin marketplace add https://github.com/nikhilsitaram/claude-caliper
-claude plugin install claude-caliper@claude-caliper
-```
+Then restart Claude Code.
 
 **Verify:** Start a new session and describe something you want to build. Claude should trigger the brainstorming skill before writing a single line of code.
 
