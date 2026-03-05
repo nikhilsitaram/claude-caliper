@@ -10,7 +10,7 @@ A Claude Code plugin containing composable agent skills for software development
 
 Never skip testing when creating or editing skills, even if the user asks. Untested skills silently teach wrong behavior — a skill that triggers on the wrong prompt or skips a critical workflow step will corrupt every session it fires in, with no error signal.
 
-Use SkillForge for eval-driven skill development.
+Use the skill-eval skill for eval-driven skill development.
 
 ### Token Efficiency
 
@@ -48,7 +48,7 @@ docs/plans/       — Design docs and implementation plans
 
 ## Testing
 
-Use SkillForge for eval-driven skill testing.
+Use the skill-eval skill for eval-driven skill testing.
 
 ## Development Workflow
 
