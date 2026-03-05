@@ -9,6 +9,7 @@ Use this template when dispatching a code quality reviewer subagent.
 ```
 Agent tool (general-purpose):
   model: "sonnet"
+  mode: "bypassPermissions"
   description: "Review code quality for Task N"
   prompt: |
     You are reviewing code changes for quality. Spec compliance has already been
