@@ -104,7 +104,11 @@ EOF
 
 ### Step 9: Summary
 
-Report: branch name, test results, files changed, commit hash, PR URL. Note: "PR open for CodeRabbit review. Run `/merge-pr` after review."
+Report: branch name, test results, files changed, commit hash, PR URL.
+
+If running inside a worktree, tell the user:
+
+> PR is open for review. When ready to merge: `/exit` this session, `cd` to the main repo, then run `/merge-pr`. Starting fresh from the main repo avoids worktree CWD issues during cleanup.
 
 ## Arguments
 
