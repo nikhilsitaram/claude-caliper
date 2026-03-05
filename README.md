@@ -32,6 +32,31 @@ flowchart LR
 
 Yellow nodes are quality gates — the workflow pauses here until the stage is solid.
 
+The build step runs entirely via subagents. Every task gets a fresh implementer. Every review gets a fresh reviewer. No agent ever reviews its own work.
+
+```mermaid
+flowchart TD
+    P[Plan] --> T0[Task 0: Integration Tests\nfresh subagent]
+
+    T0 --> T1[Task 1\nfresh implementer]
+    T0 --> T2[Task 2\nfresh implementer]
+    T0 --> TN[Task N\nfresh implementer]
+
+    T1 --> S1[Spec Review\nfresh reviewer]
+    S1 --> C1[Code Review\nfresh reviewer]
+
+    T2 --> S2[Spec Review\nfresh reviewer]
+    S2 --> C2[Code Review\nfresh reviewer]
+
+    TN --> SN[Spec Review\nfresh reviewer]
+    SN --> CN[Code Review\nfresh reviewer]
+
+    C1 & C2 & CN --> IR[Implementation Review\nfresh reviewer — sees all tasks together]
+    IR --> Ship[Ship PR]
+
+    style IR fill:#fef3c7,stroke:#d97706,color:#000
+```
+
 ---
 
 ## Installation
@@ -102,6 +127,8 @@ Skills degrade silently. A prompt tweak that looks like an improvement might dro
 **Lean by default.** Each skill is under 1,000 words. Skills teach Claude what it doesn't already know — workflow gates, project conventions, quality thresholds — not things it can reason from first principles.
 
 **Eval-driven.** Every skill change runs through `skill-eval` before shipping. Pass rate + blind comparison + variance. No guessing whether the rewrite is better.
+
+**Fresh context on every review.** Reviewers are always fresh subagents — they haven't written the code they're reviewing, so they can't rationalize away its problems. The implementer that built a task never reviews it. The implementation reviewer that checks all tasks never built any of them.
 
 **Quality gates, not suggestions.** The workflow stops at design review, plan review, and implementation review. These aren't optional checkpoints — they're the moments that prevent the most rework.
 
