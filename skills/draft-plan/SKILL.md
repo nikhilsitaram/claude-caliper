@@ -1,5 +1,5 @@
 ---
-name: writing-plans
+name: draft-plan
 description: Use when you have a spec or requirements for a multi-step task, before touching code
 ---
 
@@ -7,7 +7,7 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 Write implementation plans assuming the executor has zero codebase context. Document everything: which files to touch, exact code, how to test, what to avoid and why.
 
-**Context:** Runs as a fresh subagent dispatched by brainstorming after design approval. All needed context comes from the design doc — no live conversation context is carried over.
+**Context:** Runs as a fresh subagent dispatched by build after design approval. All needed context comes from the design doc — no live conversation context is carried over.
 
 **Save to:** `docs/plans/YYYY-MM-DD-<topic>/plan-<topic>.md`
 
@@ -30,7 +30,7 @@ status: Not Yet Started
 
 # [Feature Name] Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use orchestrating
+> **For Claude:** REQUIRED SUB-SKILL: Use orchestrate
 
 **Goal:** [One sentence]
 **Architecture:** [2-3 sentences]
@@ -62,7 +62,7 @@ status: Not Yet Started
 
 **Phase boundaries** fall where "run full suite and verify" is meaningful. Each phase ends with a verification task and a one-sentence rationale explaining why it exists.
 
-**Design doc inheritance:** If the design doc has approved phases from brainstorming, use those as starting structure. Don't contradict without flagging.
+**Design doc inheritance:** If the design doc has approved phases from build, use those as starting structure. Don't contradict without flagging.
 
 ## Task Structure
 
@@ -144,14 +144,14 @@ Skipping review risks plans with missing paths or ordering bugs reaching executi
 
 After review passes, dispatch a fresh Opus orchestrator with zero planning context (automatic `/clear`).
 
-Prompt includes: plan file path, working directory, instruction to use `orchestrating`, instruction to use `ship` when complete.
+Prompt includes: plan file path, working directory, instruction to use `orchestrate`, instruction to use `ship` when complete.
 
 ```text
 Agent(
   subagent_type: "general-purpose",
   model: "opus",
   prompt: "Read the plan at docs/plans/<folder>/plan-<topic>.md and execute
-    using orchestrating. When complete, use
+    using orchestrate. When complete, use
     implementation-review then ship.
     Working directory: <worktree-path>"
 )

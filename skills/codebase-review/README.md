@@ -22,7 +22,7 @@ Phase 2: Parallel scope reviews (one Explore subagent per directory)
 Phase 3: Cross-scope reconciliation (one Explore subagent, sees all findings)
          |
          v
-Phase 4: Aggregate + route (write report, create issues, or hand off to writing-plans)
+Phase 4: Aggregate + route (write report, create issues, or hand off to draft-plan)
 ```
 
 ### Phase 1 — Resolve Scope
@@ -43,7 +43,7 @@ Merges all findings, deduplicates, and ranks by criticality. Writes a report to 
 
 Routes by **fix complexity** (not severity):
 
-- **Inline fixes** — automatically invokes `writing-plans` on the grouped findings, then `plan-review`, then proceeds to execution. No user prompt.
+- **Inline fixes** — automatically invokes `draft-plan` on the grouped findings, then `plan-review`, then proceeds to execution. No user prompt.
 - **Complex fixes** — `AskUserQuestion`: create GitHub issues (one per group) or write plans now. User chooses.
 
 A Critical one-liner goes inline; a Medium refactoring across 10 files gets an issue or plan.

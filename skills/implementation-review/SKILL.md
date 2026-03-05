@@ -9,7 +9,7 @@ Per-task reviews verify each piece works. This review verifies the pieces work *
 
 ## When to Use
 
-- After all tasks complete in orchestrating (auto-dispatched)
+- After all tasks complete in orchestrate (auto-dispatched)
 - Before merging any multi-task feature branch
 - Between phases of a multi-phase plan (auto-dispatched by SDD after each phase)
 - When asked to "review the whole thing" or "look at everything with fresh eyes"
@@ -76,6 +76,6 @@ Under 5 issues, the orchestrator verifies fixes and proceeds without re-review.
 
 ## Integration
 
-**Auto-dispatched by:** orchestrating (after all tasks complete)
+**Auto-dispatched by:** orchestrate (after all tasks complete)
 
 **Leads to:** ship (once review passes)

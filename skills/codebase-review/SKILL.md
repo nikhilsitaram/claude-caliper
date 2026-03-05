@@ -46,13 +46,13 @@ This pass catches cross-directory DRY violations and naming drift that per-scope
 4. Route by fix complexity:
 
 **Inline fixes** (automatically, no user prompt):
-- Invoke `writing-plans` with the grouped inline findings as requirements
+- Invoke `draft-plan` with the grouped inline findings as requirements
 - Invoke `plan-review` on the resulting plan
 - Proceed to execution
 
 **Complex fixes** (AskUserQuestion — pick one):
 - **Create GitHub issues** — one issue per logical group → `gh issue create`
-- **Write plans now** — invoke `writing-plans` per group, then `plan-review`
+- **Write plans now** — invoke `draft-plan` per group, then `plan-review`
 
 Routing is based on fix COMPLEXITY, not severity. A Critical one-liner goes inline; a Medium refactoring across 10 files gets an issue or plan.
 

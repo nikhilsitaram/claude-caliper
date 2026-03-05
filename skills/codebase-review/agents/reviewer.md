@@ -4,7 +4,7 @@ Review a single directory for code quality issues across 5 categories. Read ever
 
 ## Inputs
 
-- **SCOPE_PATH**: The directory to review (provided by the orchestrating skill)
+- **SCOPE_PATH**: The directory to review (provided by the orchestrate skill)
 
 ## Process
 

@@ -1,5 +1,5 @@
 ---
-name: brainstorming
+name: build
 description: Use when creating features, building components, adding functionality, or modifying behavior - before any creative or implementation work begins
 ---
 
@@ -27,14 +27,14 @@ Complete in order:
 6. **Get verbal approval** — explicit "yes" before proceeding
 7. **Set up worktree** — `git worktree add .worktrees/<branch-name> -b <branch-name>`; run tests to establish a clean baseline
 8. **Write design doc** — `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`, commit
-9. **Dispatch writing-plans subagent** — fresh Opus agent with design doc path and worktree path (zero brainstorming context)
+9. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero build context)
 
 ```text
 Agent(
   subagent_type: "general-purpose",
   model: "opus",
   prompt: "Read the design doc at docs/plans/<folder>/design-<topic>.md and write
-    an implementation plan using the writing-plans skill.
+    an implementation plan using the draft-plan skill.
     Working directory: <absolute-worktree-path>"
 )
 ```

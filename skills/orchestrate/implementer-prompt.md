@@ -31,7 +31,7 @@ Task tool (general-purpose):
     ## Your Job
 
     Once you're clear on requirements:
-    1. Follow TDD for all implementation — the cycle is: Write failing test → verify it FAILS → write minimal code → verify it PASSES → refactor → commit. **Never skip verifying the test fails first.** A test that passes before implementation protects nothing. **See:** `skills/orchestrating/tdd.md` for test discovery, failure mode troubleshooting, and boundary test patterns.
+    1. Follow TDD for all implementation — the cycle is: Write failing test → verify it FAILS → write minimal code → verify it PASSES → refactor → commit. **Never skip verifying the test fails first.** A test that passes before implementation protects nothing. **See:** `skills/orchestrate/tdd.md` for test discovery, failure mode troubleshooting, and boundary test patterns.
     2. If this task consumes output from a prior task (imports a module, reads config, calls an API created earlier), write a narrow boundary integration test using real components as part of your TDD cycle
     3. Implement exactly what the task specifies using TDD (red/green/refactor)
     4. Verify implementation works

@@ -11,8 +11,8 @@ Dispatch an Opus subagent to validate a plan before execution. Catches issues th
 
 ## When to Use
 
-- After writing-plans produces a plan document
-- Before orchestrating begins
+- After draft-plan produces a plan document
+- Before orchestrate begins
 - When resuming work on an idle plan (context may have drifted)
 
 **Skip for:** Single-task plans, hotfix plans, trivially small plans (no design doc needed).
@@ -61,12 +61,12 @@ Reviewer produces:
 - Assessment (issue count, severity breakdown, ready for execution?)
 
 **Pass:** Zero issues, or all issues fixed and confirmed clean
-**Fail:** Return to writing-plans to fix, then re-run plan-review
+**Fail:** Return to draft-plan to fix, then re-run plan-review
 
 **Re-review gate:** If the reviewer finds more than 5 issues, after all fixes, dispatch a fresh reviewer with the same full scope to confirm clean. Under 5 issues, verify fixes and proceed.
 
 ## Integration
 
-**Auto-dispatched by:** writing-plans (after plan saved)
+**Auto-dispatched by:** draft-plan (after plan saved)
 
-**Leads to:** orchestrating (once review passes)
+**Leads to:** orchestrate (once review passes)

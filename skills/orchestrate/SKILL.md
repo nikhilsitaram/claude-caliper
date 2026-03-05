@@ -1,13 +1,13 @@
 ---
-name: orchestrating
+name: orchestrate
 description: Use when executing implementation plans with independent tasks in the current session
 ---
 
-# Orchestrating
+# Orchestrate
 
-Execute plan phase by phase: dispatch a fresh phase executor subagent per phase, then dispatch implementation-review from the orchestrating context, report phase completion, and advance. After all phases, auto-invoke ship.
+Execute plan phase by phase: dispatch a fresh phase executor subagent per phase, then dispatch implementation-review from the orchestrate context, report phase completion, and advance. After all phases, auto-invoke ship.
 
-**Core principle:** Phase executor handles implementation. Orchestrating context handles review, reporting, and phase advancement.
+**Core principle:** Phase executor handles implementation. Orchestrate context handles review, reporting, and phase advancement.
 
 ## When to Use
 
@@ -28,7 +28,7 @@ Execute plan phase by phase: dispatch a fresh phase executor subagent per phase,
 | `./implementer-prompt.md` | Dispatch individual task implementer (used inside phase executor and for post-review fix work) |
 | `./spec-reviewer-prompt.md` | Spec compliance reviewer (used inside phase executor) |
 | `./code-quality-reviewer-prompt.md` | Code quality reviewer (used inside phase executor) |
-| `skills/implementation-review/reviewer-prompt.md` | Holistic cross-task reviewer (dispatched from orchestrating context after each phase) |
+| `skills/implementation-review/reviewer-prompt.md` | Holistic cross-task reviewer (dispatched from orchestrate context after each phase) |
 
 ## Example Workflow
 
@@ -129,7 +129,7 @@ Under 5 issues: orchestrator verifies fixes and proceeds.
 
 ## Rule 4 Handling
 
-When a phase executor reports a Rule 4 violation, orchestrating cannot ask the user (it runs as a subagent dispatched by writing-plans). Instead:
+When a phase executor reports a Rule 4 violation, orchestrate cannot ask the user (it runs as a subagent dispatched by draft-plan). Instead:
 
 1. Update plan frontmatter:
 
@@ -150,13 +150,13 @@ blocked_at: "Phase N, Task M"
 **Discovered at:** Phase N, Task M — [task title]
 **Context:** [What the implementer tried to do and why the plan doesn't cover it]
 **Options:**
-- Update the plan to include the required change, then re-run orchestrating
+- Update the plan to include the required change, then re-run orchestrate
 - Adjust the task scope to avoid the architectural change
 ```
 
 3. Terminate. Do not attempt subsequent tasks or phases.
 
-The user sees the plan doc in a clean BLOCKED state and can resolve the conflict before re-invoking orchestrating.
+The user sees the plan doc in a clean BLOCKED state and can resolve the conflict before re-invoking orchestrate.
 
 ## Plan Doc Updates
 
@@ -165,7 +165,7 @@ The user sees the plan doc in a clean BLOCKED state and can resolve the conflict
 | First task starts | Frontmatter: `status: In Development` |
 | Task completes (inside executor) | `- [ ] Task N` → `- [x] Task N` |
 | Phase executor returns | Phase completion report written to plan doc by executor |
-| Review fixes applied | Orchestrating context appends `### Implementation Review Changes` to completion report |
+| Review fixes applied | Orchestrate context appends `### Implementation Review Changes` to completion report |
 | Phase review passes | Phase status: `Complete (YYYY-MM-DD)` |
 | All phases done | Frontmatter: `status: Complete` |
 | Rule 4 violation | Frontmatter: `status: BLOCKED` + blocked_by + blocked_at |
@@ -175,12 +175,12 @@ The user sees the plan doc in a clean BLOCKED state and can resolve the conflict
 | Constraint | Why |
 |------------|-----|
 | Record BASE_SHA before executor | Implementation-review needs the exact phase start SHA |
-| Dispatch implementation-review from orchestrating context | Phase completion and any issues must be visible before advancing — this prevents bugs from compounding into the next phase |
+| Dispatch implementation-review from orchestrate context | Phase completion and any issues must be visible before advancing — this prevents bugs from compounding into the next phase |
 | Fix review issues before next phase | Phase N bugs compound into Phase N+1 complexity |
 | Escalate Rule 4 immediately | Architectural changes need user input, not guessing |
 
 ## Integration
 
-**Workflow:** worktree setup (before) → writing-plans (creates plan) → **this skill** → ship (auto-invoked after final phase) → merge-pr (after CodeRabbit)
+**Workflow:** worktree setup (before) → draft-plan (creates plan) → **this skill** → ship (auto-invoked after final phase) → merge-pr (after CodeRabbit)
 
 **See:** `tdd.md` — TDD reference (cycle, boundary tests, failure modes); content is embedded in implementer prompts

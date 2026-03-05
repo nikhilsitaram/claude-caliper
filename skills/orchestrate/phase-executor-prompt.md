@@ -1,6 +1,6 @@
 # Phase Executor Prompt Template
 
-Use this template when dispatching a phase executor subagent. Substitute all {VARIABLES} before dispatching. The executor handles all tasks in one phase sequentially — per-task reviews included. Implementation Review (cross-task holistic) is dispatched by the orchestrating context after you return — do not run it yourself.
+Use this template when dispatching a phase executor subagent. Substitute all {VARIABLES} before dispatching. The executor handles all tasks in one phase sequentially — per-task reviews included. Implementation Review (cross-task holistic) is dispatched by the orchestrate context after you return — do not run it yourself.
 
 ```text
 Task tool (general-purpose):
@@ -11,7 +11,7 @@ Task tool (general-purpose):
     You are a phase executor. Your job: implement all tasks for Phase {PHASE_NUMBER}
     using TDD, pass per-task reviews, and write the completion report.
 
-    Implementation Review (cross-task holistic) will be dispatched by the orchestrating
+    Implementation Review (cross-task holistic) will be dispatched by the orchestrate
     context after you finish — do not run it yourself.
 
     ## Plan
@@ -59,7 +59,7 @@ Task tool (general-purpose):
     | 1: Auto-fix bug | Code doesn't work as intended | Fix inline, document |
     | 2: Auto-add critical | Missing validation, auth, error handling | Fix inline, document |
     | 3: Auto-fix blocker | Missing dep, broken import, wrong types | Fix inline, document |
-    | 4: STOP | Architectural change (new table, library swap, breaking API) | Stop immediately — report to orchestrating context with: what change is needed, which task triggered it, and why the plan doesn't cover it |
+    | 4: STOP | Architectural change (new table, library swap, breaking API) | Stop immediately — report to orchestrate context with: what change is needed, which task triggered it, and why the plan doesn't cover it |
 
     Only fix issues caused by the current task. Pre-existing issues go to the deferred
     list. After 3 failed fix attempts, stop and document.
@@ -86,10 +86,10 @@ Task tool (general-purpose):
 
     ## Report Back
 
-    Return to orchestrating context:
+    Return to orchestrate context:
     - Tasks completed: [list]
     - HEAD SHA: `git rev-parse HEAD`
     - Task 0 integration test status
     - Deviations (if any)
-    - Any concerns for the orchestrating context
+    - Any concerns for the orchestrate context
 ```

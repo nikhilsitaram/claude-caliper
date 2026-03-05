@@ -21,8 +21,8 @@ claude-caliper installs a complete development workflow as skills that fire auto
 ```mermaid
 %%{init: {'flowchart': {'nodeSpacing': 20, 'rankSpacing': 20}, 'themeVariables': {'fontSize': '12px'}}}%%
 flowchart TD
-    A([Idea]) --> B[Brainstorm]
-    B --> C[Write Plan]
+    A([Idea]) --> B[Build]
+    B --> C[Draft Plan]
     C --> D[Plan Review]
 
     D --> T1[Task 1]
@@ -71,12 +71,12 @@ Then install the package that fits your needs:
 | Package | Skills | Install |
 |---------|--------|---------|
 | `claude-caliper` | Everything | `/plugin install claude-caliper@claude-caliper` |
-| `claude-caliper-workflow` | brainstorming, writing-plans, plan-review, orchestrating, implementation-review, ship, merge-pr | `/plugin install claude-caliper-workflow@claude-caliper` |
+| `claude-caliper-workflow` | build, draft-plan, plan-review, orchestrate, implementation-review, ship, merge-pr | `/plugin install claude-caliper-workflow@claude-caliper` |
 | `claude-caliper-tooling` | codebase-review, skill-eval | `/plugin install claude-caliper-tooling@claude-caliper` |
 
 Then restart Claude Code.
 
-**Verify:** Start a new session and describe something you want to build. Claude should trigger the brainstorming skill before writing a single line of code.
+**Verify:** Start a new session and describe something you want to build. Claude should trigger the build skill before writing a single line of code.
 
 ---
 
@@ -86,12 +86,12 @@ Skills fire automatically as your work progresses through each stage. You intera
 
 | Skill | Invoked by | Does |
 |-------|------------|------|
-| [brainstorming](skills/brainstorming/) | 👤 You — describe something to build | Challenges assumptions, proposes 2-3 approaches, gets design sign-off; then dispatches the rest of the pipeline |
-| [writing-plans](skills/writing-plans/) | 🤖 brainstorming (subagent) | Produces a task checklist with exact file paths, TDD steps, and runnable verification commands; supports phased plans when tasks have dependency layers |
-| [plan-review](skills/plan-review/) | 🤖 writing-plans (subagent) | Validates completeness — catches vague steps and missing paths before execution starts |
-| [orchestrating](skills/orchestrating/) | 🤖 writing-plans (subagent) | Dispatches fresh subagents per task, each running full RED→GREEN→REFACTOR; spec + code review after every task; per-phase implementation review before advancing |
-| [implementation-review](skills/implementation-review/) | 🤖 orchestrating (subagent) | Cross-task holistic review — catches inconsistencies a per-task reviewer can't see |
-| [ship](skills/ship/) | 🤖 orchestrating (subagent) | Commits, pushes, opens PR with summary |
+| [build](skills/build/) | 👤 You — describe something to build | Challenges assumptions, proposes 2-3 approaches, gets design sign-off; then dispatches the rest of the pipeline |
+| [draft-plan](skills/draft-plan/) | 🤖 build (subagent) | Produces a task checklist with exact file paths, TDD steps, and runnable verification commands; supports phased plans when tasks have dependency layers |
+| [plan-review](skills/plan-review/) | 🤖 draft-plan (subagent) | Validates completeness — catches vague steps and missing paths before execution starts |
+| [orchestrate](skills/orchestrate/) | 🤖 draft-plan (subagent) | Dispatches fresh subagents per task, each running full RED→GREEN→REFACTOR; spec + code review after every task; per-phase implementation review before advancing |
+| [implementation-review](skills/implementation-review/) | 🤖 orchestrate (subagent) | Cross-task holistic review — catches inconsistencies a per-task reviewer can't see |
+| [ship](skills/ship/) | 🤖 orchestrate (subagent) | Commits, pushes, opens PR with summary |
 | [merge-pr](skills/merge-pr/) | 👤 You — after reviewing the PR | Addresses feedback, merges, cleans up branch and worktree |
 
 ---
@@ -102,7 +102,7 @@ Skills fire automatically as your work progresses through each stage. You intera
 
 Most review tools look at diffs. `codebase-review` audits the whole repo in parallel — one Explore subagent per top-level directory, then a cross-scope reconciliation pass that catches duplication and naming drift the per-directory reviewers couldn't see.
 
-Findings are triaged by fix complexity, not severity: a critical one-liner goes straight to `writing-plans`; a medium refactor across 10 files becomes a GitHub issue. No manual sorting.
+Findings are triaged by fix complexity, not severity: a critical one-liner goes straight to `draft-plan`; a medium refactor across 10 files becomes a GitHub issue. No manual sorting.
 
 ```bash
 /codebase-review          # entire repo

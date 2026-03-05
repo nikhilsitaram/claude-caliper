@@ -133,6 +133,6 @@ If running inside a worktree, tell the user:
 
 ## Integration
 
-**Auto-invoked by:** orchestrating — after implementation-review passes
+**Auto-invoked by:** orchestrate — after implementation-review passes
 
 **Followed by:** merge-pr — after CodeRabbit reviews

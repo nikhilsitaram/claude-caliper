@@ -16,9 +16,9 @@
       },
       "strict": false,
       "skills": [
-        "./skills/brainstorming",
-        "./skills/writing-plans",
-        "./skills/orchestrating",
+        "./skills/build",
+        "./skills/draft-plan",
+        "./skills/orchestrate",
         "./skills/plan-review",
         "./skills/implementation-review",
         "./skills/codebase-review",
@@ -29,7 +29,7 @@
     },
     {
       "name": "claude-caliper-workflow",
-      "description": "End-to-end development workflow: brainstorm → plan → execute → review → ship → merge",
+      "description": "End-to-end development workflow: build → draft-plan → orchestrate → review → ship → merge",
       "version": "4.3.1",
       "source": "./",
       "author": {
@@ -38,10 +38,10 @@
       },
       "strict": false,
       "skills": [
-        "./skills/brainstorming",
-        "./skills/writing-plans",
+        "./skills/build",
+        "./skills/draft-plan",
         "./skills/plan-review",
-        "./skills/orchestrating",
+        "./skills/orchestrate",
         "./skills/implementation-review",
         "./skills/ship",
         "./skills/merge-pr"
