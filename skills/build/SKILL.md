@@ -3,7 +3,7 @@ name: build
 description: Use when creating features, building components, adding functionality, or modifying behavior - before any creative or implementation work begins
 ---
 
-# Brainstorming Ideas Into Designs
+# Build: Ideas Into Designs
 
 Turn ideas into validated designs through collaborative dialogue before any code is written.
 
