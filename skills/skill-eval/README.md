@@ -43,8 +43,10 @@ Prompts (evals.json)
 
 ## File layout
 
+Eval data lives at `~/.claude/skill-evals/` — outside any project repo, so it works regardless of CWD and persists across plugin upgrades.
+
 ```
-.skill-evals/                          # gitignored, lives at repo root
+~/.claude/skill-evals/
 └── {skill-name}/
     ├── evals.json                     # eval prompts + assertions (shared across iterations)
     ├── snapshot-before/               # copy of SKILL.md before editing
@@ -52,7 +54,7 @@ Prompts (evals.json)
     └── iteration-N/
         ├── config.json                # variant definitions (before/after labels + paths)
         ├── benchmark.json             # aggregated stats (auto-generated)
-        ├── benchmark.md              # human-readable summary table (auto-generated)
+        ├── benchmark.md               # human-readable summary table (auto-generated)
         ├── comparison.json            # blind comparator output (written by subagent)
         ├── analysis.json              # post-hoc analysis output (written by subagent)
         └── eval-{id}-{slug}/
@@ -69,8 +71,6 @@ Prompts (evals.json)
                 ├── run-2/
                 └── run-3/
 ```
-
-All eval output is gitignored. The only files you commit are `evals.json` and `config.json` when you want to preserve them.
 
 ## evals.json format
 
@@ -115,23 +115,36 @@ Set `type` to `"none"` (and omit `skill_path`) for a no-skill baseline.
 
 ## Running evals
 
-Spawn both variants simultaneously — they write to separate directories and won't conflict:
+First, resolve the script paths (do this once per session):
+
+```bash
+PLUGIN_ROOT=$(python3 -c "
+import json, os
+p = json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))
+print(p['plugins']['claude-caliper@claude-caliper'][0]['installPath'])
+")
+EVAL_ROOT=~/.claude/skill-evals
+SKILL_EVAL_SCRIPT=$PLUGIN_ROOT/skills/skill-eval/scripts/run_eval.py
+AGGREGATE_SCRIPT=$PLUGIN_ROOT/skills/skill-eval/scripts/aggregate_benchmark.py
+```
+
+Then spawn both variants simultaneously — they write to separate directories and won't conflict:
 
 ```bash
 # Run after variant
-python3 skills/skill-eval/scripts/run_eval.py \
-  --evals-path .skill-evals/test-driven-development/evals.json \
-  --output-dir .skill-evals/test-driven-development/iteration-1/ \
+python3 $SKILL_EVAL_SCRIPT \
+  --evals-path $EVAL_ROOT/test-driven-development/evals.json \
+  --output-dir $EVAL_ROOT/test-driven-development/iteration-1/ \
   --variant after \
   --skill-path skills/test-driven-development/SKILL.md \
   --runs 3
 
 # Run before variant (parallel — run both at once)
-python3 skills/skill-eval/scripts/run_eval.py \
-  --evals-path .skill-evals/test-driven-development/evals.json \
-  --output-dir .skill-evals/test-driven-development/iteration-1/ \
+python3 $SKILL_EVAL_SCRIPT \
+  --evals-path $EVAL_ROOT/test-driven-development/evals.json \
+  --output-dir $EVAL_ROOT/test-driven-development/iteration-1/ \
   --variant before \
-  --skill-path .skill-evals/test-driven-development/snapshot-before/SKILL.md \
+  --skill-path $EVAL_ROOT/test-driven-development/snapshot-before/SKILL.md \
   --runs 3
 ```
 
@@ -152,8 +165,8 @@ The grader evaluates each assertion with cited evidence, flags trivially-satisfi
 ## Aggregating
 
 ```bash
-python3 skills/skill-eval/scripts/aggregate_benchmark.py \
-  .skill-evals/test-driven-development/iteration-1/ \
+python3 $AGGREGATE_SCRIPT \
+  $EVAL_ROOT/test-driven-development/iteration-1/ \
   --skill-name test-driven-development
 ```
 
