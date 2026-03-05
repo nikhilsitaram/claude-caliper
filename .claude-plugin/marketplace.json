@@ -4,9 +4,6 @@
     "name": "Nikhil Sitaram",
     "email": "nikhil5890@gmail.com"
   },
-  "metadata": {
-    "description": "claude-caliper bundle"
-  },
   "plugins": [
     {
       "name": "claude-caliper",
