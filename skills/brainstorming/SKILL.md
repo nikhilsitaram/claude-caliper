@@ -27,7 +27,17 @@ Complete in order:
 6. **Get verbal approval** — explicit "yes" before proceeding
 7. **Set up worktree** — `git worktree add .worktrees/<branch-name> -b <branch-name>`; run tests to establish a clean baseline
 8. **Write design doc** — `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`, commit
-9. **Invoke writing-plans** — the ONLY next skill
+9. **Dispatch writing-plans subagent** — fresh Opus agent with design doc path and worktree path (zero brainstorming context)
+
+```text
+Agent(
+  subagent_type: "general-purpose",
+  model: "opus",
+  prompt: "Read the design doc at docs/plans/<folder>/design-<topic>.md and write
+    an implementation plan using the writing-plans skill.
+    Working directory: <absolute-worktree-path>"
+)
+```
 
 ## Challenging Assumptions
 

@@ -16,6 +16,8 @@ Claude wants to write code immediately — before the design is agreed on, befor
 
 claude-caliper installs a complete development workflow as skills that fire automatically at the right moment. Design before plan. Plan before code. Test before merge. Every time.
 
+**Two human touchpoints: confirm the design, then review the PR.** Everything between — writing the plan, reviewing it, executing tasks with TDD, cross-task review, shipping — runs as a chain of fresh subagents with zero manual handoffs.
+
 ```mermaid
 %%{init: {'flowchart': {'nodeSpacing': 20, 'rankSpacing': 20}, 'themeVariables': {'fontSize': '12px'}}}%%
 flowchart TD
@@ -75,17 +77,17 @@ Then restart Claude Code.
 
 ## The Pipeline
 
-Skills fire automatically as your work progresses through each stage.
+Skills fire automatically as your work progresses through each stage. You interact twice — once to confirm the design, once to review the PR.
 
-| Skill | Triggers when | Does |
-|-------|---------------|------|
-| [brainstorming](skills/brainstorming/) | You describe something to build | Challenges assumptions, proposes 2-3 approaches, gets design sign-off before any code |
-| [writing-plans](skills/writing-plans/) | Design is approved | Produces a task checklist with exact file paths, TDD steps, and runnable verification commands; supports phased plans when tasks have dependency layers |
-| [plan-review](skills/plan-review/) | Plan is written | Validates completeness — catches vague steps and missing paths before execution starts |
-| [orchestrating](skills/orchestrating/) | Plan passes review | Dispatches parallel subagents per task, each running full RED→GREEN→REFACTOR; spec + code review after every task; per-phase implementation review before advancing |
-| [implementation-review](skills/implementation-review/) | Phase or all tasks complete | Cross-task holistic review — catches inconsistencies a per-task reviewer can't see |
-| [ship](skills/ship/) | Implementation passes review | Commits, pushes, opens PR with summary |
-| [merge-pr](skills/merge-pr/) | PR is reviewed | Addresses feedback, merges, cleans up branch and worktree |
+| Skill | Invoked by | Does |
+|-------|------------|------|
+| [brainstorming](skills/brainstorming/) | 👤 You — describe something to build | Challenges assumptions, proposes 2-3 approaches, gets design sign-off; then dispatches the rest of the pipeline |
+| [writing-plans](skills/writing-plans/) | 🤖 brainstorming (subagent) | Produces a task checklist with exact file paths, TDD steps, and runnable verification commands; supports phased plans when tasks have dependency layers |
+| [plan-review](skills/plan-review/) | 🤖 writing-plans (subagent) | Validates completeness — catches vague steps and missing paths before execution starts |
+| [orchestrating](skills/orchestrating/) | 🤖 writing-plans (subagent) | Dispatches fresh subagents per task, each running full RED→GREEN→REFACTOR; spec + code review after every task; per-phase implementation review before advancing |
+| [implementation-review](skills/implementation-review/) | 🤖 orchestrating (subagent) | Cross-task holistic review — catches inconsistencies a per-task reviewer can't see |
+| [ship](skills/ship/) | 🤖 orchestrating (subagent) | Commits, pushes, opens PR with summary |
+| [merge-pr](skills/merge-pr/) | 👤 You — after reviewing the PR | Addresses feedback, merges, cleans up branch and worktree |
 
 ---
 

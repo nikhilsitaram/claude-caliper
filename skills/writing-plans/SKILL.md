@@ -7,7 +7,7 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 Write implementation plans assuming the executor has zero codebase context. Document everything: which files to touch, exact code, how to test, what to avoid and why.
 
-**Context:** Run in a dedicated worktree (created by brainstorming after design approval).
+**Context:** Runs as a fresh subagent dispatched by brainstorming after design approval. All needed context comes from the design doc — no live conversation context is carried over.
 
 **Save to:** `docs/plans/YYYY-MM-DD-<topic>/plan-<topic>.md`
 

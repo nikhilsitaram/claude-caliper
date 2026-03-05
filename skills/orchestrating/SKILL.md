@@ -5,171 +5,182 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Orchestrating
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
+Execute plan phase by phase: dispatch a fresh phase executor subagent per phase, then dispatch implementation-review from the orchestrating context, report phase completion, and advance. After all phases, auto-invoke ship.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+**Core principle:** Phase executor handles implementation. Orchestrating context handles review, reporting, and phase advancement.
 
 ## When to Use
 
 - Have an implementation plan with mostly independent tasks
-- Tasks can be dispatched one at a time to fresh subagents
 - Don't use for tightly coupled tasks or when no plan exists
 
 ## The Process
 
-**Per task:** Dispatch implementer → spec compliance review → code quality review → mark complete
+**Per phase:** Record BASE_SHA → dispatch phase executor (all tasks + per-task reviews + completion report) → dispatch implementation-review → emit phase summary → fix issues → write handoff notes → advance
 
-**After all tasks (per phase for multi-phase):** Write completion report → verify Task 0 integration tests → implementation review → handoff notes (if more phases) → next phase or ship
+**After all phases:** Update plan status → auto-invoke ship.
 
 ## Prompt Templates
 
 | Template | Purpose |
 |----------|---------|
-| `./implementer-prompt.md` | Dispatch implementer subagent |
-| `./spec-reviewer-prompt.md` | Spec compliance reviewer |
-| `./code-quality-reviewer-prompt.md` | Code quality reviewer |
-| `skills/implementation-review/reviewer-prompt.md` | Final implementation reviewer |
+| `./phase-executor-prompt.md` | Dispatch phase executor subagent (sequential tasks + per-task reviews + completion report) |
+| `./implementer-prompt.md` | Dispatch individual task implementer (used inside phase executor and for post-review fix work) |
+| `./spec-reviewer-prompt.md` | Spec compliance reviewer (used inside phase executor) |
+| `./code-quality-reviewer-prompt.md` | Code quality reviewer (used inside phase executor) |
+| `skills/implementation-review/reviewer-prompt.md` | Holistic cross-task reviewer (dispatched from orchestrating context after each phase) |
 
 ## Example Workflow
 
 ```text
-[Read plan once, extract all tasks, create TaskCreate for each]
+[Read plan, identify phases]
 
-Task 0: Broad integration tests
-[Dispatch implementer] → Creates failing tests + stubs, commits
-[Spec + code review pass] → Mark complete
+Phase 1 BASE_SHA = $(git rev-parse HEAD)
+[Dispatch phase executor: Phase 1]
+  Internal: Task 0 (integration tests) → Task 1 (hook install) → Task 2 (recovery modes)
+  Each task: implementer → spec review → code review → mark complete
+  Writes completion report. Returns summary + HEAD SHA.
 
-Task 1: Hook installation
-[Dispatch implementer]
-Implementer: "Should hook be user or system level?"
-You: "User level (~/.config/)"
-Implementer: Implemented, 5/5 tests pass, committed
-[Spec review: ✅] → [Code review: ✅] → Mark complete
+[Dispatch implementation-review: PHASE_BASE_SHA..HEAD]
+  Found: duplicated constant (Tasks 1+2), missing boundary test (Task 2)
+  [Dispatch implementer fixes] → [Re-review: ✅]
 
-Task 2: Recovery modes
-[Dispatch implementer] → Implemented, 8/8 tests pass
-[Spec review: ❌ Missing progress reporting, extra --json flag]
-[Implementer fixes] → [Spec review: ✅]
-[Code review: ❌ Magic number]
-[Implementer extracts constant] → [Code review: ✅]
-Mark complete
+Phase 1 summary: 3 tasks complete. Review: 2 issues, both fixed.
+[Write handoff notes into plan doc]
 
-[After all tasks]
-[Write completion report into plan doc]
-[Verify Task 0 tests now GREEN]
-[Implementation review] → Found duplicated constant
-[Fix] → [Implementation review: ✅]
-[Auto-invoke ship → PR created]
+[Dispatch phase executor: Phase 2]
+  Internal: Task 3 → Task 4
+  Writes completion report. Returns.
+
+[Dispatch implementation-review: Phase 2 BASE_SHA..HEAD]
+  Found: 0 issues
+
+Phase 2 summary: 2 tasks complete. Review: 0 issues.
+[Auto-invoke ship]
 ```
 
 **Integration test levels:** Task 0 provides broad acceptance tests (Level 1). Implementers write boundary tests at cross-task seams (Level 2). Implementation-review verifies coverage (Level 3).
 
-## Completion Report
+## Per-Phase Execution
 
-After all tasks complete, before implementation review, append to the plan doc:
+For each phase:
 
-```markdown
-## Completion Report
+1. `PHASE_BASE_SHA=$(git rev-parse HEAD)` — before dispatching executor
+2. Dispatch phase executor (`./phase-executor-prompt.md`) with:
+   - Phase number, name, full task text for this phase
+   - PHASE_BASE_SHA
+   - PHASE_CONTEXT from prior phase's handoff notes (empty for Phase 1)
+3. After executor returns: dispatch implementation-review (`skills/implementation-review/reviewer-prompt.md`)
+   - BASE_SHA = PHASE_BASE_SHA, HEAD_SHA = `git rev-parse HEAD`
+   - PHASE_CONTEXT = what downstream phases expect (from plan); empty for final/single phase
+4. Triage findings through deviation rules — dispatch implementer for Rule 1-3; Rule 4 → write BLOCKED to plan doc and terminate (see Rule 4 Handling)
+5. Re-Review Gate: >5 issues → re-review after all fixes
+6. Append to the phase completion report in plan doc:
+   ```markdown
+   ### Implementation Review Changes
+   - [each fix: what changed and why]
+   ```
+   Omit section if no fixes were needed.
+7. Emit phase summary: "Phase N complete. [N tasks]. Review: X issues — [brief list]. [All fixed / N deferred]."
+8. Write handoff notes into plan doc (see format below)
+9. Update phase status: `Complete (YYYY-MM-DD)`
 
-**Date:** YYYY-MM-DD
-**Status:** Complete
+Single-phase plans skip handoff notes — one iteration of the same loop.
 
-### Summary
-[2-4 sentences describing what was built across all tasks]
+After the final phase: update plan frontmatter `status: Complete`, then auto-invoke ship.
 
-### Deviations
-[List each deviation with rule applied — or "None" if plan was followed exactly]
-- Task N: [what changed] — Rule [1-3]: [one-line reason] / Rule 4: [user approved on YYYY-MM-DD]
-```
-
-Include this report every time: without it, reviewers lose traceability between planned and shipped work, which slows regression debugging and PR validation.
-
-## Multi-Phase Execution
-
-For plans with multiple phases, the per-task flow runs within each phase. Between phases:
-
-1. Record `PHASE_BASE_SHA` — commit before the phase's first task
-2. Run full Task 0 test suite — failures in current phase scope are real issues; failures targeting future phases are expected (note and continue)
-3. Dispatch implementation-review with phase-scoped diff (`PHASE_BASE_SHA..HEAD`) and `PHASE_CONTEXT` describing what downstream phases expect
-4. Triage findings through deviation rules — dispatch fresh implementer for Rule 1-3 fixes, escalate Rule 4 to user
-5. Verify cross-phase boundary tests exist for interface contracts downstream phases depend on (from reviewer handoff notes) — dispatch implementer to write missing ones
-6. Write handoff notes into plan doc before next phase's checklist (see format below)
-7. Update phase status: `Complete (YYYY-MM-DD)`
-
-After the final phase: write completion report (summary + deviations across all phases), then ship.
-
-Single-phase plans skip this loop entirely — existing behavior unchanged.
-
-### Handoff Notes Format
+## Handoff Notes Format
 
 Insert before the next phase's task checklist:
 
 ```markdown
 ### Phase N Handoff Notes
 
-**Interface contracts:** [Function signatures, API shapes, config keys that Phase N+1 depends on — copy exact signatures]
-**Integration test status:** [Which tests pass, which are xfail for future phases, any flaky ones]
-**Known issues:** [Anything deferred, workarounds applied, tech debt taken on]
-**Decisions made:** [Any plan deviations approved by user or auto-fixed, with rationale]
+**Interface contracts:** [Function signatures, API shapes, config keys Phase N+1 depends on]
+**Integration test status:** [Which pass, which are xfail for future phases, any flaky]
+**Known issues:** [Anything deferred, workarounds, tech debt]
+**Decisions made:** [Plan deviations approved or auto-fixed, with rationale]
 ```
 
-Handoff notes should reflect the post-fix phase state (not pre-fix reviewer suggestions), so the next phase can proceed without reconstructing context from the full conversation.
+Handoff notes reflect post-fix state — the next phase can proceed without re-reading the conversation.
 
 ## Re-Review Gate
 
-Applies to all review stages (spec, code quality, implementation review, plan review):
+Applies to all review stages (spec, code quality, implementation review):
 
-If a reviewer finds **more than 5 fix-needed issues**, after all fixes are applied, dispatch a fresh subagent with the same full review scope to confirm clean. Bulk fixes risk introducing new issues or incomplete resolution — a fresh reviewer catches what the fixer missed.
+If a reviewer finds **more than 5 fix-needed issues**, after all fixes are applied, dispatch a fresh same-scope reviewer to confirm clean. Bulk fixes risk introducing new issues or incomplete resolution.
 
 Under 5 issues: orchestrator verifies fixes and proceeds.
 
 ## Deviation Rules
-
-When reality diverges from the plan:
 
 | Rule | Trigger | Action |
 |------|---------|--------|
 | **Rule 1: Auto-fix bugs** | Code doesn't work as intended | Fix inline, document |
 | **Rule 2: Auto-add critical** | Missing error handling, validation, auth | Fix inline, document |
 | **Rule 3: Auto-fix blockers** | Missing dep, broken import, wrong types | Fix inline, document |
-| **Rule 4: STOP** | New DB table, library swap, breaking API | **Ask user first** |
+| **Rule 4: STOP** | New DB table, library swap, breaking API | Write BLOCKED to plan → terminate |
 
-**Scope:** Only auto-fix issues caused by current task. Pre-existing issues go to a deferred list.
+**Scope:** Only auto-fix issues caused by current task. Pre-existing issues go to deferred list.
 
 **Limit:** After 3 fix attempts on same issue, stop and document.
 
-**Documentation:** Every Rule 1-3 deviation must include: what deviated, what was done, which rule applied.
+**Documentation:** Include what deviated, what was done, and which rule applied—so reviewers and future phases understand the decision without re-reading the conversation.
+
+## Rule 4 Handling
+
+When a phase executor reports a Rule 4 violation, orchestrating cannot ask the user (it runs as a subagent dispatched by writing-plans). Instead:
+
+1. Update plan frontmatter:
+
+```markdown
+---
+status: BLOCKED
+blocked_by: "Rule 4 — [specific issue, e.g., Task 2 requires a new DB table not in the plan]"
+blocked_at: "Phase N, Task M"
+---
+```
+
+2. Append to the plan doc body:
+
+```markdown
+## Execution Blocked — [YYYY-MM-DD]
+
+**Rule 4 violation:** [What architectural change would be required]
+**Discovered at:** Phase N, Task M — [task title]
+**Context:** [What the implementer tried to do and why the plan doesn't cover it]
+**Options:**
+- Update the plan to include the required change, then re-run orchestrating
+- Adjust the task scope to avoid the architectural change
+```
+
+3. Terminate. Do not attempt subsequent tasks or phases.
+
+The user sees the plan doc in a clean BLOCKED state and can resolve the conflict before re-invoking orchestrating.
 
 ## Plan Doc Updates
 
 | When | Update |
 |------|--------|
 | First task starts | Frontmatter: `status: In Development` |
-| Task completes | Change `- [ ] Task N` to `- [x] Task N` |
-| Phase completes (multi-phase) | Insert handoff notes before next phase's checklist |
+| Task completes (inside executor) | `- [ ] Task N` → `- [x] Task N` |
+| Phase executor returns | Phase completion report written to plan doc by executor |
+| Review fixes applied | Orchestrating context appends `### Implementation Review Changes` to completion report |
 | Phase review passes | Phase status: `Complete (YYYY-MM-DD)` |
-| All phases done | Append `## Completion Report` with summary + deviations |
-
-## Implementation Review
-
-After completion report written and Task 0 tests pass GREEN:
-
-1. Get `BASE_SHA` (merge-base) and `HEAD_SHA`
-2. Dispatch reviewer using `skills/implementation-review/reviewer-prompt.md`
-3. If issues found → fix → re-dispatch until clean
-4. Update phase status to Complete
+| All phases done | Frontmatter: `status: Complete` |
+| Rule 4 violation | Frontmatter: `status: BLOCKED` + blocked_by + blocked_at |
 
 ## Key Constraints
 
 | Constraint | Why |
 |------------|-----|
-| One implementer at a time | Parallel implementers cause git conflicts |
-| Provide full task text | Reading plan wastes subagent context |
-| Spec compliance before code quality | Code review is wasted if spec is wrong |
-| Answer questions before proceeding | Assumptions produce rework |
+| Record BASE_SHA before executor | Implementation-review needs the exact phase start SHA |
+| Dispatch implementation-review from orchestrating context | Phase completion and any issues must be visible before advancing — this prevents bugs from compounding into the next phase |
+| Fix review issues before next phase | Phase N bugs compound into Phase N+1 complexity |
+| Escalate Rule 4 immediately | Architectural changes need user input, not guessing |
 
 ## Integration
 
-**Workflow:** worktree setup (before) → writing-plans (creates plan) → **this skill** → implementation-review → ship → merge-pr (after CodeRabbit)
+**Workflow:** worktree setup (before) → writing-plans (creates plan) → **this skill** → ship (auto-invoked after final phase) → merge-pr (after CodeRabbit)
 
 **See:** `tdd.md` — TDD reference (cycle, boundary tests, failure modes); content is embedded in implementer prompts
