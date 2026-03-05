@@ -5,6 +5,7 @@ Use this template when dispatching a phase executor subagent. Substitute all {VA
 ```text
 Task tool (general-purpose):
   model: "sonnet"
+  mode: "bypassPermissions"
   description: "Execute Phase {PHASE_NUMBER}: {PHASE_NAME}"
   prompt: |
     You are a phase executor. Your job: implement all tasks for Phase {PHASE_NUMBER}
