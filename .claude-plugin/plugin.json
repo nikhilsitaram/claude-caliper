@@ -9,5 +9,5 @@
   "homepage": "https://github.com/nikhilsitaram/claude-caliper",
   "repository": "https://github.com/nikhilsitaram/claude-caliper",
   "license": "MIT",
-  "keywords": ["skills", "tdd", "planning", "workflow", "best-practices", "code-review"]
+  "keywords": ["skills", "tdd", "planning", "workflow", "best-practices", "code-review", "skill-eval"]
 }

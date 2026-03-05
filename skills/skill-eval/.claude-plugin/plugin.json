@@ -1,0 +1,5 @@
+{
+  "name": "skill-eval",
+  "description": "Use when evaluating skill output quality, comparing skill versions, running behavioral evals, benchmarking a skill, or when triggered by /skill-eval",
+  "version": "4.3.1"
+}

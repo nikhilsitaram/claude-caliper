@@ -1,6 +1,6 @@
 {
   "name": "claude-caliper",
-  "description": "A Claude workflow that measures twice and cuts once",
+  "description": "claude-caliper bundle",
   "owner": {
     "name": "Nikhil Sitaram",
     "email": "nikhil5890@gmail.com"
@@ -8,9 +8,99 @@
   "plugins": [
     {
       "name": "claude-caliper",
-      "description": "A Claude workflow that measures twice and cuts once — design, plan, build with TDD, review, ship",
+      "description": "claude-caliper bundle",
       "version": "4.3.1",
       "source": "./",
+      "author": {
+        "name": "Nikhil Sitaram",
+        "email": "nikhil5890@gmail.com"
+      }
+    },
+    {
+      "name": "brainstorming",
+      "description": "Use when creating features, building components, adding functionality, or modifying behavior - before any creative or implementation work begins",
+      "version": "4.3.1",
+      "source": "./skills/brainstorming",
+      "author": {
+        "name": "Nikhil Sitaram",
+        "email": "nikhil5890@gmail.com"
+      }
+    },
+    {
+      "name": "writing-plans",
+      "description": "Use when you have a spec or requirements for a multi-step task, before touching code",
+      "version": "4.3.1",
+      "source": "./skills/writing-plans",
+      "author": {
+        "name": "Nikhil Sitaram",
+        "email": "nikhil5890@gmail.com"
+      }
+    },
+    {
+      "name": "orchestrating",
+      "description": "Use when executing implementation plans with independent tasks in the current session",
+      "version": "4.3.1",
+      "source": "./skills/orchestrating",
+      "author": {
+        "name": "Nikhil Sitaram",
+        "email": "nikhil5890@gmail.com"
+      }
+    },
+    {
+      "name": "plan-review",
+      "description": "Use when a plan has been written and before execution begins",
+      "version": "4.3.1",
+      "source": "./skills/plan-review",
+      "author": {
+        "name": "Nikhil Sitaram",
+        "email": "nikhil5890@gmail.com"
+      }
+    },
+    {
+      "name": "implementation-review",
+      "description": "Use when a multi-task implementation is complete and ready for holistic review before merging",
+      "version": "4.3.1",
+      "source": "./skills/implementation-review",
+      "author": {
+        "name": "Nikhil Sitaram",
+        "email": "nikhil5890@gmail.com"
+      }
+    },
+    {
+      "name": "codebase-review",
+      "description": "Use when asked to audit a codebase, find DRY/YAGNI/complexity issues repo-wide, or perform periodic code quality review",
+      "version": "4.3.1",
+      "source": "./skills/codebase-review",
+      "author": {
+        "name": "Nikhil Sitaram",
+        "email": "nikhil5890@gmail.com"
+      }
+    },
+    {
+      "name": "ship",
+      "description": "Use when work is complete and ready to create a PR for review. Triggers include \"/ship\", \"ship it\", \"commit and push\", \"create PR\".",
+      "version": "4.3.1",
+      "source": "./skills/ship",
+      "author": {
+        "name": "Nikhil Sitaram",
+        "email": "nikhil5890@gmail.com"
+      }
+    },
+    {
+      "name": "merge-pr",
+      "description": "Use when a PR has been reviewed and is ready to merge, or when triggered by \"/merge-pr\", \"merge the PR\", \"address review feedback\", \"review feedback ready\".",
+      "version": "4.3.1",
+      "source": "./skills/merge-pr",
+      "author": {
+        "name": "Nikhil Sitaram",
+        "email": "nikhil5890@gmail.com"
+      }
+    },
+    {
+      "name": "skill-eval",
+      "description": "Use when evaluating skill output quality, comparing skill versions, running behavioral evals, benchmarking a skill, or when triggered by /skill-eval",
+      "version": "4.3.1",
+      "source": "./skills/skill-eval",
       "author": {
         "name": "Nikhil Sitaram",
         "email": "nikhil5890@gmail.com"
