@@ -17,7 +17,7 @@ Claude wants to write code immediately — before the design is agreed on, befor
 claude-caliper installs a complete development workflow as skills that fire automatically at the right moment. Design before plan. Plan before code. Test before merge. Every time.
 
 ```mermaid
-%%{init: {'flowchart': {'nodeSpacing': 20, 'rankSpacing': 35}}}%%
+%%{init: {'flowchart': {'nodeSpacing': 20, 'rankSpacing': 20}}}%%
 flowchart TD
     A([Idea]) --> B[Brainstorm]
     B --> C[Write Plan]
