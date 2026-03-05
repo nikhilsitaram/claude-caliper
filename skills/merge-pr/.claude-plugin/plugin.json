@@ -1,5 +1,0 @@
-{
-  "name": "merge-pr",
-  "description": "Use when a PR has been reviewed and is ready to merge, or when triggered by \"/merge-pr\", \"merge the PR\", \"address review feedback\", \"review feedback ready\".",
-  "version": "4.3.1"
-}

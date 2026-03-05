@@ -1,5 +1,0 @@
-{
-  "name": "codebase-review",
-  "description": "Use when asked to audit a codebase, find DRY/YAGNI/complexity issues repo-wide, or perform periodic code quality review",
-  "version": "4.3.1"
-}

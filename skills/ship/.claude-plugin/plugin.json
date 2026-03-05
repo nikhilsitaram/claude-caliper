@@ -1,5 +1,0 @@
-{
-  "name": "ship",
-  "description": "Use when work is complete and ready to create a PR for review. Triggers include \"/ship\", \"ship it\", \"commit and push\", \"create PR\".",
-  "version": "4.3.1"
-}
