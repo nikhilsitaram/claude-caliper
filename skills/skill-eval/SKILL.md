@@ -9,17 +9,30 @@ Evaluate skill output quality with assertion-based grading, blind before/after c
 
 ## Setup
 
-1. **Identify target** and what "before" represents:
+1. **Resolve paths** — run once at the start of any eval session:
+
+   ```bash
+   PLUGIN_ROOT=$(python3 -c "
+   import json, os
+   p = json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))
+   print(p['plugins']['claude-caliper@claude-caliper'][0]['installPath'])
+   ")
+   EVAL_ROOT=~/.claude/skill-evals
+   SKILL_EVAL_SCRIPT=$PLUGIN_ROOT/skills/skill-eval/scripts/run_eval.py
+   AGGREGATE_SCRIPT=$PLUGIN_ROOT/skills/skill-eval/scripts/aggregate_benchmark.py
+   ```
+
+2. **Identify target** and what "before" represents:
    - New skill: before = no skill (`type: "none"`)
    - Improvement: before = snapshot of previous version
-   - Snapshot before editing: `cp -r skills/{name} .skill-evals/{name}/snapshot-before/`
+   - Snapshot before editing: `cp -r skills/{name}/SKILL.md $EVAL_ROOT/{name}/snapshot-before/SKILL.md`
 
-2. **Check for evals.json** at `.skill-evals/{name}/evals.json`. If none, create interactively — 2-3 realistic prompts including adversarial scenarios (deadline pressure, "skip this step", ambiguous requirements). Use the schema in `references/schemas.md`: top-level object with `skill_name` (string) and `evals` (array). Each eval needs integer `id`, `name`, `prompt`, and `expectations`.
+3. **Check for evals.json** at `$EVAL_ROOT/{name}/evals.json`. If none, create interactively — 2-3 realistic prompts including adversarial scenarios (deadline pressure, "skip this step", ambiguous requirements). Use the schema in `references/schemas.md`: top-level object with `skill_name` (string) and `evals` (array). Each eval needs integer `id`, `name`, `prompt`, and `expectations`.
 
-3. **Write config.json** for this iteration at `.skill-evals/{name}/iteration-N/config.json`:
+4. **Write config.json** for this iteration at `$EVAL_ROOT/{name}/iteration-N/config.json`:
    ```json
    {
-     "before": {"label": "v1", "type": "skill", "skill_path": ".skill-evals/{name}/snapshot-before/SKILL.md"},
+     "before": {"label": "v1", "type": "skill", "skill_path": "~/.claude/skill-evals/{name}/snapshot-before/SKILL.md"},
      "after": {"label": "v2", "type": "skill", "skill_path": "skills/{name}/SKILL.md"}
    }
    ```
@@ -32,25 +45,25 @@ Spawn both variants simultaneously — don't run before first then after:
 
 ```bash
 # After variant
-python3 skills/skill-eval/scripts/run_eval.py \
-  --evals-path .skill-evals/{name}/evals.json \
-  --output-dir .skill-evals/{name}/iteration-N/ \
+python3 $SKILL_EVAL_SCRIPT \
+  --evals-path $EVAL_ROOT/{name}/evals.json \
+  --output-dir $EVAL_ROOT/{name}/iteration-N/ \
   --variant after \
   --skill-path skills/{name}/SKILL.md \
   --runs 3
 
 # Before variant
-python3 skills/skill-eval/scripts/run_eval.py \
-  --evals-path .skill-evals/{name}/evals.json \
-  --output-dir .skill-evals/{name}/iteration-N/ \
+python3 $SKILL_EVAL_SCRIPT \
+  --evals-path $EVAL_ROOT/{name}/evals.json \
+  --output-dir $EVAL_ROOT/{name}/iteration-N/ \
   --variant before \
-  --skill-path .skill-evals/{name}/snapshot-before/SKILL.md \
+  --skill-path $EVAL_ROOT/{name}/snapshot-before/SKILL.md \
   --runs 3
 ```
 
 For no-skill baseline, omit `--skill-path`.
 
-Each eval creates: `.skill-evals/{name}/iteration-N/eval-{id}-{slug}/{variant}/run-{n}/output.txt` and `timing.json`.
+Each eval creates: `$EVAL_ROOT/{name}/iteration-N/eval-{id}-{slug}/{variant}/run-{n}/output.txt` and `timing.json`.
 
 ## Draft Assertions
 
@@ -67,8 +80,8 @@ PASS requires genuine task completion with cited evidence, not keyword matching.
 ## Aggregate
 
 ```bash
-python3 skills/skill-eval/scripts/aggregate_benchmark.py \
-  .skill-evals/{name}/iteration-N \
+python3 $AGGREGATE_SCRIPT \
+  $EVAL_ROOT/{name}/iteration-N \
   --skill-name {name}
 ```
 

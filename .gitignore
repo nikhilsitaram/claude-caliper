@@ -4,5 +4,5 @@
 .claude/*
 !.claude/CLAUDE.md
 .DS_Store
-__pycache__/
-.skill-evals/
+docs/plans/
+docs/reviews/
