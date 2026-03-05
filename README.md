@@ -62,17 +62,17 @@ Every task gets a fresh implementer. Every review gets a fresh reviewer. No agen
 
 ## Installation
 
-In a Claude Code session:
-
 ```bash
 /plugin marketplace add nikhilsitaram/claude-caliper
 ```
 
-```bash
-/plugin install claude-caliper@claude-caliper          # everything
-/plugin install claude-caliper-workflow@claude-caliper # brainstorm → plan → execute → ship → merge
-/plugin install claude-caliper-tooling@claude-caliper  # codebase-review + skill-eval
-```
+Then install the package that fits your needs:
+
+| Package | Skills | Install |
+|---------|--------|---------|
+| `claude-caliper` | Everything | `/plugin install claude-caliper@claude-caliper` |
+| `claude-caliper-workflow` | brainstorming, writing-plans, plan-review, orchestrating, implementation-review, ship, merge-pr | `/plugin install claude-caliper-workflow@claude-caliper` |
+| `claude-caliper-tooling` | codebase-review, skill-eval | `/plugin install claude-caliper-tooling@claude-caliper` |
 
 Then restart Claude Code.
 
