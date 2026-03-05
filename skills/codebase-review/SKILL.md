@@ -41,15 +41,20 @@ This pass catches cross-directory DRY violations and naming drift that per-scope
 ### Phase 4 — Aggregate & Route
 
 1. Merge findings (Phase 2 + Phase 3), deduplicate, rank by criticality
-2. Classify each finding's fix complexity:
-   - **Inline** — few lines, no planning needed
-   - **Needs own plan** — multi-file, architectural, or requires design cycle
-3. Write report to `docs/reviews/YYYY-MM-DD-codebase-review.md`
-4. Route outputs:
-   - **Inline fixes** → transition to `writing-plans` → normal pipeline
-   - **Needs own plan** → `AskUserQuestion` to select which become GitHub issues → `gh issue create`
+2. Write report to `docs/reviews/YYYY-MM-DD-codebase-review.md`
+3. Group findings by overlapping file sets — findings that touch the same files belong in the same plan or issue
+4. Route by fix complexity:
 
-Issue creation is based on fix COMPLEXITY, not severity. A Critical one-liner doesn't need an issue; a Medium refactoring across 10 files does.
+**Inline fixes** (automatically, no user prompt):
+- Invoke `writing-plans` with the grouped inline findings as requirements
+- Invoke `plan-review` on the resulting plan
+- Proceed to execution
+
+**Complex fixes** (AskUserQuestion — pick one):
+- **Create GitHub issues** — one issue per logical group → `gh issue create`
+- **Write plans now** — invoke `writing-plans` per group, then `plan-review`
+
+Routing is based on fix COMPLEXITY, not severity. A Critical one-liner goes inline; a Medium refactoring across 10 files gets an issue or plan.
 
 ## Report Structure
 

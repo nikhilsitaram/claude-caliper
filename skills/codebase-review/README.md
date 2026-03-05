@@ -39,12 +39,14 @@ A single `agents/cross-scope-reviewer.md` subagent reads all Phase 2 findings pl
 
 ### Phase 4 — Aggregate & Route
 
-Merges all findings, deduplicates, and ranks by criticality. Writes a report to `docs/reviews/YYYY-MM-DD-codebase-review.md`. Routes by **fix complexity** (not severity):
+Merges all findings, deduplicates, and ranks by criticality. Writes a report to `docs/reviews/YYYY-MM-DD-codebase-review.md`. Groups findings by overlapping file sets — findings that touch the same files are handled together.
 
-- **Inline** fixes — transition directly to `writing-plans` → normal pipeline
-- **Needs own plan** — ask user which become GitHub issues → `gh issue create`
+Routes by **fix complexity** (not severity):
 
-A Critical one-liner doesn't need an issue; a Medium refactoring across 10 files does.
+- **Inline fixes** — automatically invokes `writing-plans` on the grouped findings, then `plan-review`, then proceeds to execution. No user prompt.
+- **Complex fixes** — `AskUserQuestion`: create GitHub issues (one per group) or write plans now. User chooses.
+
+A Critical one-liner goes inline; a Medium refactoring across 10 files gets an issue or plan.
 
 ## Review categories
 
