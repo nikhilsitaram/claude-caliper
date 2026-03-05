@@ -25,7 +25,7 @@ Execute plan phase by phase: dispatch a fresh phase executor subagent per phase,
 | Template | Purpose |
 |----------|---------|
 | `./phase-executor-prompt.md` | Dispatch phase executor subagent (sequential tasks + per-task reviews + completion report) |
-| `./implementer-prompt.md` | Dispatch individual task implementer (used inside phase executor; also for post-review fix work) |
+| `./implementer-prompt.md` | Dispatch individual task implementer (used inside phase executor and for post-review fix work) |
 | `./spec-reviewer-prompt.md` | Spec compliance reviewer (used inside phase executor) |
 | `./code-quality-reviewer-prompt.md` | Code quality reviewer (used inside phase executor) |
 | `skills/implementation-review/reviewer-prompt.md` | Holistic cross-task reviewer (dispatched from orchestrating context after each phase) |
@@ -125,7 +125,7 @@ Under 5 issues: orchestrator verifies fixes and proceeds.
 
 **Limit:** After 3 fix attempts on same issue, stop and document.
 
-**Documentation:** Every Rule 1-3 deviation must include: what deviated, what was done, which rule applied.
+**Documentation:** Include what deviated, what was done, and which rule applied—so reviewers and future phases understand the decision without re-reading the conversation.
 
 ## Rule 4 Handling
 
@@ -175,7 +175,7 @@ The user sees the plan doc in a clean BLOCKED state and can resolve the conflict
 | Constraint | Why |
 |------------|-----|
 | Record BASE_SHA before executor | Implementation-review needs the exact phase start SHA |
-| Dispatch implementation-review from orchestrating context | Phase completion must be visible before next phase starts |
+| Dispatch implementation-review from orchestrating context | Phase completion and any issues must be visible before advancing — this prevents bugs from compounding into the next phase |
 | Fix review issues before next phase | Phase N bugs compound into Phase N+1 complexity |
 | Escalate Rule 4 immediately | Architectural changes need user input, not guessing |
 

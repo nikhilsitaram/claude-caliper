@@ -36,12 +36,12 @@ Task tool (general-purpose):
     Work through tasks **sequentially** — parallel writes cause git conflicts.
 
     For each task:
-    1. Dispatch implementer subagent (see `orchestrating/implementer-prompt.md`)
+    1. Dispatch implementer subagent (see `./implementer-prompt.md`)
     2. After implementer returns: dispatch spec compliance reviewer
-       (`orchestrating/spec-reviewer-prompt.md`)
+       (`./spec-reviewer-prompt.md`)
        - Issues found → dispatch implementer fix → re-review spec
     3. After spec passes: dispatch code quality reviewer
-       (`orchestrating/code-quality-reviewer-prompt.md`)
+       (`./code-quality-reviewer-prompt.md`)
        - Issues found → dispatch implementer fix → re-review quality
     4. Re-Review Gate: if reviewer found >5 issues, dispatch fresh same-scope reviewer
        after all fixes are applied
