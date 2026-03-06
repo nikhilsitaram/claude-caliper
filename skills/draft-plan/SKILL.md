@@ -62,7 +62,7 @@ status: Not Yet Started
 
 **Phase boundaries** fall where "run full suite and verify" is meaningful. Each phase ends with a verification task and a one-sentence rationale explaining why it exists.
 
-**Design doc inheritance:** If the design doc has approved phases from design, use those as starting structure. Don't contradict without flagging.
+**Design doc inheritance:** If the design doc already has approved phases, use those as the starting structure. Don't contradict without flagging.
 
 ## Task Structure
 
