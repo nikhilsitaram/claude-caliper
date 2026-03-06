@@ -21,7 +21,7 @@ claude-caliper installs a complete development workflow as skills that fire auto
 ```mermaid
 %%{init: {'flowchart': {'nodeSpacing': 20, 'rankSpacing': 20}, 'themeVariables': {'fontSize': '12px'}}}%%
 flowchart TD
-    A([Idea]) --> B[Build]
+    A([Idea]) --> B[Design]
     B --> C[Draft Plan]
     C --> D[Plan Review]
 
@@ -71,12 +71,12 @@ Then install the package that fits your needs:
 | Package | Skills | Install |
 |---------|--------|---------|
 | `claude-caliper` | Everything | `/plugin install claude-caliper@claude-caliper` |
-| `claude-caliper-workflow` | build, draft-plan, plan-review, orchestrate, implementation-review, ship, merge-pr | `/plugin install claude-caliper-workflow@claude-caliper` |
+| `claude-caliper-workflow` | design, draft-plan, plan-review, orchestrate, implementation-review, ship, merge-pr | `/plugin install claude-caliper-workflow@claude-caliper` |
 | `claude-caliper-tooling` | codebase-review, skill-eval | `/plugin install claude-caliper-tooling@claude-caliper` |
 
 Then restart Claude Code.
 
-**Verify:** Start a new session and describe something you want to build. Claude should trigger the build skill before writing a single line of code.
+**Verify:** Start a new session and describe something you want to build. Claude should trigger the design skill before writing a single line of code.
 
 ---
 
@@ -86,8 +86,8 @@ Skills fire automatically as your work progresses through each stage. You intera
 
 | Skill | Invoked by | Does |
 |-------|------------|------|
-| [build](skills/build/) | 👤 You — describe something to build | Challenges assumptions, proposes 2-3 approaches, gets design sign-off; then dispatches the rest of the pipeline |
-| [draft-plan](skills/draft-plan/) | 🤖 build (subagent) | Produces a task checklist with exact file paths, TDD steps, and runnable verification commands; supports phased plans when tasks have dependency layers |
+| [design](skills/design/) | 👤 You — describe something to build | Challenges assumptions, proposes 2-3 approaches, gets design sign-off; then dispatches the rest of the pipeline |
+| [draft-plan](skills/draft-plan/) | 🤖 design (subagent) | Produces a task checklist with exact file paths, TDD steps, and runnable verification commands; supports phased plans when tasks have dependency layers |
 | [plan-review](skills/plan-review/) | 🤖 draft-plan (subagent) | Validates completeness — catches vague steps and missing paths before execution starts |
 | [orchestrate](skills/orchestrate/) | 🤖 draft-plan (subagent) | Dispatches fresh subagents per task, each running full RED→GREEN→REFACTOR; spec + code review after every task; per-phase implementation review before advancing |
 | [implementation-review](skills/implementation-review/) | 🤖 orchestrate (subagent) | Cross-task holistic review — catches inconsistencies a per-task reviewer can't see |

@@ -7,7 +7,7 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 Write implementation plans assuming the executor has zero codebase context. Document everything: which files to touch, exact code, how to test, what to avoid and why.
 
-**Context:** Runs as a fresh subagent dispatched by build after design approval. All needed context comes from the design doc — no live conversation context is carried over.
+**Context:** Runs as a fresh subagent dispatched by design after design approval. All needed context comes from the design doc — no live conversation context is carried over.
 
 **Save to:** `docs/plans/YYYY-MM-DD-<topic>/plan-<topic>.md`
 
@@ -62,7 +62,7 @@ status: Not Yet Started
 
 **Phase boundaries** fall where "run full suite and verify" is meaningful. Each phase ends with a verification task and a one-sentence rationale explaining why it exists.
 
-**Design doc inheritance:** If the design doc has approved phases from build, use those as starting structure. Don't contradict without flagging.
+**Design doc inheritance:** If the design doc has approved phases from design, use those as starting structure. Don't contradict without flagging.
 
 ## Task Structure
 

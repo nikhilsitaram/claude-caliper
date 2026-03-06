@@ -1,9 +1,9 @@
 ---
-name: build
+name: design
 description: Use when creating features, building components, adding functionality, or modifying behavior - before any creative or implementation work begins
 ---
 
-# Build: Ideas Into Designs
+# Design: Ideas Into Plans
 
 Turn ideas into validated designs through collaborative dialogue before any code is written.
 
@@ -27,7 +27,7 @@ Complete in order:
 6. **Get verbal approval** — explicit "yes" before proceeding
 7. **Set up worktree** — `git worktree add .worktrees/<branch-name> -b <branch-name>`; run tests to establish a clean baseline
 8. **Write design doc** — `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`, commit
-9. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero build context)
+9. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero design context)
 
 ```text
 Agent(

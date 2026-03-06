@@ -2,7 +2,7 @@
 
 ## What This Repo Is
 
-A Claude Code plugin containing composable agent skills for software development workflows (TDD, build, draft-plan, orchestrate, ship). Skills live in `skills/<name>/SKILL.md` with optional supporting files alongside.
+A Claude Code plugin containing composable agent skills for software development workflows (TDD, design, draft-plan, orchestrate, ship). Skills live in `skills/<name>/SKILL.md` with optional supporting files alongside.
 
 ## Skill Conventions
 
@@ -52,7 +52,7 @@ Use the skill-eval skill for eval-driven skill testing.
 
 ## Development Workflow
 
-This repo uses its own skills. The typical flow: build -> worktree -> draft-plan -> orchestrate -> ship -> merge-pr.
+This repo uses its own skills. The typical flow: design -> worktree -> draft-plan -> orchestrate -> ship -> merge-pr.
 
 ## Markdown
 
