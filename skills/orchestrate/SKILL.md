@@ -5,18 +5,31 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Orchestrate
 
-Execute plan phase by phase: dispatch a fresh phase executor subagent per phase, then dispatch implementation-review from the orchestrate context, report phase completion, and advance. After all phases, auto-invoke ship.
+Execute plan phase by phase: dispatch a fresh phase dispatcher subagent per phase, then dispatch implementation-review from the orchestrate context, report phase completion, and advance. After all phases, auto-invoke ship.
 
-**Core principle:** Phase executor handles implementation. Orchestrate context handles review, reporting, and phase advancement.
+**Core principle:** Every level is a dispatcher. Orchestrate dispatches phase dispatchers. Phase dispatchers dispatch implementers and reviewers. No level writes application code itself — only the implementer subagent touches code.
 
 ## When to Use
 
 - Have an implementation plan with mostly independent tasks
 - Don't use for tightly coupled tasks or when no plan exists
 
+## Subagent Hierarchy
+
+```text
+Orchestrate (you)           — 1 per plan
+├── Phase Dispatcher        — 1 per phase (dispatches implementers + reviewers, never writes code)
+│   ├── Implementer         — 1 per task (fresh context, writes code via TDD)
+│   ├── Spec Reviewer       — 1 per task (evaluates code cold)
+│   └── Code Quality Rev.   — 1 per task (evaluates code cold)
+└── Implementation Review   — 1 per phase (cross-task holistic, dispatched by you)
+```
+
+Why separate subagents per task: each implementer starts with fresh context, preventing quality degradation as tasks accumulate. Each reviewer evaluates code without having seen the implementation rationale. These isolation properties break when a single agent implements multiple tasks inline.
+
 ## The Process
 
-**Per phase:** Record BASE_SHA → dispatch phase executor (all tasks + per-task reviews + completion report) → dispatch implementation-review → emit phase summary → fix issues → write handoff notes → advance
+**Per phase:** Record BASE_SHA → dispatch phase dispatcher (dispatches per-task implementers + reviewers, writes completion report) → dispatch implementation-review → emit phase summary → fix issues → write handoff notes → advance
 
 **After all phases:** Update plan status → auto-invoke ship.
 
@@ -24,10 +37,10 @@ Execute plan phase by phase: dispatch a fresh phase executor subagent per phase,
 
 | Template | Purpose |
 |----------|---------|
-| `./phase-executor-prompt.md` | Dispatch phase executor subagent (sequential tasks + per-task reviews + completion report) |
-| `./implementer-prompt.md` | Dispatch individual task implementer (used inside phase executor and for post-review fix work) |
-| `./spec-reviewer-prompt.md` | Spec compliance reviewer (used inside phase executor) |
-| `./code-quality-reviewer-prompt.md` | Code quality reviewer (used inside phase executor) |
+| `./phase-dispatcher-prompt.md` | Dispatch phase dispatcher subagent (dispatches per-task implementers + reviewers, writes completion report) |
+| `./implementer-prompt.md` | Dispatch individual task implementer (used inside phase dispatcher and for post-review fix work) |
+| `./spec-reviewer-prompt.md` | Spec compliance reviewer (used inside phase dispatcher) |
+| `./code-quality-reviewer-prompt.md` | Code quality reviewer (used inside phase dispatcher) |
 | `skills/implementation-review/reviewer-prompt.md` | Holistic cross-task reviewer (dispatched from orchestrate context after each phase) |
 
 ## Example Workflow
@@ -36,7 +49,7 @@ Execute plan phase by phase: dispatch a fresh phase executor subagent per phase,
 [Read plan, identify phases]
 
 Phase 1 BASE_SHA = $(git rev-parse HEAD)
-[Dispatch phase executor: Phase 1]
+[Dispatch phase dispatcher: Phase 1]
   Internal: Task 0 (integration tests) → Task 1 (hook install) → Task 2 (recovery modes)
   Each task: implementer → spec review → code review → mark complete
   Writes completion report. Returns summary + HEAD SHA.
@@ -48,7 +61,7 @@ Phase 1 BASE_SHA = $(git rev-parse HEAD)
 Phase 1 summary: 3 tasks complete. Review: 2 issues, both fixed.
 [Write handoff notes into plan doc]
 
-[Dispatch phase executor: Phase 2]
+[Dispatch phase dispatcher: Phase 2]
   Internal: Task 3 → Task 4
   Writes completion report. Returns.
 
@@ -65,12 +78,12 @@ Phase 2 summary: 2 tasks complete. Review: 0 issues.
 
 For each phase:
 
-1. `PHASE_BASE_SHA=$(git rev-parse HEAD)` — before dispatching executor
-2. Dispatch phase executor (`./phase-executor-prompt.md`) with:
+1. `PHASE_BASE_SHA=$(git rev-parse HEAD)` — before dispatching
+2. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with:
    - Phase number, name, full task text for this phase
    - PHASE_BASE_SHA
    - PHASE_CONTEXT from prior phase's handoff notes (empty for Phase 1)
-3. After executor returns: dispatch implementation-review (`skills/implementation-review/reviewer-prompt.md`)
+3. After dispatcher returns: dispatch implementation-review (`skills/implementation-review/reviewer-prompt.md`)
    - BASE_SHA = PHASE_BASE_SHA, HEAD_SHA = `git rev-parse HEAD`
    - PHASE_CONTEXT = what downstream phases expect (from plan); empty for final/single phase
 4. Triage findings through deviation rules — dispatch implementer for Rule 1-3; Rule 4 → write BLOCKED to plan doc and terminate (see Rule 4 Handling)
@@ -129,7 +142,7 @@ Under 5 issues: orchestrator verifies fixes and proceeds.
 
 ## Rule 4 Handling
 
-When a phase executor reports a Rule 4 violation, orchestrate cannot ask the user (it runs as a subagent dispatched by draft-plan). Instead:
+When a phase dispatcher reports a Rule 4 violation, orchestrate cannot ask the user (it runs as a subagent dispatched by draft-plan). Instead:
 
 1. Update plan frontmatter:
 
@@ -163,8 +176,8 @@ The user sees the plan doc in a clean BLOCKED state and can resolve the conflict
 | When | Update |
 |------|--------|
 | First task starts | Frontmatter: `status: In Development` |
-| Task completes (inside executor) | `- [ ] Task N` → `- [x] Task N` |
-| Phase executor returns | Phase completion report written to plan doc by executor |
+| Task completes (inside dispatcher) | `- [ ] Task N` → `- [x] Task N` |
+| Phase dispatcher returns | Phase completion report written to plan doc by dispatcher |
 | Review fixes applied | Orchestrate context appends `### Implementation Review Changes` to completion report |
 | Phase review passes | Phase status: `Complete (YYYY-MM-DD)` |
 | All phases done | Frontmatter: `status: Complete` |
@@ -174,7 +187,7 @@ The user sees the plan doc in a clean BLOCKED state and can resolve the conflict
 
 | Constraint | Why |
 |------------|-----|
-| Record BASE_SHA before executor | Implementation-review needs the exact phase start SHA |
+| Record BASE_SHA before dispatcher | Implementation-review needs the exact phase start SHA |
 | Dispatch implementation-review from orchestrate context | Phase completion and any issues must be visible before advancing — this prevents bugs from compounding into the next phase |
 | Fix review issues before next phase | Phase N bugs compound into Phase N+1 complexity |
 | Escalate Rule 4 immediately | Architectural changes need user input, not guessing |
