@@ -6,17 +6,22 @@ Use this template when dispatching an implementer subagent.
 Task tool (general-purpose):
   model: "sonnet"
   mode: "bypassPermissions"
-  description: "Implement Task N: [task name]"
+  description: "Implement {TASK_ID}: [task name]"
   prompt: |
-    You are implementing Task N: [task name]
+    You are implementing {TASK_ID}: [task name]
 
     ## Task Description
 
-    [FULL TEXT of task from plan - paste it here, don't make subagent read file]
+    [Single task block extracted from `#### {TASK_ID}: [name]` through the next
+    `####` header. This includes any inline handoff notes (blockquotes like
+    `> **Handoff from A2:** ...`) targeting this task from prior phases.
+    Paste the full block here — don't make the subagent read the plan file.]
 
-    ## Context
+    ## Task Context
 
-    [Scene-setting: where this fits, dependencies, architectural context]
+    [Scene-setting derived from the task block itself: where this fits,
+    what it implements. Do not include phase-level information, other task
+    details, or completion notes — those violate context isolation.]
 
     ## Before You Begin
 
