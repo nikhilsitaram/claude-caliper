@@ -38,27 +38,68 @@ status: Not Yet Started
 
 ---
 
-### Phase 1 — [Name]
-**Status:** Not Yet Started
-**Rationale:** [Why this phase exists]
+## Phase A — [Name]
+**Status:** Not Started | **Rationale:** [Why this phase exists]
 
-- [ ] Task 0: Write failing broad integration tests (skip for single-module changes)
-- [ ] Task 1: [Title]
+### Phase A Checklist
+- [ ] A1: [Title]
+- [ ] A2: [Title]
+
+### Phase A Completion Notes
+<!-- Written by dispatcher after all tasks complete.
+     Implementation review changes appended here by orchestrator. -->
+
+### Phase A Tasks
+
+#### A1: [Title]
+**Files:**
+- Create: `exact/path/to/file.py`
+
+**Verification:** `pytest tests/path/test.py -v`
+
+**Done when:** [Measurable end state]
+
+**Avoid:** [Pitfall] — [why it matters]
+
+**Step 1: ...**
+
+#### A2: [Title]
+...
 
 ---
 
-## Task Details
+## Phase B — [Name]
+**Status:** Not Started | **Rationale:** ...
+
+### Phase B Checklist
+- [ ] B1: [Title]
+- [ ] B2: [Title]
+
+### Phase B Completion Notes
+<!-- Written by dispatcher after all tasks complete.
+     Implementation review changes appended here by orchestrator. -->
+
+### Phase B Tasks
+
+#### B1: [Title]
+...
+
+#### B2: [Title]
+
+> **Handoff from A2:** [TBD — Phase A dispatcher fills in actual details after completing A2]
+
+**Step 1: ...**
 ```
 
 ## Phasing
 
-**Use multiple phases when:** dependency layers exist (Phase N creates things Phase N+1 consumes), verification gates are needed (confirm N works before starting N+1), or phases ship independently.
+**Use multiple phases when:** dependency layers exist (Phase A creates things Phase B consumes), verification gates are needed, or phases ship independently.
 
-**Stay single-phase when:** tasks are independent or share a linear chain with no natural cut points. Don't phase for phasing's sake.
+**Stay single-phase when:** tasks are independent or share a linear chain with no natural cut points. Don't phase for phasing's sake. Single-phase plans still use A-prefix (A1, A2, etc.).
 
 **Complexity gates:**
 - **8+ tasks in a single-phase plan** — almost always has a hidden dependency boundary. Look for it before proceeding.
-- **7+ tasks in any individual phase** — examine for cut points. Large phases make debugging harder ("which of 9 tasks broke this?").
+- **7+ tasks in any individual phase** — examine for cut points. Large phases make debugging harder.
 
 **Phase boundaries** fall where "run full suite and verify" is meaningful. Each phase ends with a verification task and a one-sentence rationale explaining why it exists.
 
@@ -78,51 +119,11 @@ Every task includes all fields below — missing any one means a fresh executor 
 
 Write complete code in each step — not "add validation" or "implement the handler." If the executor has to guess what the code looks like, the plan isn't specific enough.
 
-### Task Template
-
-````markdown
-### Task N: [Component Name]
-
-**Files:**
-- Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py:123-145`
-- Test: `tests/exact/path/to/test.py`
-
-**Verification:** `pytest tests/path/test.py -v`
-
-**Done when:** POST /api/auth/login returns 200 with valid JWT; 401 with invalid credentials; test_login_* 4/4 passing
-
-**Avoid:** Use jose not jsonwebtoken — CommonJS issues with Edge runtime
-
-**Step 1: Write the failing test**
-```python
-def test_specific_behavior():
-    result = function(input)
-    assert result == expected
-```
-
-**Step 2: Run test to verify it fails**
-`pytest tests/path/test.py::test_name -v` — expect FAIL
-
-**Step 3: Write minimal implementation**
-```python
-def function(input):
-    return expected
-```
-
-**Step 4: Run test to verify it passes**
-`pytest tests/path/test.py::test_name -v` — expect PASS
-
-**Step 5: Commit**
-```bash
-git add tests/path/test.py src/path/file.py
-git commit -m "feat: add specific feature"
-```
-````
-
 **Interface-first ordering:** Define contracts first (embed in plan), implement against them in middle tasks, wire consumers last.
 
-**Task 0 (broad integration tests):** The outer loop of double-loop TDD. Write end-to-end tests with stub imports that stay RED until the last piece lands. Stubs should compile/parse but fail on assertions, not imports. Skip for single-module changes with no cross-task data flow.
+**First task as integration tests:** When cross-task data flow exists, the first task in a phase (e.g., A1) can be broad integration tests — the outer loop of double-loop TDD. Write end-to-end tests with stub imports that stay RED until the last piece lands. Skip for single-module changes with no cross-task data flow.
+
+**Handoff note placeholders:** When a task consumes output from a prior phase, its task block starts with a handoff placeholder blockquote: `> **Handoff from A2:** [TBD — Phase A dispatcher fills in actual details after completing A2]`. The source phase's dispatcher fills this in with real outputs (function signatures, file paths, config keys) after completing the producing task.
 
 ### The Fresh Claude Test
 
