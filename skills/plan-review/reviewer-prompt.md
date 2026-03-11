@@ -28,8 +28,9 @@ Agent tool (general-purpose):
     (files, functions, types). Verify everything USED is CREATED earlier
     or exists in codebase.
 
-    - Flag: Task N uses X, but X created in Task M where M > N
-    - Flag: Task N uses X, but nothing creates X and it doesn't exist
+    - Flag: A2 uses X, but X created in A3 (later task)
+    - Flag: A2 uses X, but nothing creates X and it doesn't exist
+    - Flag: B1 consumes output from Phase A but has no handoff placeholder
 
     ### 2. Artifact Consistency
     Extract every file path, function name, and variable across all tasks.
@@ -56,16 +57,16 @@ Agent tool (general-purpose):
     - Return values consistent?
     - TDD 5-step cycle present? (write fail, verify fail, implement, verify pass, commit)
 
-    For multi-task plans:
-    - Task 0 (broad integration tests) present?
-    - Task 0 references modules that later tasks create?
-    - Skip justification if no Task 0? (single-module, no cross-task flow)
+    For multi-task plans with cross-task data flow:
+    - First task (e.g., A1) as broad integration tests present?
+    - Integration tests reference modules that later tasks create?
+    - Skip justification if no broad tests? (single-module, no cross-task flow)
 
     - Flag: Test expects `fn(a, b)` but implementation defines `fn(a, b, c)`
-    - Flag: Multi-task plan missing Task 0 with no skip justification
+    - Flag: Multi-task plan with cross-task flow missing broad integration tests
 
     ### 5. Completeness
-    Verify every task has all 5 required fields:
+    Verify every task (format: `#### A1: [name]`) has all 5 required fields:
 
     | Field | Check |
     |-------|-------|
@@ -75,6 +76,12 @@ Agent tool (general-purpose):
     | Avoid + WHY | Pitfall with reasoning — not just "don't use X" |
     | Steps | TDD cycle with actual code — not "add validation" |
 
+    Verify plan structure:
+    - Each phase has three subsections: `### Phase X Checklist`, `### Phase X Completion Notes`, `### Phase X Tasks`
+    - Completion notes section exists with placeholder comment
+    - Task headers use `#### A1: [name]` format (letter+number)
+    - Tasks within each phase use correct letter prefix (Phase A → A1, A2; Phase B → B1, B2)
+
     Also verify:
     - Commands reference correct file paths
     - Commands match project tooling (npm vs yarn vs pnpm)
@@ -82,6 +89,8 @@ Agent tool (general-purpose):
     - Every "Modify" file exists in codebase
 
     - Flag: Task missing required field
+    - Flag: Phase missing Checklist, Completion Notes, or Tasks subsection
+    - Flag: Task uses wrong letter prefix for its phase
     - Flag: `pytest tests/path.py` but file at different path
     - Flag: File in "Modify" doesn't exist or wrong line range
 
@@ -103,13 +112,17 @@ Agent tool (general-purpose):
     If plan has multiple phases:
     - Phase boundaries at meaningful verification points?
     - Each phase ends with verification task?
-    - Phase rationale sentence present?
+    - Phase rationale sentence present? (format: `**Status:** Not Started | **Rationale:** ...`)
     - Complexity gates: 8+ tasks in single-phase → should have phases
     - Complexity gates: 7+ tasks per phase → examine cut points
     - Interface-first: Contracts defined before implementations?
+    - Inline handoff placeholders exist on tasks that consume output from prior phases?
+    - Handoff placeholders reference valid task IDs from the producing phase?
 
     - Flag: 10 tasks with no phases
-    - Flag: Phase 2 starts without Phase 1 verification complete
+    - Flag: Phase B task consumes Phase A output but has no `> **Handoff from A2:** [TBD]` placeholder
+    - Flag: Handoff placeholder references non-existent task ID
+    - Flag: Phase B starts without Phase A verification complete
 
     ## Output
 
@@ -141,7 +154,7 @@ Agent tool (general-purpose):
 
     - This is a CONSISTENCY check, not a code style review
     - Trace dependencies across tasks — this is the primary value
-    - Be specific: quote plan text, reference task numbers
+    - Be specific: quote plan text, reference task IDs (A1, B2, etc.)
     - If zero issues, say so — don't invent problems
     - READ-ONLY: Do not modify any files
     - DO check codebase when plan references existing files

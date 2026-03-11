@@ -11,14 +11,14 @@ Per-task reviews verify each piece works. This review verifies the pieces work *
 
 - After all tasks complete in orchestrate (auto-dispatched)
 - Before merging any multi-task feature branch
-- Between phases of a multi-phase plan (auto-dispatched by SDD after each phase)
+- Between phases of a multi-phase plan (auto-dispatched by orchestrate after each phase)
 - When asked to "review the whole thing" or "look at everything with fresh eyes"
 
 ## Pre-Flight Checks
 
 Before dispatching the reviewer:
 
-1. **Run integration tests** — Task 0's broad acceptance tests and boundary tests at cross-task seams should all pass. If any fail, fix before proceeding.
+1. **Run integration tests** — The first task's broad acceptance tests and boundary tests at cross-task seams should all pass. If any fail, fix before proceeding.
 2. **Fill gaps** — if any cross-task boundary lacks a test, write one now.
 
 Skip if: single-module change or purely additive tasks with no interactions.
@@ -35,7 +35,7 @@ Use `./reviewer-prompt.md` template with these variables:
 | `{TASK_LIST}` | Tasks that were implemented |
 | `{PLAN_FILE_PATH}` | Path to plan document |
 | `{REPO_PATH}` | Repository root path |
-| `{PHASE_CONTEXT}` | Phase name, number (e.g., "Phase 1 of 3: Core API"), and what downstream phases expect (interfaces, config, APIs). Empty string for final/single-phase reviews. |
+| `{PHASE_CONTEXT}` | Phase letter and name (e.g., "Phase A of C: Core API"), and what downstream phases expect (interfaces, config, APIs). Empty string for final/single-phase reviews. |
 
 **Use `model: "opus"`** — fresh-eyes review requires the strongest reasoning to catch subtle cross-task issues.
 
@@ -59,14 +59,9 @@ Use `./reviewer-prompt.md` template with these variables:
 
 After review passes, the **orchestrator** updates the plan document:
 
-1. **Document fixups** — append `### Implementation Review Changes` to `## Completion Report` listing each change. Omit if no fixups needed.
+1. **Document fixups** — append `### Implementation Review Changes` to `### Phase X Completion Notes` listing each change. Omit if no fixups needed.
 
-2. **Handoff notes (multi-phase only)** — if future phases exist, insert before next phase's task checklist:
-   ```markdown
-   > **Handoff from Phase N:**
-   > - [API/interface changes from plan assumptions]
-   > - [New dependencies, scope adjustments]
-   ```
+2. **Handoff notes (multi-phase only)** — if future phases exist, the dispatcher has already written inline handoff notes on target tasks. The orchestrator verifies these are accurate post-review and updates if review changes affected interfaces.
 
 ## Re-Review Gate
 
