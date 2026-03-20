@@ -117,7 +117,7 @@ Task tool (general-purpose):
             2. cargo
             3. rustc"
          c. For each command the user approves, append it to
-            `config/safe-commands.txt` (one per line)
+            `~/.claude/safe-commands.txt` (one per line, create if missing)
          d. Truncate the log: `> $TMPDIR/claude-safe-cmds-nonmatch.log`
        - If the file doesn't exist or is empty, skip silently
 

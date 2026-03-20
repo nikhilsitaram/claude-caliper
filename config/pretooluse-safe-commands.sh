@@ -11,10 +11,11 @@ tool_name=$(echo "$input" | jq -r '.tool_name // empty')
 cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
 [[ -n "$cmd" ]] || exit 0
 
-SAFE_FILE="${SAFE_COMMANDS_FILE:-$SCRIPT_DIR/safe-commands.txt}"
+BUNDLED_SAFE_FILE="$SCRIPT_DIR/safe-commands.txt"
+USER_SAFE_FILE="${CLAUDE_SAFE_COMMANDS_FILE:-$HOME/.claude/safe-commands.txt}"
 LOG_FILE="${CLAUDE_SAFE_CMDS_LOG:-${TMPDIR:-/tmp}/claude-safe-cmds-nonmatch.log}"
 
-[[ -f "$SAFE_FILE" ]] || exit 0
+[[ -f "$BUNDLED_SAFE_FILE" || -f "$USER_SAFE_FILE" ]] || exit 0
 
 extract_segments() {
   local input_cmd="$1"
@@ -139,7 +140,11 @@ extract_command_words_from_segment() {
   done
 }
 
-mapfile -t safe_list < "$SAFE_FILE"
+safe_list=()
+[[ -f "$BUNDLED_SAFE_FILE" ]] && mapfile -t safe_list < "$BUNDLED_SAFE_FILE"
+if [[ -f "$USER_SAFE_FILE" ]]; then
+  mapfile -t -O "${#safe_list[@]}" safe_list < "$USER_SAFE_FILE"
+fi
 
 is_safe() {
   local word="$1"

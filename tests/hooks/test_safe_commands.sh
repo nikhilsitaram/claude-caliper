@@ -54,6 +54,10 @@ assert_file_not_exists() {
 TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
+ORIG_SAFE_COMMANDS="$REPO_ROOT/config/safe-commands.txt"
+EMPTY_BUNDLED="$TMPDIR_TEST/empty-bundled.txt"
+touch "$EMPTY_BUNDLED"
+
 run_hook() {
   local command="$1"
   local safe_file="$2"
@@ -64,7 +68,33 @@ run_hook() {
     tool_input: { command: $cmd },
     session_id: "test-session"
   }')
-  echo "$json" | SAFE_COMMANDS_FILE="$safe_file" CLAUDE_SAFE_CMDS_LOG="$log_file" bash "$HOOK" 2>/dev/null || true
+  local hook_dir
+  hook_dir="$(dirname "$HOOK")"
+  local orig_safe="$hook_dir/safe-commands.txt"
+  cp "$orig_safe" "$TMPDIR_TEST/orig-safe-commands.txt.bak" 2>/dev/null || true
+  cp "$safe_file" "$orig_safe"
+  echo "$json" | CLAUDE_SAFE_COMMANDS_FILE="$EMPTY_BUNDLED" CLAUDE_SAFE_CMDS_LOG="$log_file" bash "$HOOK" 2>/dev/null || true
+  cp "$TMPDIR_TEST/orig-safe-commands.txt.bak" "$orig_safe" 2>/dev/null || true
+}
+
+run_hook_two_files() {
+  local command="$1"
+  local bundled_file="$2"
+  local user_file="$3"
+  local log_file="$4"
+  local json
+  json=$(jq -n --arg cmd "$command" '{
+    tool_name: "Bash",
+    tool_input: { command: $cmd },
+    session_id: "test-session"
+  }')
+  local hook_dir
+  hook_dir="$(dirname "$HOOK")"
+  local orig_safe="$hook_dir/safe-commands.txt"
+  cp "$orig_safe" "$TMPDIR_TEST/orig-safe-commands.txt.bak" 2>/dev/null || true
+  cp "$bundled_file" "$orig_safe"
+  echo "$json" | CLAUDE_SAFE_COMMANDS_FILE="$user_file" CLAUDE_SAFE_CMDS_LOG="$log_file" bash "$HOOK" 2>/dev/null || true
+  cp "$TMPDIR_TEST/orig-safe-commands.txt.bak" "$orig_safe" 2>/dev/null || true
 }
 
 echo "Test 1: Single safe command returns allow"
@@ -177,6 +207,22 @@ printf 'echo\n' > "$SAFE15"
 CMD15="echo 1 && echo 2 && echo 3 && echo 4 && echo 5 && echo 6 && echo 7 && echo 8 && echo 9 && echo 10 && echo 11 && echo 12 && echo 13 && echo 14 && echo 15 && echo 16 && echo 17 && echo 18 && echo 19 && echo 20 && echo 21"
 OUT15=$(run_hook "$CMD15" "$SAFE15" "$LOG15")
 assert_output_contains "21-segment command: first 20 all safe returns allow" "$OUT15" "allow"
+
+echo "Test 16: User additions file extends bundled safe list"
+BUNDLED16="$TMPDIR_TEST/bundled16.txt"
+USER16="$TMPDIR_TEST/user16.txt"
+LOG16="$TMPDIR_TEST/log16.txt"
+printf 'git\n' > "$BUNDLED16"
+printf 'cargo\n' > "$USER16"
+OUT16=$(run_hook_two_files "git status && cargo build" "$BUNDLED16" "$USER16" "$LOG16")
+assert_output_contains "user additions extend bundled list returns allow" "$OUT16" "allow"
+
+echo "Test 17: User file missing still works with bundled only"
+BUNDLED17="$TMPDIR_TEST/bundled17.txt"
+LOG17="$TMPDIR_TEST/log17.txt"
+printf 'git\n' > "$BUNDLED17"
+OUT17=$(run_hook_two_files "git status" "$BUNDLED17" "$TMPDIR_TEST/nonexistent.txt" "$LOG17")
+assert_output_contains "bundled only (no user file) returns allow" "$OUT17" "allow"
 
 echo ""
 echo "$PASS passed, $FAIL failed"
