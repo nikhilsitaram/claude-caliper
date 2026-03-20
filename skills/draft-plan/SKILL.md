@@ -19,8 +19,8 @@ Write implementation plans assuming the executor has zero codebase context. Docu
 4. **Write plan.json** — Structured manifest with all task metadata
 5. **Write task .md files** — Prose for each task (Avoid+WHY, Steps)
 6. **Create completion.md stubs** — Empty files, one per phase
-7. **Run validate-plan --schema** — Fix any structural errors
-8. **Run validate-plan --render** — Generates plan.md deterministically
+7. **Run scripts/validate-plan --schema** — Fix any structural errors
+8. **Run scripts/validate-plan --render** — Generates plan.md deterministically
 9. **Run plan review** — Dispatch reviewer, fix issues until clean
 10. **Hand off to execution** — Report plan path to user
 
@@ -75,6 +75,8 @@ docs/plans/YYYY-MM-DD-topic/
   ]
 }
 ```
+
+Optional: `success_criteria` array at plan, phase, and task levels for future automated verification.
 
 **See:** `docs/plans/2026-03-19-structured-plans/design-structured-plans.md` for full schema reference.
 
@@ -146,9 +148,9 @@ Vague paths ("the auth files") or done-when ("authentication complete") fail thi
 
 After creating all files, validate structure then dispatch LLM review:
 
-1. **Run `validate-plan --schema <plan-dir>/plan.json`** — structural checks (required fields, file existence, H1 headers, dependency ordering, no duplicate file paths). Exit 0 = pass, exit 1 = errors to stderr. Fix errors and re-run until clean.
+1. **Run `scripts/validate-plan --schema <plan-dir>/plan.json`** — structural checks (required fields, file existence, H1 headers, dependency ordering, no duplicate file paths). Exit 0 = pass, exit 1 = errors to stderr. Fix errors and re-run until clean.
 
-2. **Run `validate-plan --render <plan-dir>/plan.json`** — generates plan.md from plan.json. This is deterministic — same input produces same output.
+2. **Run `scripts/validate-plan --render <plan-dir>/plan.json`** — generates plan.md from plan.json. This is deterministic — same input produces same output.
 
 3. **Dispatch plan-review** — LLM reviewer checks prose quality and applies the Different Claude Test (could a fresh Claude execute without asking questions?).
 

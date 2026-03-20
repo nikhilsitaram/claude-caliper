@@ -39,7 +39,7 @@ Dispatch with `model: "opus"` — consistency checking requires strong reasoning
 ### Structural Validation (schema check)
 
 Handled by `validate-plan --schema`:
-- Missing required fields (goal, architecture, tech_stack, success_criteria, phases, tasks)
+- Missing required fields (goal, architecture, tech_stack, phases, tasks)
 - Invalid status values (plan/phase/task status)
 - Duplicate task IDs or phase letters
 - Dependency cycles and forward dependencies

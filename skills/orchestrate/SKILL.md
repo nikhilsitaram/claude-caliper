@@ -37,7 +37,7 @@ Why separate subagents per task: each implementer starts with fresh context, pre
 
 ## Per-Phase Execution
 
-Before first phase: `validate-plan --update-status plan.json --plan --status "In Development"`
+Before first phase: `scripts/validate-plan --update-status plan.json --plan --status "In Development"`
 
 For each phase:
 
@@ -63,7 +63,7 @@ For each phase:
 
 Single-phase plans: one iteration of the same loop. Skip handoff notes.
 
-After the final phase: `validate-plan --update-status plan.json --plan --status Complete`, then auto-invoke ship.
+After the final phase: `scripts/validate-plan --update-status plan.json --plan --status Complete`, then auto-invoke ship.
 
 ## Example Workflow
 
@@ -73,7 +73,7 @@ git checkout -b phase-a; PHASE_BASE_SHA=$(git rev-parse HEAD)
 PHASE_TASKS_JSON=$(jq '.phases[0].tasks' plan.json)
 # Dispatch with: PHASE_TASKS_JSON, PLAN_DIR, PHASE_DIR, no prior completions
 # Implementation-review: pass plan.json, phase-a/completion.md
-validate-plan --update-status plan.json --phase A --status "Complete (2026-03-20)"
+scripts/validate-plan --update-status plan.json --phase A --status "Complete (2026-03-20)"
 # Ship: --base main
 
 # Phase B
@@ -84,7 +84,7 @@ PRIOR_COMPLETIONS=$(cat phase-a/completion.md)
 # Ship: --base phase-a
 
 # All done
-validate-plan --update-status plan.json --plan --status Complete
+scripts/validate-plan --update-status plan.json --plan --status Complete
 ```
 
 ## Inline Handoff Notes
@@ -111,7 +111,7 @@ Do not attempt subsequent tasks or phases until the user decides.
 | Dispatch implementation-review from orchestrate context | Phase completion and any issues must be visible before advancing — prevents bugs compounding |
 | Fix review issues before next phase | Phase N bugs compound into Phase N+1 complexity |
 | Ship per-phase PR with stacked base | Each PR shows only its phase's diff, making review manageable |
-| Call validate-plan for all status updates | Keeps plan.json and plan.md in sync; triggers automatic re-render |
+| Call scripts/validate-plan for all status updates | Keeps plan.json and plan.md in sync; triggers automatic re-render |
 | Escalate Rule 4 immediately | Ask the user — architectural changes need human judgment |
 
 ## Integration

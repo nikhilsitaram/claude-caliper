@@ -79,7 +79,7 @@ Agent tool (general-purpose):
 
     ### 5. Completeness
     **Structural validation already verified:** plan.json contains all required fields (goal,
-    architecture, tech_stack, success_criteria, phases array with tasks). Each task has id, name,
+    architecture, tech_stack, phases array with tasks). Each task has id, name,
     status, depends_on, files (create/modify/test), verification, done_when. Task files exist at
     phase-{letter}/{task_id_lower}.md. Phase completion files exist at phase-{letter}/completion.md.
     Success criteria have non-empty run commands and expect fields.
