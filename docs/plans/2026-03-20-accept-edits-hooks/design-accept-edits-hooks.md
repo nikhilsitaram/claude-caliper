@@ -64,15 +64,15 @@ All subsequent Edit/Write: auto-approved
 
 **Trigger:** Permission dialog about to show for Edit or Write tool.
 
-**CWD mismatch resolution:** The session CWD is typically the project root, not the worktree. The sentinel lives in the worktree at `<worktree>/docs/plans/YYYY-MM-DD-topic/.design-approved`. Since worktrees are created under `$cwd/.worktrees/`, the hook searches both the main repo and all worktree locations:
+**CWD mismatch resolution:** The session CWD is typically the project root, not the worktree. The sentinel lives in the worktree at `<worktree>/docs/plans/YYYY-MM-DD-topic/.design-approved`. Since worktrees are created under `$cwd/.claude/worktrees/`, the hook searches both the main repo and all worktree locations:
 
 ```bash
-find "$CWD/docs/plans" "$CWD/.worktrees/*/docs/plans" -maxdepth 3 -name .design-approved 2>/dev/null
+find "$CWD/docs/plans" "$CWD/.claude/worktrees/*/docs/plans" -maxdepth 3 -name .design-approved 2>/dev/null
 ```
 
 **Logic:**
 1. Read stdin JSON, extract `session_id` and `cwd`
-2. Search for `.design-approved` in `$cwd/docs/plans/` (direct) and `$cwd/.worktrees/*/docs/plans/` (worktrees)
+2. Search for `.design-approved` in `$cwd/docs/plans/` (direct) and `$cwd/.claude/worktrees/*/docs/plans/` (worktrees)
 3. For each found sentinel: read contents and compare to `session_id`
 4. If session IDs match: return structured JSON decision
 5. If no match or not found: `exit 0` (passthrough, normal permission dialog shows)
@@ -115,7 +115,7 @@ Steps 6 (verbal approval) and 7 (worktree setup) are swapped, and the former ste
 ```json
 {
   "questions": [{
-    "question": "Design approved? Plan dir: /abs/path/.worktrees/branch/docs/plans/2026-03-20-topic",
+    "question": "Design approved? Plan dir: /abs/path/.claude/worktrees/branch/docs/plans/2026-03-20-topic",
     "header": "Approval",
     "options": [
       { "label": "Approved", "description": "Write design doc and proceed to review" },
@@ -157,7 +157,7 @@ Create `hooks/hooks.json` with the hook declarations. Add `"hooks": "./hooks/hoo
 
 1. **metadata.source with text fallback for identification** — metadata.source is the preferred signal (structured, stable, invisible to user). If AskUserQuestion doesn't forward metadata to PostToolUse, the hook falls back to matching "Plan dir:" prefix in the question text. Both paths are implemented. If both fail, the hook exits silently — permission dialogs continue normally (safe degradation). Log to stderr for diagnosability.
 
-2. **Absolute path in question text** — the skill embeds the full absolute worktree path (e.g., `/Users/me/project/.worktrees/branch/docs/plans/2026-03-20-topic`). This eliminates CWD ambiguity — the PostToolUse hook creates the sentinel at the exact path regardless of where the session is running.
+2. **Absolute path in question text** — the skill embeds the full absolute worktree path (e.g., `/Users/me/project/.claude/worktrees/branch/docs/plans/2026-03-20-topic`). This eliminates CWD ambiguity — the PostToolUse hook creates the sentinel at the exact path regardless of where the session is running.
 
 3. **Session-scoped sentinel** — the `.design-approved` file contains the `session_id`. The PermissionRequest hook only triggers if the sentinel's session_id matches the current session. Stale sentinels from previous sessions are ignored. The file is not cleaned up — it's removed when the worktree is cleaned up after ship/merge, and doubles as an audit trail. If the design skill is run without a worktree (non-standard), the sentinel persists in `docs/plans/` as an inert hidden file with no behavioral effect after the session ends (acceptEdits is session-scoped).
 
@@ -167,7 +167,7 @@ Create `hooks/hooks.json` with the hook declarations. Add `"hooks": "./hooks/hoo
 
 6. **Separate hooks.json** — hook configuration lives in `hooks/hooks.json`, referenced from marketplace.json. This follows the plugin convention of separating hook config from the manifest.
 
-7. **Worktree search in PermissionRequest hook** — the hook searches both `$cwd/docs/plans/` and `$cwd/.worktrees/*/docs/plans/` to find sentinels regardless of whether the session CWD is the project root or the worktree itself.
+7. **Worktree search in PermissionRequest hook** — the hook searches both `$cwd/docs/plans/` and `$cwd/.claude/worktrees/*/docs/plans/` to find sentinels regardless of whether the session CWD is the project root or the worktree itself.
 
 ## Non-Goals
 
