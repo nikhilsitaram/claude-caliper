@@ -93,16 +93,21 @@ For each phase being dispatched:
 5. After dispatcher returns:
    - Rule 4 violation → ask user, pause (see Rule 4 Handling)
    - Otherwise → dispatch implementation-review with: `PHASE_BASE_SHA`, `HEAD`, `PLAN_DIR`, `PHASE_DIR`
-     - DESIGN_DOC_PATH = `design-doc` from plan.json (or "None" if absent)
-6. Triage review findings via deviation rules — dispatch implementer for Rule 1-3; Rule 4 → ask user and pause
+     - DESIGN_DOC_PATH = `design-doc` from plan.json (or "None")
+6. Triage: dispatch implementer for Rule 1-3; Rule 4 → ask user and pause
 7. Re-Review Gate: >5 issues → re-review after fixes
 8. Append review changes to `${PHASE_DIR}/completion.md`
 9. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`. If exit 1, pause and report failing criteria to user — do not advance.
 10. Emit phase summary: "Phase {LETTER} complete. [N tasks]. Review: X issues — [brief list]. [Status]."
 11. Update status: `scripts/validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
-12. Ship phase PR: invoke ship with `--base integrate/<feature>` — all phase PRs target the integration branch
-13. Merge phase PR: `gh pr merge --squash`, then update integration worktree: `git pull` in `.claude/worktrees/<feature>/`
-14. Clean up phase worktree:
+12. Rebase on latest integration:
+    ```bash
+    git -C .claude/worktrees/<feature>-phase-{letter} rebase origin/integrate/<feature>
+    ```
+    Clean → run tests → continue. Conflict markers → `git rebase --abort`, escalate to user. First to merge: no-op.
+13. Ship phase PR: invoke ship with `--base integrate/<feature>`
+14. Merge phase PR: `gh pr merge --squash`, then update integration worktree: `git pull` in `.claude/worktrees/<feature>/`
+15. Clean up phase worktree:
     ```bash
     git worktree remove .claude/worktrees/<feature>-phase-{letter}
     git branch -D phase-{letter}
@@ -113,7 +118,7 @@ Single-phase plans: one iteration. Skip final cross-phase review.
 ## After All Phases
 
 1. Run plan criteria: `scripts/validate-plan --criteria plan.json --plan`. If exit 1, do not mark complete.
-2. Final cross-phase review (multi-phase only): dispatch implementation-review with `PLAN_BASE_SHA` and `HEAD` on integration branch — catches cross-phase integration issues invisible to per-phase reviews
+2. Final cross-phase review (multi-phase only): dispatch implementation-review with `PLAN_BASE_SHA..HEAD` on integration branch
 3. Triage findings, fix issues
 4. `scripts/validate-plan --update-status plan.json --plan --status Complete`
 5. Route on workflow:
