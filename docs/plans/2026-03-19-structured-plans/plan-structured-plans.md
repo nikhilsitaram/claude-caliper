@@ -1,5 +1,5 @@
 ---
-status: In Development
+status: Complete
 ---
 
 # Structured Plan Files Implementation Plan
@@ -901,7 +901,7 @@ Commit: "test: add end-to-end lifecycle test for validate-plan"
 ---
 
 ## Phase B — Skill Integration
-**Status:** Not Started | **Rationale:** All skills invoke validate-plan (Phase A) and must adopt the split-file format atomically — the pipeline requires all skills to use the same format.
+**Status:** Complete (2026-03-19) | **Rationale:** All skills invoke validate-plan (Phase A) and must adopt the split-file format atomically — the pipeline requires all skills to use the same format.
 
 ### Phase B Checklist
 - [x] B1: Rewrite draft-plan SKILL.md for structured output
@@ -922,6 +922,11 @@ Commit: "test: add end-to-end lifecycle test for validate-plan"
 - B3 — added CROSS_PHASE_HANDOFF_TARGETS format spec, PLAN_DIR derivation, and PRIOR_COMPLETIONS concatenation method — Rule 2 (missing critical implementation guidance) — orchestrator would stall building these variables without concrete examples.
 - B4 — clarified TASK_ID substitution, integration test terminology, and within-phase handoff format — Rule 1 (content didn't work as intended) — implicit substitution and vague "similarly" reference would cause dispatcher to guess.
 - B5 — fixed field name (verification not verification_command) and added variable descriptions to spec-reviewer — Rule 1 (incorrect field name, missing context) — field mismatch and missing descriptions caused inconsistency between implementer and reviewer prompts.
+
+**Implementation Review Changes:**
+- Fixed success_criteria listed as required in plan-review SKILL.md and reviewer-prompt.md (it's optional).
+- Standardized all script invocation paths to `scripts/validate-plan` in orchestrate SKILL.md and draft-plan SKILL.md (bare `validate-plan` would fail with "command not found").
+- Added success_criteria optional field note to draft-plan SKILL.md.
 
 ### Phase B Tasks
 
