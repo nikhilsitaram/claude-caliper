@@ -1,0 +1,16 @@
+{
+  "PostToolUse": [{
+    "matcher": "AskUserQuestion",
+    "hooks": [{
+      "type": "command",
+      "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use-design-approval.sh"
+    }]
+  }],
+  "PermissionRequest": [{
+    "matcher": "Edit|Write",
+    "hooks": [{
+      "type": "command",
+      "command": "${CLAUDE_PLUGIN_ROOT}/hooks/permission-request-accept-edits.sh"
+    }]
+  }]
+}

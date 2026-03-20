@@ -15,6 +15,7 @@
         "email": "nikhil5890@gmail.com"
       },
       "strict": false,
+      "hooks": "./hooks/hooks.json",
       "skills": [
         "./skills/design",
         "./skills/design-review",
@@ -38,6 +39,7 @@
         "email": "nikhil5890@gmail.com"
       },
       "strict": false,
+      "hooks": "./hooks/hooks.json",
       "skills": [
         "./skills/design",
         "./skills/design-review",
