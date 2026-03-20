@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "workflow": "ship",
-  "status": "In Development",
+  "status": "Complete",
   "goal": "Enable parallel phase execution via per-phase worktrees and integration branches",
   "architecture": "Extend plan.json schema with workflow routing and phase-level depends_on. Update validate-plan for new fields and cycle detection. Update design, draft-plan, orchestrate, ship, and merge-pr skills to use integration branch model with per-phase worktrees. Add DAG-based wave dispatch for concurrent phase execution.",
   "tech_stack": "Bash (validate-plan script), Markdown (SKILL.md files), jq, git worktree, gh CLI",
@@ -178,7 +178,7 @@
     {
       "letter": "B",
       "name": "Parallel Dispatch and Merge Flow",
-      "status": "Not Started",
+      "status": "Complete (2026-03-20)",
       "rationale": "Builds on Phase A's integration branch model to add concurrent phase execution. Requires the schema, worktree layout, and integration branch conventions from Phase A to be in place.",
       "depends_on": [
         "A"
@@ -201,7 +201,7 @@
         {
           "id": "B1",
           "name": "Add DAG wave logic for parallel phase dispatch to orchestrate",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [],
           "files": {
             "create": [],
@@ -216,7 +216,7 @@
         {
           "id": "B2",
           "name": "Add rebase-before-merge step for parallel phases to orchestrate",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [
             "B1"
           ],
@@ -233,7 +233,7 @@
         {
           "id": "B3",
           "name": "Update merge-pr SKILL.md for final integration-to-main merge",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [],
           "files": {
             "create": [],
@@ -248,8 +248,11 @@
         {
           "id": "B4",
           "name": "Add dependency reconciliation step to orchestrate",
-          "status": "pending",
-          "depends_on": ["B1", "B2"],
+          "status": "complete",
+          "depends_on": [
+            "B1",
+            "B2"
+          ],
           "files": {
             "create": [],
             "modify": [
@@ -263,7 +266,7 @@
         {
           "id": "B5",
           "name": "Bump marketplace.json version",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [],
           "files": {
             "create": [],

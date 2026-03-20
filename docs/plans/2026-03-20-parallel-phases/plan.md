@@ -1,5 +1,5 @@
 ---
-status: In Development
+status: Complete
 ---
 
 # Enable parallel phase execution via per-phase worktrees and integration branches Implementation Plan
@@ -24,10 +24,10 @@ status: In Development
 - [x] A7: Update phase-dispatcher-prompt.md for integration branch PR targeting — *Phase dispatcher prompt notes that {REPO_PATH} is the phase worktree path (not main repo); prior completions scoped to dependency chain (not all prior phases); no other behavioral changes*
 
 ## Phase B — Parallel Dispatch and Merge Flow
-**Status:** Not Started | **Rationale:** Builds on Phase A's integration branch model to add concurrent phase execution. Requires the schema, worktree layout, and integration branch conventions from Phase A to be in place.
+**Status:** Complete (2026-03-20) | **Rationale:** Builds on Phase A's integration branch model to add concurrent phase execution. Requires the schema, worktree layout, and integration branch conventions from Phase A to be in place.
 
-- [ ] B1: Add DAG wave logic for parallel phase dispatch to orchestrate — *Orchestrate SKILL.md includes DAG construction from phase depends_on; wave-based dispatch loop (identify ready phases, dispatch in parallel, process completions serially); example workflow shows diamond dependency (A->B+C->D) with parallel B+C dispatch; sequential plans degrade gracefully*
-- [ ] B2: Add rebase-before-merge step for parallel phases to orchestrate — *Orchestrate SKILL.md documents rebase step after each parallel phase completes: rebase phase branch on latest integration, trivial conflicts (no markers) proceed with test verification, non-trivial conflicts (markers present) pause for user; serialized completion processing prevents race conditions*
-- [ ] B3: Update merge-pr SKILL.md for final integration-to-main merge — *Merge-pr SKILL.md handles integration branch PRs: detects integrate/<feature> branch pattern; cleanup removes all phase worktrees (.claude/worktrees/<feature>-phase-*) and integration worktree (.claude/worktrees/<feature>); deletes integration branch and phase branches; word count remains under 1000*
-- [ ] B4: Add dependency reconciliation step to orchestrate — *Orchestrate SKILL.md includes a Dependency Reconciliation sub-step between phase completion processing and dispatching newly-ready phases: for each non-root phase, run git diff --name-only against dependency phases, detect file overlap and semantic impacts against current phase tasks, filter out declared dependencies, inject Reconciliation sections into affected task .md files after H1 and any Handoff sections, log injections; key constraints table includes reconciliation entry; example workflow shows reconciliation log line*
-- [ ] B5: Bump marketplace.json version — *All three plugin entries in marketplace.json have version bumped from 1.6.0 to 1.7.0*
+- [x] B1: Add DAG wave logic for parallel phase dispatch to orchestrate — *Orchestrate SKILL.md includes DAG construction from phase depends_on; wave-based dispatch loop (identify ready phases, dispatch in parallel, process completions serially); example workflow shows diamond dependency (A->B+C->D) with parallel B+C dispatch; sequential plans degrade gracefully*
+- [x] B2: Add rebase-before-merge step for parallel phases to orchestrate — *Orchestrate SKILL.md documents rebase step after each parallel phase completes: rebase phase branch on latest integration, trivial conflicts (no markers) proceed with test verification, non-trivial conflicts (markers present) pause for user; serialized completion processing prevents race conditions*
+- [x] B3: Update merge-pr SKILL.md for final integration-to-main merge — *Merge-pr SKILL.md handles integration branch PRs: detects integrate/<feature> branch pattern; cleanup removes all phase worktrees (.claude/worktrees/<feature>-phase-*) and integration worktree (.claude/worktrees/<feature>); deletes integration branch and phase branches; word count remains under 1000*
+- [x] B4: Add dependency reconciliation step to orchestrate — *Orchestrate SKILL.md includes a Dependency Reconciliation sub-step between phase completion processing and dispatching newly-ready phases: for each non-root phase, run git diff --name-only against dependency phases, detect file overlap and semantic impacts against current phase tasks, filter out declared dependencies, inject Reconciliation sections into affected task .md files after H1 and any Handoff sections, log injections; key constraints table includes reconciliation entry; example workflow shows reconciliation log line*
+- [x] B5: Bump marketplace.json version — *All three plugin entries in marketplace.json have version bumped from 1.6.0 to 1.7.0*
