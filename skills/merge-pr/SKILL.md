@@ -25,11 +25,24 @@ Detect environment:
 
 If not on the PR branch: look up `WORKTREE_PATH` first — if the branch is in a worktree, `cd` into it (gh pr checkout fails when a worktree holds the branch). Otherwise `gh pr checkout $PR_NUMBER`.
 
-### Step 2: Read & Assess Feedback
+### Step 2: PR Review
+
+Skip if `--skip-review` was passed.
+
+Read `reviewer-prompt.md` (same directory as SKILL.md) and dispatch a fresh-eyes reviewer subagent with:
+- `{DIFF_RANGE}` = `$DEFAULT_BRANCH..HEAD`
+- `{REPO_PATH}` = repository root path
+- `{PR_NUMBER}` = PR number from Step 1
+
+The subagent posts its findings as a `gh pr comment` on the PR (visible audit trail), then returns findings for use in Step 3.
+
+### Step 3: Collect & Assess All Feedback
 
 Fetch PR conversation comments, inline review comments, and review status via `gh`.
 
-Categorize each comment:
+Merge subagent findings (Step 2) with external comments into one table. Each finding is evaluated on merit regardless of source.
+
+Categorize each item:
 
 | Category | Action |
 |----------|--------|
@@ -38,19 +51,25 @@ Categorize each comment:
 | **Informational** — explanation, praise | Acknowledge, no change |
 | **False positive** — incorrect analysis | Dismiss with technical reasoning |
 
-Show the user a summary of what will be addressed vs dismissed before proceeding.
+### Step 4: Present & Confirm
 
-### Step 3: Fix, Test, Push
+Show the user a summary table of all findings with source, category, and planned action (fix / dismiss / no action). Ask the user to confirm before proceeding to fixes.
+
+### Step 5: Fix, Test, Push
 
 If `--skip-fixes` was passed, skip this entire step.
 
 For each actionable item: make the fix. Run project tests — do not merge with failing tests. Commit and push.
 
-### Step 4: Comment on PR
+### Step 6: Comment on PR
 
-Post a `gh pr comment` summarizing what was fixed, what was dismissed (with reasons), and what needed no action. Omit empty sections.
+Post a `gh pr comment` with the unified assessment covering all sources (subagent review + external reviewers). Include: what was fixed, what was dismissed (with reasons), and what needed no action. Omit empty sections.
 
-### Step 5: Merge
+### Step 7: Confirm Merge
+
+Ask the user for final confirmation before merging. Show: PR URL, number of fixes applied, any dismissed items.
+
+### Step 8: Merge
 
 If branch protection requires human approval and the PR lacks it, tell the user and stop with the PR URL.
 
@@ -61,9 +80,9 @@ cd "$MAIN_REPO"
 gh pr merge $PR_NUMBER --squash  # adjust flag if repo uses merge or rebase
 ```
 
-Never use `--delete-branch` — branch cleanup is handled in Step 6.
+Never use `--delete-branch` — branch cleanup is handled in Step 9.
 
-### Step 6: Clean Up
+### Step 9: Clean Up
 
 **Worktree — run each sub-step as a SEPARATE Bash tool call.** Never chain with `&&` — CWD changes don't persist if a later chained command fails, bricking the shell.
 
@@ -87,7 +106,7 @@ git pull --rebase
 git remote prune origin
 ```
 
-### Step 7: Summary
+### Step 10: Summary
 
 Report: PR number/URL, review items (fixed/dismissed/informational), merge status, cleanup status.
 
@@ -97,6 +116,7 @@ Report: PR number/URL, review items (fixed/dismissed/informational), merge statu
 |-----|--------|
 | `<PR number>` | Target specific PR (`/merge-pr 42`) |
 | *(none)* | Detect from current branch |
+| `--skip-review` / `-R` | Skip subagent review (Step 2) — external feedback still processed |
 | `--skip-fixes` / `-S` | Skip fixing — just comment, merge, clean up |
 
 ## Pitfalls
@@ -104,7 +124,7 @@ Report: PR number/URL, review items (fixed/dismissed/informational), merge statu
 | Mistake | Why |
 |---------|-----|
 | Merging while CWD is inside worktree | Remote branch deletion bricks the shell. `cd "$MAIN_REPO"` before merge. |
-| Chaining Step 6 with `&&` | CWD change doesn't persist if later command fails. Use separate Bash calls. |
+| Chaining Step 9 with `&&` | CWD change doesn't persist if later command fails. Use separate Bash calls. |
 | Deleting branch before removing worktree | Git refuses. Remove worktree first. |
 | Using `--delete-branch` on `gh pr merge` | Fails in worktree flows. Delete branch manually after. |
 | Blindly implementing review suggestions | Verify each against the codebase, push back on incorrect ones. |
