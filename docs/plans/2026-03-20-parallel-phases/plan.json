@@ -59,7 +59,7 @@
         {
           "id": "A1",
           "name": "Add workflow and phase depends_on validation to validate-plan",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [],
           "files": {
             "create": [],
@@ -77,8 +77,10 @@
         {
           "id": "A2",
           "name": "Update test fixture for new schema fields",
-          "status": "pending",
-          "depends_on": ["A1"],
+          "status": "complete",
+          "depends_on": [
+            "A1"
+          ],
           "files": {
             "create": [],
             "modify": [
@@ -96,7 +98,7 @@
         {
           "id": "A3",
           "name": "Update draft-plan SKILL.md for workflow and phase depends_on",
-          "status": "pending",
+          "status": "in_progress",
           "depends_on": [],
           "files": {
             "create": [],
@@ -142,7 +144,9 @@
           "id": "A6",
           "name": "Update orchestrate SKILL.md for integration branch model",
           "status": "pending",
-          "depends_on": ["A5"],
+          "depends_on": [
+            "A5"
+          ],
           "files": {
             "create": [],
             "modify": [
@@ -175,7 +179,9 @@
       "name": "Parallel Dispatch and Merge Flow",
       "status": "Not Started",
       "rationale": "Builds on Phase A's integration branch model to add concurrent phase execution. Requires the schema, worktree layout, and integration branch conventions from Phase A to be in place.",
-      "depends_on": ["A"],
+      "depends_on": [
+        "A"
+      ],
       "success_criteria": [
         {
           "run": "grep -q 'DAG' skills/orchestrate/SKILL.md",
@@ -206,7 +212,9 @@
           "id": "B2",
           "name": "Add rebase-before-merge step for parallel phases to orchestrate",
           "status": "pending",
-          "depends_on": ["B1"],
+          "depends_on": [
+            "B1"
+          ],
           "files": {
             "create": [],
             "modify": [
