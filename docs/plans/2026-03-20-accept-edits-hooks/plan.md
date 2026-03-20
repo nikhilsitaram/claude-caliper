@@ -1,5 +1,5 @@
 ---
-status: Not Yet Started
+status: In Development
 ---
 
 # Auto-enable acceptEdits mode after design approval via Claude Code hooks Implementation Plan

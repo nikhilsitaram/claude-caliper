@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Not Yet Started",
+  "status": "In Development",
   "goal": "Auto-enable acceptEdits mode after design approval via Claude Code hooks",
   "architecture": "Two-hook chain: a PostToolUse hook on AskUserQuestion creates a session-scoped .design-approved sentinel file when the user approves a design, then a PermissionRequest hook on Edit|Write finds that sentinel and returns an allow+setMode(acceptEdits) decision. The design skill is updated to swap worktree creation before approval and use a structured AskUserQuestion gate with metadata for hook identification.",
   "tech_stack": "Bash, jq, Claude Code hooks API (hooks.json, PostToolUse, PermissionRequest)",
