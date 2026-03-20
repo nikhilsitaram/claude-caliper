@@ -20,7 +20,7 @@ Enable parallel phase execution via per-phase worktrees and an integration branc
 
 ## Success Criteria
 
-1. Given a plan with independent phases, total execution time is proportional to the longest dependency chain, not the total number of phases
+1. Given a plan with independent phases (e.g., B and C both depend only on A), orchestrate dispatches B and C concurrently rather than waiting for B to complete before starting C
 2. A `workflow` field in plan.json controls whether orchestrate auto-ships, stops after review, or stops after planning — no implicit signal passing
 3. Phase PRs target the integration branch; one final PR merges integration → main
 4. Fully sequential plans (A→B→C) degrade gracefully to current behavior — one phase at a time, each in its own worktree
@@ -51,7 +51,9 @@ main repo (on main)
 ├── .claude/worktrees/<feature>-phase-c/         (phase-c worktree)
 ```
 
-Multiple features can coexist — each has its own integration branch and phase worktrees with namespaced paths. This is a change from the current convention of `.worktrees/` — the new root is `.claude/worktrees/` for all worktrees (design, phase, and any future use).
+Multiple features can coexist — each has its own integration branch and phase worktrees with namespaced paths. The worktree root changes from `.worktrees/` (current SKILL.md text) to `.claude/worktrees/` — namespacing under `.claude/` keeps plugin-managed worktrees separate from any user-created worktrees.
+
+`<feature>` is the kebab-case topic name derived from the plan directory (e.g., `docs/plans/2026-03-20-parallel-phases/` yields `parallel-phases`). The design skill uses this as both the integration branch name (`integrate/parallel-phases`) and the worktree directory name (`.claude/worktrees/parallel-phases/`).
 
 ### Orchestrator Execution Flow
 
@@ -73,11 +75,9 @@ Multiple features can coexist — each has its own integration branch and phase 
       - Dispatch implementation review (from orchestrate context)
       - Triage findings, fix issues
       - Rebase phase on latest integration (picks up parallel phases that merged first)
-      - Resolve conflicts: trivial (additive changes to different sections of the
-        same file, e.g. both phases add imports or route registrations) — rebase
-        and verify tests pass. Non-trivial (overlapping edits to the same function
-        or conflicting structural changes) — pause and present both versions to
-        the user.
+      - Resolve conflicts: if `git rebase` succeeds without conflict markers,
+        treat as trivial — verify tests pass and continue. If conflict markers
+        appear, treat as non-trivial — pause and present both versions to the user.
       - Ship phase PR (--base integrate/<feature>)
       - Merge phase PR into integration (gh pr merge)
       - Update integration worktree (git pull in integration worktree)
@@ -99,7 +99,7 @@ Context isolation is preserved. Each phase dispatcher receives only:
 - Current phase tasks JSON
 - Cross-phase handoff targets
 
-The key difference from current: "prior" means "phases this phase depends on" rather than "all earlier letters." Phase C (depends on A only) receives Phase A completion notes but not Phase B notes — B is not a dependency.
+The key difference from current: "prior" means the transitive closure of `depends_on`, not "all earlier letters." Phase D (depends_on: [B, C]) receives completions from A, B, and C (since B and C both depend on A) — no context is lost when the dependency chain is deeper than one level. Phase C (depends on A only) receives Phase A completion notes but not Phase B notes — B is not a dependency.
 
 ## Key Decisions
 
@@ -177,11 +177,11 @@ Tasks within a phase run sequentially in the same worktree (current behavior). P
 
 | Skill | Change Summary |
 |-------|----------------|
-| `skills/design/SKILL.md` | Worktree path changes from `.worktrees/` to `.claude/worktrees/`; branch becomes `integrate/<feature>`; add workflow routing question after draft-plan; write `workflow` to plan.json |
+| `skills/design/SKILL.md` | Update worktree path from `.worktrees/<branch-name>` to `.claude/worktrees/<feature>/`; branch becomes `integrate/<feature>`; add workflow routing question after draft-plan; write `workflow` to plan.json |
 | `skills/draft-plan/SKILL.md` | Add phase-level `depends_on` to plan.json output; document `workflow` field |
 | `skills/orchestrate/SKILL.md` | Integration branch flow; phase DAG; parallel phase dispatch; per-phase worktrees; rebase-before-merge; read `workflow` for ship behavior |
 | `skills/orchestrate/phase-dispatcher-prompt.md` | `{REPO_PATH}` is phase worktree path; PR targets `integrate/<feature>`; prior completions scoped to dependency chain |
-| `skills/ship/SKILL.md` | Add `--base <branch>` argument to ship's PR creation step (currently ship always targets the default branch). When provided, `gh pr create` uses this as the base branch. |
+| `skills/ship/SKILL.md` | Add `--base <branch>` argument to ship's PR creation step and Arguments table (currently ship always targets the default branch). When provided, `gh pr create --base <branch>` uses this as the base branch. Defaults to `$DEFAULT_BRANCH` when omitted, preserving backward compatibility. |
 | `skills/merge-pr/SKILL.md` | Final integration→main merge (squash); multi-worktree cleanup |
 | `scripts/validate-plan` | Schema validation for `workflow` (enum) and phase `depends_on` (array of letters); circular dependency detection |
 
