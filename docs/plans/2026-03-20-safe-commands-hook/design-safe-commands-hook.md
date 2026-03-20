@@ -12,12 +12,11 @@ Layer three permission mechanisms — auto mode, a safe commands hook, and a lea
 
 ## Success Criteria
 
-1. All five subagent prompt files use `permissionMode: auto` instead of `bypassPermissions`
-2. A PreToolUse hook auto-approves Bash commands matching prefixes in `hooks/safe-commands.txt` before auto mode evaluates them
-3. Commands not in the safe list are logged to a temp file during execution
-4. Phase dispatcher checks the log after each task (post-implementer + post-reviewer) and asks the user via AskUserQuestion whether to add flagged commands to `safe-commands.txt`
-5. User-approved additions take effect immediately — subsequent tasks in the same phase benefit
-6. Existing pipeline behavior (TDD, review gates, commit workflow) is unchanged
+1. Subagents run under Claude's auto mode permission evaluation rather than unrestricted bypass, providing prompt injection safeguards for all commands not on the safe list
+2. Commands matching the curated safe list are approved instantly without per-command AI evaluation overhead (once the user has wired the hook per setup instructions)
+3. Commands not in the safe list are captured for review, so users can decide whether to add them
+4. After each task completes, the user is prompted with any non-safe commands and can approve additions that take effect immediately for subsequent tasks
+5. Existing pipeline behavior (TDD, review gates, commit workflow) is unchanged
 
 ## Architecture
 
@@ -42,16 +41,14 @@ hooks/
   pretooluse-safe-commands.sh    # PreToolUse hook script
 ```
 
-**safe-commands.txt** ships with ~25-30 common dev workflow prefixes:
+**safe-commands.txt** ships with ~35 common dev workflow prefixes. Destructive commands (`rm`) and data-exfiltration vectors (`curl`, `bash`) are intentionally excluded — auto mode evaluates those per-invocation, and users can add them via the learning loop if their workflow requires it:
 
 ```text
 awk
-bash
 cat
 cd
 chmod
 cp
-curl
 diff
 du
 echo
@@ -74,7 +71,6 @@ python3
 pwd
 readlink
 realpath
-rm
 ruff
 sed
 sort
@@ -100,6 +96,15 @@ Bash command arrives
                    → return nothing (fall through to auto mode)
 ```
 
+**Parsing rules:**
+- Split on `&&`, `;`, `|` to extract command segments
+- Extract command words from variable assignments: `VAR=$(cmd)` → `cmd`
+- Respect quoted strings — do not split inside single or double quotes (`echo "hello && world"` → only `echo` is the command word)
+- For subshells `$(...)`, extract the inner command word
+- Check both the full command path and its basename (`./node_modules/.bin/jest` → also check `jest`)
+- Limit to first 20 command words per input to bound processing
+- When parsing is ambiguous (heredocs, process substitution, complex nesting), fall through to auto mode — false negatives (prompting for a safe command) are acceptable, false positives (auto-approving an unsafe command) are not
+
 ### Layer 3: Learning Loop (per-task surfacing)
 
 After each task's implementer + reviewer cycle, the phase dispatcher reads the non-safe commands log. If entries exist, it asks the user via AskUserQuestion whether to add them to `safe-commands.txt`. Approved additions are appended immediately — subsequent tasks benefit.
@@ -123,10 +128,24 @@ The orchestrator only sees phase results. Per-task granularity requires the disp
 Auto mode's judgments are probabilistic. The safe list provides a deterministic fast-path for known commands — predictable, zero token cost, and version-controlled so teams share the same baseline.
 
 ### Dev workflow commands only
-The safe list ships with ~40 common dev prefixes. Domain-specific tools (MCP servers, Dataiku, Tableau) are left to users' personal hooks. This keeps the plugin generic.
+The safe list ships with ~35 common dev prefixes. Domain-specific tools (MCP servers, Dataiku, Tableau) are left to users' personal hooks. This keeps the plugin generic.
+
+### Destructive commands excluded from default safe list
+`rm`, `curl`, and `bash` are intentionally not in the default safe list. `rm` is destructive, `curl` can exfiltrate data, and `bash` can execute arbitrary scripts. Auto mode evaluates these per-invocation, which is the right trade-off for a default config. Users who trust their environment can add them via the learning loop — the first time one triggers, the dispatcher asks and it's one click to permanently allow.
 
 ### Hook distribution gap
 Hook scripts ship with the plugin (files in `hooks/`), but `settings.json` hook config doesn't auto-install via the plugin system. Users must manually wire the hook. The setup path will be documented; a setup skill may follow later.
+
+## Alternatives Considered
+
+### Auto mode alone (no safe commands hook)
+Auto mode handles all commands, including safe ones. But it evaluates each one with an LLM call — adding token cost and latency for commands like `git status` that are always safe. The hook eliminates this overhead for the common case while auto mode handles the long tail.
+
+### `settings.json` allowedTools patterns instead of custom hook
+Claude Code's `permissions.allow` can pre-approve specific Bash patterns. But it doesn't support logging non-matches for the learning loop, and pattern syntax is limited compared to a shell script that can parse compound commands. The hook gives us both deterministic approval and observability.
+
+### acceptEdits + safe commands hook (no auto mode)
+Simpler — `acceptEdits` auto-approves file operations, hook auto-approves safe Bash. But non-safe commands would prompt the user directly with no AI evaluation, and there are no prompt injection safeguards. Auto mode adds a meaningful security layer for the long tail.
 
 ## Non-Goals
 
