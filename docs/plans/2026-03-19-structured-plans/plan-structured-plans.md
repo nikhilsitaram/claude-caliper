@@ -1281,7 +1281,7 @@ Update the "How to Dispatch" variables table:
 | `{BASE_SHA}` | unchanged |
 | `{HEAD_SHA}` | unchanged |
 | `{FEATURE_SUMMARY}` | unchanged |
-| `{TASK_LIST}` | Extract from plan.json: `jq '.phases[N].tasks[] | .id + ": " + .name'` |
+| `{TASK_LIST}` | Extract from plan.json: `jq '.phases[N].tasks[] \| .id + ": " + .name'` |
 | `{PLAN_DIR}` | Path to plan directory (replaces `{PLAN_FILE_PATH}`) |
 | `{PHASE_DIR}` | Path to current phase directory |
 | `{REPO_PATH}` | unchanged |

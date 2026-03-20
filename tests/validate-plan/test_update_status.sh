@@ -23,7 +23,7 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
 reset_fixture() {
-  rm -rf "$TMPDIR/"*
+  rm -rf "${TMPDIR:?}/"*
   cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
 }
 

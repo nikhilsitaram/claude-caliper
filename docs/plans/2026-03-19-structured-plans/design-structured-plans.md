@@ -68,11 +68,11 @@ docs/plans/YYYY-MM-DD-topic/
             "modify": [],
             "test": ["tests/routes.test.ts"]
           },
-          "verification": "pytest tests/routes.test.ts -v",
+          "verification": "npx jest tests/routes.test.ts",
           "done_when": "Handler returns 200, 2/2 tests pass",
           "success_criteria": [
             {
-              "run": "pytest tests/routes.test.ts -v",
+              "run": "npx jest tests/routes.test.ts",
               "expect_exit": 0,
               "expect_output": "2 passed"
             }

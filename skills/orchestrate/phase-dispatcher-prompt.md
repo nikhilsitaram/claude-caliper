@@ -9,7 +9,7 @@ Use this template when dispatching a phase dispatcher subagent. Substitute all {
 - `{PRIOR_COMPLETIONS}` — concatenated completion.md content from prior phases (empty for Phase A)
 - `{PLAN_DIR}` — absolute path to plan directory (for validate-plan calls and cross-phase handoff writes)
 - `{PHASE_DIR}` — absolute path to current phase directory (for reading task .md files)
-- `{CROSS_PHASE_HANDOFF_TARGETS}` — JSON object mapping source task IDs in this phase to target task file paths in later phases (e.g., {"A2": "phase-b/b1.md"}). Empty object {} if no cross-phase dependencies.
+- `{CROSS_PHASE_HANDOFF_TARGETS}` — JSON object mapping source task IDs to arrays of target task file paths in later phases (e.g., {"A2": ["phase-b/b1.md", "phase-c/c1.md"]}). Empty object {} if no cross-phase dependencies.
 - `{REPO_PATH}` — working directory
 
 ```text
@@ -103,7 +103,7 @@ Task tool (general-purpose):
 
     9. **Handle cross-phase handoffs:**
        - Check if this task ID exists as a key in {CROSS_PHASE_HANDOFF_TARGETS}
-       - If yes, write handoff section to {PLAN_DIR}/{target_path}
+       - If yes, iterate each target path in the array and write handoff section to {PLAN_DIR}/{target_path}
        - Format: append after the H1 header, before existing content:
          ```markdown
          ## Handoff from {TASK_ID}
