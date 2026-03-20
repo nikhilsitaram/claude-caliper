@@ -25,6 +25,10 @@ Dispatch a fresh-eyes Opus subagent to review the full PR diff before reading ex
 
 The reviewer receives only the diff and repo path. No plan docs, no feature description, no task list. This ensures true fresh-eyes review — it judges the code on its own merits, not the author's intent.
 
+### PR comments as the audit trail
+
+The subagent posts its findings directly as a `gh pr comment` on the PR — this creates a visible audit trail of what was reviewed, even if the merge-pr session is lost. After fixes are applied, the main agent posts a second comment summarizing the unified assessment (all sources), what was fixed, what was dismissed with reasons, and what needed no action.
+
 ### Unified assessment combines all sources
 
 Subagent findings and external comments are merged into one table with the same categorization rules (actionable fix / suggestion / informational / false positive). No source gets priority — each finding is evaluated on merit.
@@ -43,11 +47,11 @@ The subagent review (Step 2) can be skipped with `--skip-review` for trusted/tri
 | Step | What | Change |
 |------|------|--------|
 | 1. Setup | Identify PR, detect environment | Same |
-| **2. PR Review** | Dispatch subagent to review full diff | **New** |
+| **2. PR Review** | Dispatch subagent to review full diff and comment on PR | **New** |
 | **3. Collect & Assess All Feedback** | Fetch external comments + combine with subagent findings | **Expanded** |
 | **4. Present & Confirm** | Show assessment table, get user approval to proceed | **New** |
 | 5. Fix, Test, Push | Address actionable items | Same |
-| 6. Comment on PR | Post summary of fixes/dismissals | Same |
+| 6. Comment on PR | Post unified assessment with actions taken | **Expanded** |
 | **7. Confirm Merge** | Ask user before merging | **New** |
 | 8. Merge | Squash merge from main repo | Same |
 | 9. Clean Up | Worktree/branch cleanup | Same |
@@ -70,6 +74,8 @@ Severities: bug, security, logic, cleanup.
 **Model:** Opus — catching subtle issues requires strong reasoning.
 
 **Focus areas:** Correctness, security, logic errors, dead code, inconsistencies that automated linters miss.
+
+**PR comment:** The subagent posts its findings table as a `gh pr comment` before returning results to the main agent. This creates a visible record on the PR regardless of session state.
 
 ## Deliverables
 
