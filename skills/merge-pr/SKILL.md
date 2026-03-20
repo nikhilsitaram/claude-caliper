@@ -22,6 +22,7 @@ Detect environment:
 - `MAIN_REPO` from `git rev-parse --path-format=absolute --git-common-dir` (strip `/.git`)
 - `IS_WORKTREE` — true when `--git-dir` differs from `--git-common-dir`
 - `WORKTREE_PATH` — look up from `git worktree list` by matching `$BRANCH_NAME` (works regardless of CWD)
+- `IS_INTEGRATION` — true when `$BRANCH_NAME` matches `integrate/*`; extract `FEATURE=${BRANCH_NAME#integrate/}`
 
 If not on the PR branch: look up `WORKTREE_PATH` first — if the branch is in a worktree, `cd` into it (`gh pr checkout` fails when a worktree holds the branch). Otherwise `gh pr checkout $PR_NUMBER`.
 
@@ -40,7 +41,7 @@ The subagent posts its findings as a `gh pr comment` on the PR (visible audit tr
 
 Fetch PR conversation comments, inline review comments, and review status via `gh`.
 
-Merge subagent findings (Step 2) with external comments into one table. If Step 2 was skipped, process external comments only. Each finding is evaluated on merit regardless of source.
+Merge subagent findings (Step 2) with external comments. If Step 2 was skipped, process external only. Evaluate each on merit.
 
 Categorize each item:
 
@@ -69,7 +70,7 @@ For each actionable item: make the fix. Run project tests — do not merge with 
 
 ### Step 6: Comment on PR
 
-Post a `gh pr comment` with the unified assessment covering all sources. Include: what was fixed, what was dismissed (with reasons), what needed no action. Omit empty sections.
+Post a `gh pr comment` with unified assessment: what was fixed, dismissed (with reasons), and no-action. Omit empty sections.
 
 ### Step 7: Confirm Merge
 
@@ -90,9 +91,9 @@ git fetch origin $DEFAULT_BRANCH
 git merge-base --is-ancestor origin/$DEFAULT_BRANCH HEAD
 ```
 
-If behind (non-zero exit): rebase onto the default branch, resolve conflicts, run tests, and push with `--force-with-lease`. Post a `gh pr comment` explaining each resolved conflict with file, what changed upstream, and how it was resolved. If conflicts are too complex to resolve confidently, stop and ask the user.
+If behind (non-zero exit): rebase onto default branch, resolve conflicts, run tests, push `--force-with-lease`. Comment on PR with conflict resolution details. Complex conflicts → stop and ask user.
 
-**CWD safety:** Always `cd "$MAIN_REPO"` before merging. In worktrees, the merge triggers remote branch deletion which bricks the shell if CWD is inside the worktree. Running from the main repo is safe in all cases.
+**CWD safety:** Always `cd "$MAIN_REPO"` before merging — merge triggers remote branch deletion which bricks the shell if CWD is inside the worktree.
 
 ```bash
 cd "$MAIN_REPO"
@@ -103,27 +104,26 @@ Never use `--delete-branch` — branch cleanup is handled in Step 9.
 
 ### Step 9: Clean Up
 
-**Worktree — run each sub-step as a SEPARATE Bash tool call.** Never chain with `&&` — CWD changes don't persist if a later chained command fails, bricking the shell.
+Run each sub-step as a SEPARATE Bash tool call — CWD changes don't persist across chained `&&`.
 
-Derive `WORKTREE_PATH` if not already captured (exact branch match — substring grep collides on `feature` vs `feature-2`):
+Derive `WORKTREE_PATH` if not already captured (exact branch match):
 ```bash
 git worktree list --porcelain | awk -v b="refs/heads/$BRANCH_NAME" '$1=="worktree"{wt=$2} $1=="branch" && $2==b{print wt; exit}'
 ```
 
-1. `git worktree remove "$WORKTREE_PATH"` (retry with `--force` if untracked files)
+**Integration branch** (`IS_INTEGRATION=true`): run each as separate Bash call:
+1. For each phase worktree `.claude/worktrees/$FEATURE-phase-*`: `git worktree remove <path>`
+2. `git worktree remove .claude/worktrees/$FEATURE`
+3. Delete phase branches: `git branch -D phase-a phase-b ...` (list from plan.json)
+4. `git branch -D $BRANCH_NAME`
+5. `git worktree prune` → `git pull --rebase` → `git remote prune origin`
+
+**Standard worktree:**
+1. `git worktree remove "$WORKTREE_PATH"` (retry `--force` if untracked files)
 2. `git branch -D $BRANCH_NAME`
-3. `git worktree prune`
-4. `git pull --rebase`
-5. `git remote prune origin`
+3. `git worktree prune` → `git pull --rebase` → `git remote prune origin`
 
-**Not in a worktree:**
-
-```bash
-git checkout $DEFAULT_BRANCH
-git branch -D $BRANCH_NAME
-git pull --rebase
-git remote prune origin
-```
+**Not in a worktree:** `git checkout $DEFAULT_BRANCH` → `git branch -D $BRANCH_NAME` → `git pull --rebase` → `git remote prune origin`
 
 ### Step 10: Summary
 
