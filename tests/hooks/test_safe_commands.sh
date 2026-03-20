@@ -54,10 +54,6 @@ assert_file_not_exists() {
 TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
-ORIG_SAFE_COMMANDS="$REPO_ROOT/config/safe-commands.txt"
-EMPTY_BUNDLED="$TMPDIR_TEST/empty-bundled.txt"
-touch "$EMPTY_BUNDLED"
-
 run_hook() {
   local command="$1"
   local safe_file="$2"
@@ -68,16 +64,10 @@ run_hook() {
     tool_input: { command: $cmd },
     session_id: "test-session"
   }')
-  local hook_dir
-  hook_dir="$(dirname "$HOOK")"
-  local orig_safe="$hook_dir/safe-commands.txt"
-  cp "$orig_safe" "$TMPDIR_TEST/orig-safe-commands.txt.bak" 2>/dev/null || true
-  cp "$safe_file" "$orig_safe"
-  echo "$json" | CLAUDE_SAFE_COMMANDS_FILE="$EMPTY_BUNDLED" CLAUDE_SAFE_CMDS_LOG="$log_file" bash "$HOOK" 2>/dev/null || true
-  cp "$TMPDIR_TEST/orig-safe-commands.txt.bak" "$orig_safe" 2>/dev/null || true
+  echo "$json" | CLAUDE_SAFE_COMMANDS_FILE="$safe_file" CLAUDE_SAFE_CMDS_LOG="$log_file" bash "$HOOK" 2>/dev/null || true
 }
 
-run_hook_two_files() {
+run_hook_override() {
   local command="$1"
   local bundled_file="$2"
   local user_file="$3"
@@ -208,21 +198,30 @@ CMD15="echo 1 && echo 2 && echo 3 && echo 4 && echo 5 && echo 6 && echo 7 && ech
 OUT15=$(run_hook "$CMD15" "$SAFE15" "$LOG15")
 assert_output_contains "21-segment command: first 20 all safe returns allow" "$OUT15" "allow"
 
-echo "Test 16: User additions file extends bundled safe list"
+echo "Test 16: User file overrides bundled (user file used exclusively)"
 BUNDLED16="$TMPDIR_TEST/bundled16.txt"
 USER16="$TMPDIR_TEST/user16.txt"
 LOG16="$TMPDIR_TEST/log16.txt"
-printf 'git\n' > "$BUNDLED16"
+printf 'git\ncargo\n' > "$BUNDLED16"
 printf 'cargo\n' > "$USER16"
-OUT16=$(run_hook_two_files "git status && cargo build" "$BUNDLED16" "$USER16" "$LOG16")
-assert_output_contains "user additions extend bundled list returns allow" "$OUT16" "allow"
+OUT16=$(run_hook_override "git status" "$BUNDLED16" "$USER16" "$LOG16")
+assert_output_empty "user file without git rejects git (override, not merge)" "$OUT16"
 
-echo "Test 17: User file missing still works with bundled only"
+echo "Test 17: User file missing falls back to bundled"
 BUNDLED17="$TMPDIR_TEST/bundled17.txt"
 LOG17="$TMPDIR_TEST/log17.txt"
 printf 'git\n' > "$BUNDLED17"
-OUT17=$(run_hook_two_files "git status" "$BUNDLED17" "$TMPDIR_TEST/nonexistent.txt" "$LOG17")
-assert_output_contains "bundled only (no user file) returns allow" "$OUT17" "allow"
+OUT17=$(run_hook_override "git status" "$BUNDLED17" "$TMPDIR_TEST/nonexistent.txt" "$LOG17")
+assert_output_contains "bundled fallback (no user file) returns allow" "$OUT17" "allow"
+
+echo "Test 18: User file with custom commands works"
+BUNDLED18="$TMPDIR_TEST/bundled18.txt"
+USER18="$TMPDIR_TEST/user18.txt"
+LOG18="$TMPDIR_TEST/log18.txt"
+printf 'git\n' > "$BUNDLED18"
+printf 'git\ncargo\nbrew\n' > "$USER18"
+OUT18=$(run_hook_override "cargo build && brew install jq" "$BUNDLED18" "$USER18" "$LOG18")
+assert_output_contains "user file with custom commands returns allow" "$OUT18" "allow"
 
 echo ""
 echo "$PASS passed, $FAIL failed"

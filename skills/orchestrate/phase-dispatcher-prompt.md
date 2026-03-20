@@ -116,9 +116,12 @@ Task tool (general-purpose):
             1. brew
             2. cargo
             3. rustc"
-         c. For each command the user approves, append it to
-            `~/.claude/safe-commands.txt` (one per line, create if missing)
-         d. Truncate the log: `> $TMPDIR/claude-safe-cmds-nonmatch.log`
+         c. If `~/.claude/safe-commands.txt` does not exist yet, copy the bundled
+            defaults from `config/safe-commands.txt` first (so the user file starts
+            with the full default list, then user additions build on top)
+         d. For each command the user approves, append it to
+            `~/.claude/safe-commands.txt` (one per line)
+         e. Truncate the log: `> $TMPDIR/claude-safe-cmds-nonmatch.log`
        - If the file doesn't exist or is empty, skip silently
 
     10. **Handle cross-phase handoffs:**

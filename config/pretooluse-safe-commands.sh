@@ -15,7 +15,13 @@ BUNDLED_SAFE_FILE="$SCRIPT_DIR/safe-commands.txt"
 USER_SAFE_FILE="${CLAUDE_SAFE_COMMANDS_FILE:-$HOME/.claude/safe-commands.txt}"
 LOG_FILE="${CLAUDE_SAFE_CMDS_LOG:-${TMPDIR:-/tmp}/claude-safe-cmds-nonmatch.log}"
 
-[[ -f "$BUNDLED_SAFE_FILE" || -f "$USER_SAFE_FILE" ]] || exit 0
+if [[ -f "$USER_SAFE_FILE" ]]; then
+  SAFE_FILE="$USER_SAFE_FILE"
+elif [[ -f "$BUNDLED_SAFE_FILE" ]]; then
+  SAFE_FILE="$BUNDLED_SAFE_FILE"
+else
+  exit 0
+fi
 
 extract_segments() {
   local input_cmd="$1"
@@ -140,11 +146,7 @@ extract_command_words_from_segment() {
   done
 }
 
-safe_list=()
-[[ -f "$BUNDLED_SAFE_FILE" ]] && mapfile -t safe_list < "$BUNDLED_SAFE_FILE"
-if [[ -f "$USER_SAFE_FILE" ]]; then
-  mapfile -t -O "${#safe_list[@]}" safe_list < "$USER_SAFE_FILE"
-fi
+mapfile -t safe_list < "$SAFE_FILE"
 
 is_safe() {
   local word="$1"
