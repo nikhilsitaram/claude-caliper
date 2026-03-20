@@ -39,7 +39,7 @@ Why separate subagents per task: each implementer starts with fresh context, pre
 
 ## Per-Phase Execution
 
-Before first phase: `validate-plan --update-status plan.json --plan --status "In Development"`
+Before first phase: `scripts/validate-plan --update-status plan.json --plan --status "In Development"`
 
 For each phase:
 
@@ -59,12 +59,12 @@ For each phase:
 7. Re-Review Gate: >5 issues → re-review after fixes
 8. Append review changes to `${PHASE_DIR}/completion.md`
 9. Emit phase summary: "Phase A complete. [N tasks]. Review: X issues — [brief list]. [Status]."
-10. Update status: `validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
+10. Update status: `scripts/validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
 11. Ship PR: invoke ship with `--base phase-{prior-letter}` (or `--base main` for Phase A)
 
 Single-phase plans: one iteration of the same loop. Skip handoff notes.
 
-After the final phase: `validate-plan --update-status plan.json --plan --status Complete`, then auto-invoke ship.
+After the final phase: `scripts/validate-plan --update-status plan.json --plan --status Complete`, then auto-invoke ship.
 
 ## Example Workflow
 
@@ -74,7 +74,7 @@ git checkout -b phase-a; PHASE_BASE_SHA=$(git rev-parse HEAD)
 PHASE_TASKS_JSON=$(jq '.phases[0].tasks' plan.json)
 # Dispatch with: PHASE_TASKS_JSON, PLAN_DIR, PHASE_DIR, no prior completions
 # Implementation-review: pass plan.json, phase-a/completion.md
-validate-plan --update-status plan.json --phase A --status "Complete (2026-03-20)"
+scripts/validate-plan --update-status plan.json --phase A --status "Complete (2026-03-20)"
 # Ship: --base main
 
 # Phase B
@@ -85,7 +85,7 @@ PRIOR_COMPLETIONS=$(cat phase-a/completion.md)
 # Ship: --base phase-a
 
 # All done
-validate-plan --update-status plan.json --plan --status Complete
+scripts/validate-plan --update-status plan.json --plan --status Complete
 ```
 
 ## Inline Handoff Notes
@@ -112,7 +112,7 @@ Do not attempt subsequent tasks or phases until the user decides.
 | Dispatch implementation-review from orchestrate context | Phase completion and any issues must be visible before advancing — prevents bugs compounding |
 | Fix review issues before next phase | Phase N bugs compound into Phase N+1 complexity |
 | Ship per-phase PR with stacked base | Each PR shows only its phase's diff, making review manageable |
-| Call validate-plan for all status updates | Keeps plan.json and plan.md in sync; triggers automatic re-render |
+| Call scripts/validate-plan for all status updates | Keeps plan.json and plan.md in sync; triggers automatic re-render |
 | Escalate Rule 4 immediately | Ask the user — architectural changes need human judgment |
 
 ## Integration
