@@ -5,9 +5,11 @@ Use this template when dispatching a phase dispatcher subagent. Substitute all {
 **Variables:**
 - `{PHASE_LETTER}` — the phase letter (A, B, C)
 - `{PHASE_NAME}` — the phase name
-- `{PHASE_SECTION}` — full phase section extracted by orchestrator (from `## Phase X` through end of tasks). Includes checklist, completion notes placeholder, and all task blocks.
-- `{PRIOR_COMPLETION_NOTES}` — concatenated completion notes from all prior phases (empty for Phase A)
-- `{PLAN_FILE_PATH}` — path to plan file (dispatcher needs this to write updates)
+- `{PHASE_TASKS_JSON}` — JSON array of tasks for this phase (from plan.json)
+- `{PRIOR_COMPLETIONS}` — concatenated completion.md content from prior phases (empty for Phase A)
+- `{PLAN_DIR}` — absolute path to plan directory (for validate-plan calls and cross-phase handoff writes)
+- `{PHASE_DIR}` — absolute path to current phase directory (for reading task .md files)
+- `{CROSS_PHASE_HANDOFF_TARGETS}` — JSON object mapping source task IDs in this phase to target task file paths in later phases (e.g., {"A2": "phase-b/b1.md"}). Empty object {} if no cross-phase dependencies.
 - `{REPO_PATH}` — working directory
 
 ```text
@@ -31,43 +33,87 @@ Task tool (general-purpose):
 
     ## Plan
 
-    Plan file: {PLAN_FILE_PATH}
+    Plan directory: {PLAN_DIR}
+    Phase directory: {PHASE_DIR}
     Work from: {REPO_PATH}
 
     ## Prior Phase Context
 
-    {PRIOR_COMPLETION_NOTES}
+    {PRIOR_COMPLETIONS}
 
     Completion notes from prior phases — what was built and any deviations.
     Empty for Phase A.
 
     ## Phase {PHASE_LETTER} — {PHASE_NAME}
 
-    {PHASE_SECTION}
+    Tasks for this phase (JSON):
+
+    ```json
+    {PHASE_TASKS_JSON}
+    ```
+
+    Cross-phase handoff targets for this phase:
+
+    ```json
+    {CROSS_PHASE_HANDOFF_TARGETS}
+    ```
 
     ## Your Process
 
     Work through tasks **sequentially** — parallel dispatches cause git conflicts.
 
-    For each task:
-    1. Dispatch implementer subagent (see `./implementer-prompt.md`)
-       - Include in the implementer prompt: if this task consumes output from a prior
-         task (imports a module, reads config, calls an API created earlier), write a
-         boundary integration test using real components — not mocks
-    2. After implementer returns: dispatch spec compliance reviewer
+    For each task in {PHASE_TASKS_JSON}:
+
+    1. **Mark task in-progress:**
+       ```bash
+       bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status in_progress
+       ```
+
+    2. **Extract task metadata:**
+       - {TASK_METADATA} — the JSON object for this task from {PHASE_TASKS_JSON}
+
+    3. **Read task prose:**
+       - {TASK_PROSE} — content of {PHASE_DIR}/{task_id_lower}.md
+       - Example: for task A1, read {PHASE_DIR}/a1.md
+
+    4. **Dispatch implementer subagent** (see `./implementer-prompt.md`)
+       - Pass both {TASK_METADATA} and {TASK_PROSE} to implementer
+       - Include: if this task consumes output from a prior task (imports a module, reads
+         config, calls an API created earlier), write a boundary integration test using
+         real components — not mocks
+
+    5. **After implementer returns: dispatch spec compliance reviewer**
        (`./spec-reviewer-prompt.md`)
+       - Pass both {TASK_METADATA} and {TASK_PROSE} to reviewer
        - Issues found → dispatch new implementer to fix → re-review spec
-    3. After spec passes: dispatch code quality reviewer
+
+    6. **After spec passes: dispatch code quality reviewer**
        (`./code-quality-reviewer-prompt.md`)
+       - Pass both {TASK_METADATA} and {TASK_PROSE} to reviewer
        - Issues found → dispatch new implementer to fix → re-review quality
-    4. Re-Review Gate: if reviewer found >5 issues, dispatch fresh same-scope reviewer
-       after all fixes are applied
-    5. Update plan doc: `- [ ] A1` → `- [x] A1` (use actual task ID)
-    6. After completing a task: if this task produced output that a future phase
-       consumes (identifiable by a handoff placeholder `> **Handoff from {TASK_ID}:**
-       [TBD]` on a target task in a later phase), fill in that placeholder in the plan
-       file with actual details — real function signatures, file paths, config keys.
-       Use real outputs from the just-completed work, not predictions.
+
+    7. **Re-Review Gate:** if reviewer found >5 issues, dispatch fresh same-scope
+       reviewer after all fixes are applied
+
+    8. **Mark task complete:**
+       ```bash
+       bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status complete
+       ```
+
+    9. **Handle cross-phase handoffs:**
+       - Check if this task ID exists as a key in {CROSS_PHASE_HANDOFF_TARGETS}
+       - If yes, write handoff section to {PLAN_DIR}/{target_path}
+       - Format: append after the H1 header, before existing content:
+         ```markdown
+         ## Handoff from {TASK_ID}
+
+         [Actual details: function signatures, file paths, config keys, APIs created]
+         ```
+
+    10. **Handle within-phase handoffs:**
+        - For each later task in this phase that lists this task ID in its `depends_on`
+        - Write handoff section to {PHASE_DIR}/{target_task_id_lower}.md similarly
+        - Example: if A2 depends on A1, write to {PHASE_DIR}/a2.md
 
     ## Deviation Rules
 
@@ -89,11 +135,10 @@ Task tool (general-purpose):
     phases can be xfail (note them). Failures within this phase's scope are real
     issues — fix before continuing.
 
-    Write to the `### Phase {PHASE_LETTER} Completion Notes` section in the plan
-    file (replacing the placeholder comment):
+    Write {PHASE_DIR}/completion.md:
 
     ```markdown
-    ### Phase {PHASE_LETTER} Completion Notes
+    # Phase {PHASE_LETTER} Completion Notes
 
     **Date:** YYYY-MM-DD
     **Summary:** [2-4 sentences: what was built in this phase]
