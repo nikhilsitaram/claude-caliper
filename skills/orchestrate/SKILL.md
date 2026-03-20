@@ -5,7 +5,7 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Orchestrate
 
-Execute plan phase by phase: dispatch a fresh phase dispatcher subagent per phase, then dispatch implementation-review from the orchestrate context, report phase completion, and advance. After all phases, auto-invoke ship (unless `WORKFLOW_MODE: review-only`).
+Execute plan phase by phase using per-phase worktrees and an integration branch. Dispatch a fresh phase dispatcher subagent per phase, then dispatch implementation-review from the orchestrate context, and advance. Workflow routing from plan.json controls ship behavior.
 
 **Core principle:** Every level is a dispatcher. Orchestrate dispatches phase dispatchers. Phase dispatchers dispatch implementers and reviewers. No level writes application code itself — only the implementer subagent touches code.
 
@@ -23,8 +23,6 @@ Orchestrate (you)           — 1 per plan
 │   └── Task Reviewer       — 1 per task (evaluates code cold, single-pass)
 └── Implementation Review   — 1 per phase (cross-task holistic, dispatched by you)
 ```
-
-Why separate subagents per task: each implementer starts with fresh context, preventing quality degradation as tasks accumulate. Each reviewer evaluates code without having seen the implementation rationale.
 
 ## Prompt Templates
 
@@ -48,103 +46,107 @@ Before executing, create a visible task list so the user can track progress:
    - Dispatcher: `Phase A complete — [what was built]`
    - Review: `Phase A review — N issues, all resolved`
    - Ship: `Phase A PR — [URL]`
-4. **Skip ship tasks** if `WORKFLOW_MODE: review-only` — omit "Ship PR" tasks from the list entirely
+4. **Skip ship tasks** if workflow is `review-only` — omit "Ship PR" tasks from the list entirely
+
+## Setup
+
+Before first phase:
+- Read workflow: `WORKFLOW=$(jq -r '.workflow' plan.json)` — controls ship behavior (`ship`, `review-only`)
+- `scripts/validate-plan --update-status plan.json --plan --status "In Development"`
+- `PLAN_BASE_SHA=$(git rev-parse HEAD)` — saved for final cross-phase review
+- Push integration branch: `git push -u origin integrate/<feature>`
 
 ## Per-Phase Execution
 
-Before first phase:
-- `scripts/validate-plan --update-status plan.json --plan --status "In Development"`
-- `PLAN_BASE_SHA=$(git rev-parse HEAD)` — saved for final cross-phase review
+For each phase (sequentially for now — Phase B of this plan adds parallel dispatch):
 
-For each phase:
-
-1. `PHASE_BASE_SHA=$(git rev-parse HEAD)` — before dispatching
-2. Create phase branch: `git checkout -b phase-{letter}` (Phase A from HEAD, others from prior tip)
+1. Create phase worktree from integration branch:
+   ```bash
+   git worktree add .claude/worktrees/<feature>-phase-{letter} -b phase-{letter} integrate/<feature>
+   ```
+2. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in the phase worktree
 3. Extract context from plan.json:
    - `PHASE_TASKS_JSON=$(jq '.phases[N].tasks' plan.json)`
    - `PLAN_DIR=$(dirname "$(realpath plan.json)")`
    - `PHASE_DIR=${PLAN_DIR}/phase-{letter_lower}`
-   - `PRIOR_COMPLETIONS` — concatenate only `completion.md` files for phases before the current one (indices `0..N-1`), in manifest order. Do not glob `phase-*/completion.md` — that includes the current/future phase stubs.
-   - `CROSS_PHASE_HANDOFF_TARGETS` — JSON mapping source task to array of target paths, e.g. `{"A2": ["phase-b/b2.md", "phase-c/c1.md"]}`. Scan: `jq '.phases[(N+1):][].tasks[] | select(.depends_on[]? == "A2")'`. Arrays handle fan-out (multiple later tasks depending on the same source).
-4. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_LETTER`, `PHASE_NAME`, `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `REPO_PATH`
+   - `PRIOR_COMPLETIONS` — concatenate `completion.md` files from the transitive closure of this phase's `depends_on` chain. Phase D (depends_on: [B, C]) receives completions from A, B, and C (since B and C both depend on A). Empty for phases with no dependencies.
+   - `CROSS_PHASE_HANDOFF_TARGETS` — JSON mapping source task to array of target paths. Scan: `jq '.phases[(N+1):][].tasks[] | select(.depends_on[]?)'`. Arrays handle fan-out.
+4. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_LETTER`, `PHASE_NAME`, `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `REPO_PATH` (= phase worktree path)
 5. After dispatcher returns:
    - Rule 4 violation → ask user, pause (see Rule 4 Handling)
    - Otherwise → dispatch implementation-review with: `PHASE_BASE_SHA`, `HEAD`, `PLAN_DIR`, `PHASE_DIR`
-     - DESIGN_DOC_PATH = `design-doc` from plan frontmatter (or "None" if absent)
+     - DESIGN_DOC_PATH = `design-doc` from plan.json (or "None" if absent)
 6. Triage review findings via deviation rules — dispatch implementer for Rule 1-3; Rule 4 → ask user and pause
 7. Re-Review Gate: >5 issues → re-review after fixes
 8. Append review changes to `${PHASE_DIR}/completion.md`
-9. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`. If exit 1, pause and report failing criteria to user — do not advance to next phase.
-10. Emit phase summary: "Phase A complete. [N tasks]. Review: X issues — [brief list]. [Status]."
+9. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`. If exit 1, pause and report failing criteria to user — do not advance.
+10. Emit phase summary: "Phase {LETTER} complete. [N tasks]. Review: X issues — [brief list]. [Status]."
 11. Update status: `scripts/validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
-12. Ship PR (skip if `WORKFLOW_MODE: review-only`): invoke ship with `--base phase-{prior-letter}` (or `--base main` for Phase A)
+12. Ship phase PR: invoke ship with `--base integrate/<feature>` — all phase PRs target the integration branch
+13. Merge phase PR: `gh pr merge --squash`, then update integration worktree: `git pull` in `.claude/worktrees/<feature>/`
+14. Clean up phase worktree:
+    ```bash
+    git worktree remove .claude/worktrees/<feature>-phase-{letter}
+    git branch -D phase-{letter}
+    ```
 
-Single-phase plans: one iteration of the same loop. Skip handoff notes and final cross-phase review.
+Single-phase plans: one iteration of the same loop. Skip final cross-phase review.
 
-After the final phase:
+## After All Phases
 
-1. Run plan criteria: `scripts/validate-plan --criteria plan.json --plan`. If exit 1, do not mark complete — report failing criteria to user.
-2. Final cross-phase review (multi-phase plans only): dispatch implementation-review with `PLAN_BASE_SHA` (pre-Phase-A) and `HEAD` — reviewer sees the total diff across all phases, catching cross-phase integration issues that per-phase reviews miss (e.g., Phase A exported an interface that Phase C consumed differently than intended)
-3. Triage findings via deviation rules, fix issues
+1. Run plan criteria: `scripts/validate-plan --criteria plan.json --plan`. If exit 1, do not mark complete.
+2. Final cross-phase review (multi-phase only): dispatch implementation-review with `PLAN_BASE_SHA` and `HEAD` on integration branch — catches cross-phase integration issues invisible to per-phase reviews
+3. Triage findings, fix issues
 4. `scripts/validate-plan --update-status plan.json --plan --status Complete`
-5. If `WORKFLOW_MODE: ship`, auto-invoke ship. If `review-only`, report completion and stop — the user decides when to ship.
+5. Route on workflow:
+   - `"ship"`: create final PR (`integrate/<feature>` → main), merge, clean up integration worktree
+   - `"review-only"`: create final PR but stop — user reviews and merges manually
 
 **Continuity:** Execute all phases, reviews, and shipping in one continuous flow. Do not pause between phases or wait for user confirmation unless a Rule 4 violation occurs. The only human touchpoints are Rule 4 escalations.
 
 ## Example Workflow
 
 ```bash
+# Setup
+WORKFLOW=$(jq -r '.workflow' plan.json)
+PLAN_BASE_SHA=$(git rev-parse HEAD)
+git push -u origin integrate/<feature>
+
 # Phase A
-git checkout -b phase-a; PHASE_BASE_SHA=$(git rev-parse HEAD)
-PHASE_TASKS_JSON=$(jq '.phases[0].tasks' plan.json)
-# Dispatch with: PHASE_TASKS_JSON, PLAN_DIR, PHASE_DIR, no prior completions
-# Implementation-review: pass PLAN_DIR, PHASE_DIR
-scripts/validate-plan --update-status plan.json --phase A --status "Complete (2026-03-20)"
-# Ship: --base main
+git worktree add .claude/worktrees/<feature>-phase-a -b phase-a integrate/<feature>
+PHASE_BASE_SHA=$(git rev-parse HEAD)  # in phase worktree
+# Dispatch dispatcher with REPO_PATH=.claude/worktrees/<feature>-phase-a
+# Implementation review: PHASE_BASE_SHA..HEAD
+# Ship: --base integrate/<feature>
+# gh pr merge, git pull in integration worktree
+# git worktree remove + git branch -D phase-a
 
-# Phase B
-git checkout -b phase-b; PHASE_BASE_SHA=$(git rev-parse HEAD)
-PHASE_TASKS_JSON=$(jq '.phases[1].tasks' plan.json)
-PRIOR_COMPLETIONS=$(cat "${PLAN_DIR}/phase-a/completion.md")
-# Dispatch with: PHASE_TASKS_JSON, PLAN_DIR, PHASE_DIR, PRIOR_COMPLETIONS, CROSS_PHASE_HANDOFF_TARGETS
-# Ship: --base phase-a
+# Phase B (after A merges into integration)
+git worktree add .claude/worktrees/<feature>-phase-b -b phase-b integrate/<feature>
+# ... same flow, PRIOR_COMPLETIONS from dependency chain ...
 
-# Final cross-phase review (multi-phase only)
-# Dispatch implementation-review with PLAN_BASE_SHA..HEAD (total diff)
-# Triage findings, fix issues
-scripts/validate-plan --update-status plan.json --plan --status Complete
+# Final
+# Cross-phase review: PLAN_BASE_SHA..HEAD on integration
+# If workflow=="ship": gh pr create integrate/<feature> → main, merge
 ```
-
-## Inline Handoff Notes
-
-Handoff notes live in task .md files. When a task in a later phase has `depends_on: ["A2"]`, the dispatcher writes handoff details to `${PLAN_DIR}/phase-{letter}/{target_task_id_lower}.md`, inserting a `## Handoff from {TASK_ID}` section after the H1 header. The dispatcher fills in real function signatures, file paths, config keys — concrete details the target task needs. The orchestrator builds `CROSS_PHASE_HANDOFF_TARGETS` by scanning later phases' `depends_on` fields and passes this map to the dispatcher.
 
 ## Rule 4 Handling
 
-When a phase dispatcher reports a Rule 4 violation, ask the user directly — orchestrate runs in the main agent context. Present:
-
-- **What:** The architectural change needed
-- **Where:** Phase X, Task XN — task title
-- **Why:** What the implementer tried and why the plan doesn't cover it
-- **Options:** Update the plan to include the change, or adjust task scope to avoid it
-
-Do not attempt subsequent tasks or phases until the user decides.
+When a phase dispatcher reports a Rule 4 violation, ask the user directly — orchestrate runs in the main agent context. Present: what change is needed, which task triggered it, why the plan doesn't cover it. Options: update the plan or adjust task scope. Do not proceed until the user decides.
 
 ## Key Constraints
 
 | Constraint | Why |
 |------------|-----|
-| Record PLAN_BASE_SHA before first phase | Final cross-phase review needs the pre-Phase-A SHA to see total diff |
-| Record PHASE_BASE_SHA before each dispatcher | Per-phase implementation-review needs the exact phase start SHA |
-| Pass only PHASE_TASKS_JSON for current phase | Context isolation prevents dispatcher from being overwhelmed by irrelevant phase details |
-| Dispatch implementation-review from orchestrate context | Phase completion and any issues must be visible before advancing — prevents bugs compounding |
-| Fix review issues before next phase | Phase N bugs compound into Phase N+1 complexity |
-| Ship per-phase PR with stacked base | Each PR shows only its phase's diff, making review manageable |
-| Call scripts/validate-plan for all status updates | Keeps plan.json and plan.md in sync; triggers automatic re-render |
-| Escalate Rule 4 immediately | Ask the user — architectural changes need human judgment |
+| Record PLAN_BASE_SHA before first phase | Final cross-phase review needs total diff |
+| Record PHASE_BASE_SHA per phase | Per-phase implementation-review needs exact phase start |
+| Pass only current phase's tasks | Context isolation prevents overload |
+| Fix review issues before next phase | Phase N bugs compound into Phase N+1 |
+| Use validate-plan for all status updates | Keeps plan.json and plan.md in sync |
+| Escalate Rule 4 immediately | Architectural changes need human judgment |
 
 ## Integration
 
-**Workflow:** worktree setup (before) → draft-plan (creates plan) → **this skill** → ship (auto-invoked after final phase) → merge-pr (after CodeRabbit)
+**Workflow:** design (creates integration branch + worktree) → draft-plan → **this skill** → ship (per-phase + final) → merge-pr
 
-**See:** `tdd.md` — TDD reference (cycle, boundary tests, failure modes); content is embedded in implementer prompts
+**See:** `tdd.md` — TDD reference; content is embedded in implementer prompts
