@@ -7,8 +7,6 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 Write implementation plans assuming the executor has zero codebase context. Document everything: which files to touch, exact code, how to test, what to avoid and why.
 
-**Context:** Runs after design approval. All needed context comes from the design doc.
-
 **Save to:** `docs/plans/YYYY-MM-DD-<topic>/` directory
 
 ## Workflow
@@ -47,6 +45,7 @@ docs/plans/YYYY-MM-DD-topic/
 {
   "schema": 1,
   "status": "Not Yet Started",
+  "workflow": "ship",
   "goal": "One sentence",
   "architecture": "2-3 sentences",
   "tech_stack": "Key technologies",
@@ -55,6 +54,7 @@ docs/plans/YYYY-MM-DD-topic/
       "letter": "A",
       "name": "Core API",
       "status": "Not Started",
+      "depends_on": [],
       "rationale": "Foundation layer needed first",
       "tasks": [
         {
@@ -76,7 +76,7 @@ docs/plans/YYYY-MM-DD-topic/
 }
 ```
 
-Optional: `success_criteria` array at plan, phase, and task levels for future automated verification.
+Optional: `success_criteria` array at plan, phase, and task levels for automated verification. `workflow` field controls post-plan behavior: `ship` (full auto), `review-only` (execute but don't merge final PR), `plan-only` (stop after planning). Set by the design skill based on user choice.
 
 **See:** `docs/plans/2026-03-19-structured-plans/design-structured-plans.md` for full schema reference.
 
@@ -100,7 +100,7 @@ H1 header must match `# {id}: {name}` from plan.json. When a task consumes outpu
 
 **Use multiple phases when:** dependency layers exist (Phase A creates things Phase B consumes), verification gates are needed, or phases ship independently.
 
-**Stay single-phase when:** tasks are independent or share a linear chain with no natural cut points. Don't phase for phasing's sake. Single-phase plans still use A-prefix (A1, A2, etc.).
+**Stay single-phase when:** tasks are independent or share a linear chain with no natural cut points. Single-phase plans use A-prefix (A1, A2, etc.).
 
 **Complexity gates:**
 - **8+ tasks in a single-phase plan** — almost always has a hidden dependency boundary. Look for it before proceeding.
@@ -108,11 +108,13 @@ H1 header must match `# {id}: {name}` from plan.json. When a task consumes outpu
 
 **Phase boundaries** fall where "run full suite and verify" is meaningful. Each phase gets its own directory (`phase-a/`, `phase-b/`) with a `completion.md` stub and task `.md` files. The phase's `rationale` field in plan.json explains why the phase exists.
 
-**Design doc inheritance:** If the design doc already has approved phases, use those as the starting structure. Don't contradict without flagging.
+Each phase declares `depends_on` in plan.json — an array of phase letters this phase requires to complete first. Independent phases (empty or non-overlapping depends_on) can execute concurrently. The orchestrator uses this to build a dependency graph.
+
+**Design doc inheritance:** If the design doc has approved phases, use those. Don't contradict without flagging.
 
 ## Task Structure
 
-Every task splits metadata (plan.json) and prose (task .md file). Missing any field means the executor stalls or guesses wrong.
+Every task splits metadata (plan.json) and prose (task .md file).
 
 **plan.json fields:**
 
@@ -130,13 +132,13 @@ Every task splits metadata (plan.json) and prose (task .md file). Missing any fi
 | **Avoid + WHY** | Pitfalls with reasoning | "don't use X" | "Use jose not jsonwebtoken — CJS/Edge issues" |
 | **Steps** | TDD cycle per step | "add validation" | Write failing test, verify fail, implement, verify pass, commit |
 
-Write complete code in each step — not "add validation" or "implement the handler." If the executor has to guess what the code looks like, the plan isn't specific enough.
+Write complete code in each step — not "add validation" or "implement the handler."
 
 **Interface-first ordering:** Define contracts first (embed in plan), implement against them in middle tasks, wire consumers last.
 
-**First task as integration tests:** When cross-task data flow exists, the first task in a phase (A1) can be broad integration tests — the outer loop of double-loop TDD. Write end-to-end tests with stub imports that stay RED until the last piece lands.
+**First task as integration tests:** When cross-task data flow exists, the first task (A1) can be broad integration tests — the outer loop of double-loop TDD. Write end-to-end tests with stub imports that stay RED until the last piece lands.
 
-**Handoff notes:** The dispatcher appends handoff sections to cross-phase task files during execution. Draft-plan doesn't write these.
+**Handoff notes:** The dispatcher appends handoff sections to cross-phase task files. Draft-plan doesn't write these.
 
 ### The Fresh Claude Test
 
@@ -156,7 +158,7 @@ After creating all files, validate structure then dispatch LLM review:
 
 **See:** `skills/plan-review/reviewer-prompt.md` for dispatch details.
 
-Skipping validation or review risks plans with missing paths, ordering bugs, or vague done-when conditions reaching execution where they're harder to fix.
+Skipping validation or review risks plans with missing paths, ordering bugs, or vague done-when conditions reaching execution.
 
 ## After Review Passes
 
