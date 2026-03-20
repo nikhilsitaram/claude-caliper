@@ -139,6 +139,8 @@ extract_command_words_from_segment() {
   seg="${seg#"${seg%%[![:space:]]*}"}"
   seg="${seg%"${seg##*[![:space:]]}"}"
 
+  [[ "$seg" == "#"* ]] && return 0
+
   local outer_cmd=""
   local pure_subshell_re='^\$\((.+)\)$'
   local var_subshell_re='^[A-Za-z_][A-Za-z0-9_]*=\$\((.+)\)$'

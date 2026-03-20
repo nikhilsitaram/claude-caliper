@@ -240,6 +240,13 @@ echo "Test 20: Non-safe built-in tools not auto-approved"
 OUT20=$(run_hook_tool "Edit")
 assert_output_empty "Edit not auto-approved" "$OUT20"
 
+echo "Test 21: Hash comments in commands are skipped"
+SAFE21="$TMPDIR_TEST/safe21.txt"
+LOG21="$TMPDIR_TEST/log21.txt"
+printf 'echo\ngit\n' > "$SAFE21"
+OUT21=$(run_hook "$(printf 'echo hello\n# this is a comment\ngit status')" "$SAFE21" "$LOG21")
+assert_output_contains "command with # comment returns allow" "$OUT21" "allow"
+
 echo ""
 echo "$PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
