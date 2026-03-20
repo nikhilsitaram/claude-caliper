@@ -23,7 +23,7 @@ fi
 
 plan_dir=""
 if echo "$question_text" | grep -qF "Plan dir:"; then
-  plan_dir=$(echo "$question_text" | sed -n 's/.*Plan dir: *\(\/[^ ]*\).*/\1/p')
+  plan_dir=$(echo "$question_text" | sed -n 's/.*Plan dir: *\(\/.*\)/\1/p' | sed 's/[[:space:]]*$//')
 fi
 
 if [[ -z "$plan_dir" ]]; then
