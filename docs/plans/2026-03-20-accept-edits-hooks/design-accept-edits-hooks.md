@@ -10,10 +10,10 @@ Automatically switch the Claude Code session to acceptEdits mode when the user a
 
 ## Success Criteria
 
-1. A user in default permission mode who approves a design via AskUserQuestion sees no Edit/Write permission dialogs for the remainder of the session
-2. Without a current-session `.design-approved` sentinel file, Edit/Write permission dialogs behave normally (no false positives)
+1. After a user approves a design, all subsequent file-creation and file-editing operations in that session proceed without manual permission confirmation
+2. Without a current-session `.design-approved` sentinel file, file edit permission dialogs behave normally (no false positives)
 3. The hooks ship with the plugin — no manual configuration required after plugin installation
-4. If a user rejects the design ("Needs changes"), no sentinel is created and Edit/Write permissions remain in default mode
+4. If a user rejects the design ("Needs changes"), no sentinel is created and file permissions remain in default mode
 
 ## Alternatives Considered
 
@@ -30,7 +30,7 @@ Two-hook chain triggered by design approval:
 ```text
 AskUserQuestion (design approval)
     ↓ PostToolUse hook
-Creates docs/plans/YYYY-MM-DD-topic/.design-approved (contains session_id)
+Creates <worktree>/docs/plans/YYYY-MM-DD-topic/.design-approved (contains session_id)
     ↓ Skill calls Write (design doc)
     ↓ PermissionRequest hook
 Finds sentinel with matching session_id → allows Write + sets acceptEdits mode (session)
@@ -44,14 +44,14 @@ All subsequent Edit/Write: auto-approved
 
 **Trigger:** `tool_input.metadata.source == "design-approval"` (primary), with fallback to matching `"Plan dir:"` prefix in question text if metadata is not forwarded to PostToolUse.
 
-**Risk:** The AskUserQuestion schema defines a `metadata` field with a `source` property, but whether this field is forwarded verbatim to PostToolUse's `tool_input` is unverified. The hook implements both detection paths: metadata check first, then text-based fallback.
+**Risk:** The AskUserQuestion schema defines a `metadata` field with a `source` property, but whether this field is forwarded verbatim to PostToolUse's `tool_input` is unverified. The hook implements both detection paths: metadata check first, then text-based fallback. If both paths fail, the hook exits silently and permission dialogs continue normally — safe degradation with no user-visible change. Consider logging to stderr for diagnosability.
 
 **Logic:**
 1. Read stdin JSON, extract `session_id`, `tool_name`, `tool_input`, and `tool_response`
 2. Bail if `tool_name != "AskUserQuestion"`
 3. Check `tool_input.metadata.source == "design-approval"` (primary) OR question text contains `"Plan dir:"` (fallback)
 4. Bail if neither matches
-5. Check `tool_response` for approval — bail if user selected "Needs changes" or similar rejection
+5. Check `tool_response` for approval — bail if response contains "Needs changes" or does not contain "Approved"
 6. Parse absolute plan directory path from question text (format: `Plan dir: /absolute/path/to/worktree/docs/plans/YYYY-MM-DD-topic`)
 7. `mkdir -p` the plan directory
 8. Write `session_id` to `.design-approved` inside the plan directory
@@ -64,18 +64,39 @@ All subsequent Edit/Write: auto-approved
 
 **Trigger:** Permission dialog about to show for Edit or Write tool.
 
+**CWD mismatch resolution:** The session CWD is typically the project root, not the worktree. The sentinel lives in the worktree at `<worktree>/docs/plans/YYYY-MM-DD-topic/.design-approved`. Since worktrees are created under `$cwd/.worktrees/`, the hook searches both the main repo and all worktree locations:
+
+```bash
+find "$CWD/docs/plans" "$CWD/.worktrees" -maxdepth 5 -name .design-approved 2>/dev/null
+```
+
 **Logic:**
 1. Read stdin JSON, extract `session_id` and `cwd`
-2. `find "$cwd/docs/plans" -maxdepth 2 -name .design-approved` (shallow, fast)
-3. If found: read the sentinel file and compare its contents to `session_id`
-4. If session IDs match: return JSON with `behavior: "allow"` and `updatedPermissions: [{ type: "setMode", mode: "acceptEdits", destination: "session" }]`
+2. Search for `.design-approved` in `$cwd/docs/plans/` (direct) and `$cwd/.worktrees/*/docs/plans/` (worktrees)
+3. For each found sentinel: read contents and compare to `session_id`
+4. If session IDs match: return structured JSON decision
 5. If no match or not found: `exit 0` (passthrough, normal permission dialog shows)
 
-**Output:** Structured JSON decision when current-session sentinel found; no output otherwise.
+**Exact output when sentinel matches:**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PermissionRequest",
+    "decision": {
+      "behavior": "allow",
+      "updatedPermissions": [
+        { "type": "setMode", "mode": "acceptEdits", "destination": "session" }
+      ]
+    }
+  }
+}
+```
 
 ### Design Skill Changes
 
-**Reordered checklist** (worktree moved before approval gate):
+Steps 6 and 7 are swapped, and the verbal approval (step 6) is replaced with a structured AskUserQuestion gate that includes metadata for hook identification:
+
+**Reordered checklist:**
 
 1. Explore context
 2. Challenge assumptions
@@ -83,12 +104,12 @@ All subsequent Edit/Write: auto-approved
 4. Propose 2-3 approaches
 5. Present design (section by section)
 6. Set up worktree (moved from step 7 to step 6)
-7. Design approval AskUserQuestion — includes `metadata: { source: "design-approval" }` and absolute plan dir path in question text
+7. Design approval AskUserQuestion — replaces verbal approval with structured gate; includes `metadata: { source: "design-approval" }` and absolute plan dir path in question text
 8. Write design doc (auto-approved via hooks)
 9. Dispatch design-review subagent
 10. Dispatch draft-plan subagent
 
-**CWD assumption:** The session CWD may remain at the project root after worktree creation (step 6). The skill embeds the **absolute** worktree path in the question text so the PostToolUse hook creates the sentinel in the correct location regardless of CWD:
+**CWD assumption:** The session CWD may remain at the project root after worktree creation (step 6). The skill embeds the **absolute** worktree path in the question text so the PostToolUse hook creates the sentinel in the correct location regardless of CWD.
 
 **AskUserQuestion format:**
 ```json
@@ -108,7 +129,9 @@ All subsequent Edit/Write: auto-approved
 
 ### Plugin Hook Configuration
 
-Create `hooks/hooks.json` with the hook declarations. Reference it from plugin entries in `marketplace.json` via `"hooks": "./hooks/hooks.json"`:
+Create `hooks/hooks.json` with the hook declarations. Add `"hooks": "./hooks/hooks.json"` to the `claude-caliper` and `claude-caliper-workflow` plugin entries in `marketplace.json` (not `claude-caliper-tooling`, which does not include the design skill and has no mechanism to trigger sentinel creation).
+
+**Risk:** `${CLAUDE_PLUGIN_ROOT}` is assumed to be set by the plugin loader at hook execution time. If not available, hook commands fail to resolve. Verify during implementation; fallback is to use a relative path from the hook config location.
 
 **hooks/hooks.json:**
 ```json
@@ -132,17 +155,19 @@ Create `hooks/hooks.json` with the hook declarations. Reference it from plugin e
 
 ## Key Decisions
 
-1. **metadata.source with text fallback for identification** — metadata.source is the preferred signal (structured, stable, invisible to user). If AskUserQuestion doesn't forward metadata to PostToolUse, the hook falls back to matching "Plan dir:" prefix in the question text. Both paths are implemented.
+1. **metadata.source with text fallback for identification** — metadata.source is the preferred signal (structured, stable, invisible to user). If AskUserQuestion doesn't forward metadata to PostToolUse, the hook falls back to matching "Plan dir:" prefix in the question text. Both paths are implemented. If both fail, the hook exits silently — permission dialogs continue normally (safe degradation). Log to stderr for diagnosability.
 
 2. **Absolute path in question text** — the skill embeds the full absolute worktree path (e.g., `/Users/me/project/.worktrees/branch/docs/plans/2026-03-20-topic`). This eliminates CWD ambiguity — the PostToolUse hook creates the sentinel at the exact path regardless of where the session is running.
 
-3. **Session-scoped sentinel** — the `.design-approved` file contains the `session_id`. The PermissionRequest hook only triggers if the sentinel's session_id matches the current session. Stale sentinels from previous sessions are ignored. The file is not cleaned up — it's removed when the worktree is cleaned up after ship/merge, and doubles as an audit trail.
+3. **Session-scoped sentinel** — the `.design-approved` file contains the `session_id`. The PermissionRequest hook only triggers if the sentinel's session_id matches the current session. Stale sentinels from previous sessions are ignored. The file is not cleaned up — it's removed when the worktree is cleaned up after ship/merge, and doubles as an audit trail. If the design skill is run without a worktree (non-standard), the sentinel persists in `docs/plans/` as an inert hidden file with no behavioral effect after the session ends (acceptEdits is session-scoped).
 
 4. **Session-scoped mode change** — `destination: "session"` means acceptEdits resets on next session. No permanent settings modification.
 
 5. **Worktree before approval** — worktree must exist before the AskUserQuestion so the PostToolUse hook can create files in it. The worktree is lightweight and safe to create before final approval.
 
 6. **Separate hooks.json** — hook configuration lives in `hooks/hooks.json`, referenced from marketplace.json. This follows the plugin convention of separating hook config from the manifest.
+
+7. **Worktree search in PermissionRequest hook** — the hook searches both `$cwd/docs/plans/` and `$cwd/.worktrees/*/docs/plans/` to find sentinels regardless of whether the session CWD is the project root or the worktree itself.
 
 ## Non-Goals
 
@@ -160,6 +185,6 @@ Single phase — small surface area (2 scripts, 1 config, 2 file edits):
 1. Create `hooks/post-tool-use-design-approval.sh`
 2. Create `hooks/permission-request-accept-edits.sh`
 3. Create `hooks/hooks.json`
-4. Update `skills/design/SKILL.md` (reorder steps, add metadata/plan-dir to approval question)
-5. Update `.claude-plugin/marketplace.json` (add hooks reference to plugin declarations)
+4. Update `skills/design/SKILL.md` (swap steps 6/7, replace verbal approval with structured AskUserQuestion gate)
+5. Update `.claude-plugin/marketplace.json` (add hooks reference to claude-caliper and claude-caliper-workflow plugins)
 6. Version bump
