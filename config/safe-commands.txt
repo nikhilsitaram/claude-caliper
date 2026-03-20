@@ -1,5 +1,4 @@
 awk
-bash
 cat
 cd
 chmod
@@ -29,7 +28,6 @@ readlink
 realpath
 ruff
 sed
-sh
 sort
 stat
 tail

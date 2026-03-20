@@ -8,22 +8,24 @@ Hook scripts and configuration for the claude-caliper plugin.
 |------|---------|
 | `hooks.json` | Hook registry — wired automatically by the plugin system |
 | `pretooluse-safe-commands.sh` | Auto-approves Bash commands matching safe list prefixes |
-| `safe-commands.txt` | Bundled default safe command prefixes (~35 common dev tools) |
+| `safe-commands.txt` | Bundled default safe command prefixes (~57 common dev tools) |
 | `post-tool-use-design-approval.sh` | Creates sentinel after design approval |
 | `permission-request-accept-edits.sh` | Enables acceptEdits mode after design approval |
 
-## Safe Commands: Two-File Model
+## Safe Commands: Override Model
 
-The hook reads from **two files**:
+The hook checks for a **user file first**, falling back to bundled defaults:
 
-1. **Bundled defaults** (`config/safe-commands.txt`) — ships with the plugin, covers common dev tools (git, npm, pytest, jq, etc.). Don't edit this directly — updates overwrite it.
+- If `~/.claude/safe-commands.txt` exists, **only** that file is used (full user control)
+- If it doesn't exist, `config/safe-commands.txt` (bundled defaults) is used
 
-2. **User additions** (`~/.claude/safe-commands.txt`) — your personal additions that survive plugin updates. The learning loop in the phase dispatcher appends here when you approve new commands.
+This means you can remove commands from the defaults by creating your own file. The learning loop copies bundled defaults to the user file before the first append, so you start with the full default list.
 
-To add a command manually:
+To customize:
 
 ```bash
-echo "cargo" >> ~/.claude/safe-commands.txt
+cp "$(dirname "$(which claude)")/../config/safe-commands.txt" ~/.claude/safe-commands.txt
+# Now edit ~/.claude/safe-commands.txt to add/remove commands
 ```
 
 ## Coexistence with Personal Hooks

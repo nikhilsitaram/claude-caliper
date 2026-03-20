@@ -136,7 +136,7 @@ Task tool (general-purpose):
 
     11. **Handle within-phase handoffs:**
         - For each later task in this phase that lists this task ID in its `depends_on`
-        - Write handoff section to {PHASE_DIR}/{target_task_id_lower}.md using the same format as step 11 above (## Handoff from {TASK_ID} section after the H1 header)
+        - Write handoff section to {PHASE_DIR}/{target_task_id_lower}.md using the same format as step 10 above (## Handoff from {TASK_ID} section after the H1 header)
         - Example: if A2 depends on A1, write to {PHASE_DIR}/a2.md
 
     ## Deviation Rules
