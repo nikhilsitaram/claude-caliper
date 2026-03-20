@@ -1,10 +1,10 @@
 # Safe Commands Hook Setup
 
-The PreToolUse safe commands hook auto-approves Bash commands matching `hooks/safe-commands.txt` prefixes, eliminating per-command AI evaluation overhead for common dev tools.
+The PreToolUse safe commands hook auto-approves Bash commands matching `config/safe-commands.txt` prefixes, eliminating per-command AI evaluation overhead for common dev tools.
 
 ## Automatic Setup (Plugin Install)
 
-If you installed via the plugin system, the hook is wired automatically through `hooks/hooks.json`. No manual configuration needed.
+If you installed via the plugin system, the hook is wired automatically through `config/hooks.json`. No manual configuration needed.
 
 ## Manual Setup (settings.json)
 
@@ -21,7 +21,7 @@ If the hook isn't firing (common dev commands still prompt for approval), add th
         "hooks": [
           {
             "type": "command",
-            "command": "/path/to/claude-caliper/hooks/pretooluse-safe-commands.sh"
+            "command": "/path/to/claude-caliper/config/pretooluse-safe-commands.sh"
           }
         ]
       }
@@ -38,6 +38,6 @@ Multiple PreToolUse hooks run independently. If you have personal hooks for doma
 
 ## Customizing the Safe List
 
-Edit `hooks/safe-commands.txt` to add or remove command prefixes. One prefix per line. Changes take effect immediately for new commands.
+Edit `config/safe-commands.txt` to add or remove command prefixes. One prefix per line. Changes take effect immediately for new commands.
 
 The phase dispatcher also surfaces non-safe commands after each task during orchestrated execution, letting you approve additions interactively.
