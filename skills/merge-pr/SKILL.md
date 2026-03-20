@@ -57,7 +57,7 @@ Show the user a summary table with source, category, planned action, and counts 
 
 Use AskUserQuestion with options:
 - **Fix all** — actionable + suggestion items (excludes dismissed/false positives)
-- **Fix critical only** — actionable items only (bugs, security, correctness)
+- **Fix critical only** — actionable items (bugs, security, correctness)
 - **Skip fixes, merge as-is** — jump to Step 7
 - **Other** — user provides custom instructions (e.g. "fix items 1, 3, 5")
 
@@ -90,7 +90,7 @@ git fetch origin $DEFAULT_BRANCH
 git merge-base --is-ancestor origin/$DEFAULT_BRANCH HEAD
 ```
 
-If behind (non-zero exit): rebase onto the default branch, resolve conflicts, run tests, and force-push. Post a `gh pr comment` explaining each resolved conflict with file, what changed upstream, and how it was resolved. If conflicts are too complex to resolve confidently, stop and ask the user.
+If behind (non-zero exit): rebase onto the default branch, resolve conflicts, run tests, and push with `--force-with-lease`. Post a `gh pr comment` explaining each resolved conflict with file, what changed upstream, and how it was resolved. If conflicts are too complex to resolve confidently, stop and ask the user.
 
 **CWD safety:** Always `cd "$MAIN_REPO"` before merging. In worktrees, the merge triggers remote branch deletion which bricks the shell if CWD is inside the worktree. Running from the main repo is safe in all cases.
 
