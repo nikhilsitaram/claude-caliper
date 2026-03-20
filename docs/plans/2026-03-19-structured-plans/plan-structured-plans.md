@@ -1,5 +1,5 @@
 ---
-status: Not Yet Started
+status: In Development
 ---
 
 # Structured Plan Files Implementation Plan
@@ -18,14 +18,19 @@ status: Not Yet Started
 **Status:** Not Started | **Rationale:** Skills in Phase B invoke the validation script and follow the schema defined here. Must exist before skill integration.
 
 ### Phase A Checklist
-- [ ] A1: Write validate-plan script with --schema mode
-- [ ] A2: Add --render mode to validate-plan
-- [ ] A3: Add --update-status mode to validate-plan
-- [ ] A4: End-to-end validation of all three modes against a sample plan
+- [x] A1: Write validate-plan script with --schema mode
+- [x] A2: Add --render mode to validate-plan
+- [x] A3: Add --update-status mode to validate-plan
+- [x] A4: End-to-end validation of all three modes against a sample plan
 
 ### Phase A Completion Notes
-<!-- Written by dispatcher after all tasks complete.
-     Implementation review changes appended here by orchestrator. -->
+
+**Date:** 2026-03-19
+**Summary:** Built the `scripts/validate-plan` bash+jq script with three modes: `--schema` (validates plan.json structure, 14 checks), `--render` (deterministically generates `plan.md` from JSON using printf), and `--update-status` (updates task/phase/plan status in plan.json, regenerates plan.md after each write). Created test fixtures (valid-plan with two phases and three tasks), and four test suites totaling 40 passing assertions covering unit and end-to-end lifecycle scenarios.
+**Deviations:**
+- A1 — added duplicate task ID and phase letter validation (checks 13-14 in test_schema.sh) — Rule 2 (missing validation identified in code review) — duplicate IDs would cause ambiguous dependency resolution.
+- A2 — added atomic write to do_render (temp file + mv) — Rule 1 (code doesn't work correctly under failure) — direct redirect would leave partial plan.md on crash.
+- A3 — added mktemp/jq/mv error checks to all three do_update_status_* functions and added phase existence check to do_update_status_phase — Rule 1/Rule 2 — silent failures would corrupt plan.json or silently no-op on unknown phase letters.
 
 ### Phase A Tasks
 
@@ -913,7 +918,7 @@ Commit: "test: add end-to-end lifecycle test for validate-plan"
 
 #### B1: Rewrite draft-plan SKILL.md for structured output
 
-> **Handoff from A4:** [TBD — Phase A dispatcher fills in actual details after completing A4, specifically the validate-plan script path, exact command invocations for --schema and --render, and the plan.json schema]
+> **Handoff from A4:** validate-plan script is at `scripts/validate-plan` (executable bash+jq, no other deps). Commands: `scripts/validate-plan --schema <plan-dir>/plan.json` (exits 0 on success, prints `ERROR: <keyword>: <details>` lines to stderr on failure) and `scripts/validate-plan --render <plan-dir>/plan.json` (writes `plan.md` to the same directory as `plan.json`). The plan.json schema uses `schema: 1` at root; required top-level fields: `schema` (int), `status` (one of: "Not Yet Started", "In Development", "Complete"), `goal`, `architecture`, `tech_stack`, `phases[]`. Each phase requires: `letter` (single uppercase letter), `name`, `status` (one of: "Not Started", "In Progress", "Complete (YYYY-MM-DD)"), `rationale`, `tasks[]`. Each task requires: `id`, `name`, `status` (one of: pending, in_progress, complete, skipped), `depends_on` (array), `files` (object with `create`/`modify`/`test` arrays), `verification`, `done_when`. Optional `success_criteria` array at plan/phase/task level (each criterion: `run` (non-empty string), at least one of `expect_exit` or `expect_output`, optional `timeout` and `severity`). Task `.md` files live at `phase-{letter-lower}/{task-id-lower}.md` relative to `plan.json`; first line must be `# {id}: {name}`. Each phase needs a `phase-{letter-lower}/completion.md` stub.
 
 **Files:**
 - Modify: `skills/draft-plan/SKILL.md`
@@ -991,7 +996,7 @@ Commit: "refactor: rewrite draft-plan SKILL.md for structured plan output"
 
 #### B2: Rewrite plan-review SKILL.md and reviewer-prompt.md
 
-> **Handoff from A4:** [TBD — Phase A dispatcher fills in actual details after completing A4, specifically the validate-plan --schema command path and error output format]
+> **Handoff from A4:** `scripts/validate-plan --schema <plan-dir>/plan.json` exits 0 on success; on failure exits 1 and prints one or more `ERROR: <keyword>: <details>` lines to stderr. Keywords include: `missing_field`, `invalid_plan_status`, `invalid_phase_status`, `invalid_task_status`, `invalid_dependency`, `duplicate_create_path`, `duplicate_task_id`, `duplicate_phase_letter`, `missing_task_file`, `h1_mismatch`, `missing_completion_file`, `empty_run`, `missing_expect`. Script path: `scripts/validate-plan` at repo root.
 
 **Files:**
 - Modify: `skills/plan-review/SKILL.md`
@@ -1047,7 +1052,7 @@ Commit: "refactor: rewrite plan-review for structured plan format"
 
 #### B3: Rewrite orchestrate SKILL.md for plan.json consumption
 
-> **Handoff from A4:** [TBD — Phase A dispatcher fills in actual details after completing A4, specifically validate-plan --update-status invocation syntax for task/phase/plan levels]
+> **Handoff from A4:** `scripts/validate-plan --update-status <plan.json> --task <ID> --status <STATUS>` (valid task statuses: pending, in_progress, complete, skipped; fails with `ERROR: task_not_found` if ID unknown, `ERROR: invalid_task_status` if status unknown). `scripts/validate-plan --update-status <plan.json> --phase <LETTER> --status <STATUS>` (valid: "Not Started", "In Progress", "Complete (YYYY-MM-DD)"; fails with `ERROR: phase_not_found` or `ERROR: invalid_phase_status`). `scripts/validate-plan --update-status <plan.json> --plan --status <STATUS>` (valid: "Not Yet Started", "In Development", "Complete"; fails with `ERROR: invalid_plan_status`). All three modes automatically regenerate `plan.md` (via `--render`) after a successful update. Script path: `scripts/validate-plan` at repo root.
 
 **Files:**
 - Modify: `skills/orchestrate/SKILL.md`
@@ -1115,7 +1120,7 @@ Commit: "refactor: rewrite orchestrate SKILL.md for plan.json consumption"
 
 #### B4: Rewrite phase-dispatcher-prompt.md for structured task dispatch
 
-> **Handoff from A4:** [TBD — Phase A dispatcher fills in actual details after completing A4, specifically validate-plan --update-status task-level invocation syntax]
+> **Handoff from A4:** Task-level update: `scripts/validate-plan --update-status <plan.json> --task <ID> --status <STATUS>`. Valid statuses: pending, in_progress, complete, skipped. Fails with exit 1 + `ERROR: task_not_found: '<ID>' not found in plan` if ID not found; `ERROR: invalid_task_status: '<STATUS>'` if status invalid. Always regenerates `plan.md` on success. Script path: `scripts/validate-plan` at repo root.
 
 **Files:**
 - Modify: `skills/orchestrate/phase-dispatcher-prompt.md`
