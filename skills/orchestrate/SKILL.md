@@ -118,6 +118,10 @@ Single-phase plans: one iteration. Skip final cross-phase review.
 
 When a dispatcher reports a Rule 4 violation, ask the user directly. Present: what change, which task, why the plan doesn't cover it. Do not proceed until the user decides.
 
+## Permission Model
+
+Subagents run in `auto` mode — Claude evaluates each permission request with built-in prompt injection safeguards. A PreToolUse hook (`hooks/pretooluse-safe-commands.sh`) intercepts Bash commands and instantly approves those matching `hooks/safe-commands.txt` prefixes, avoiding per-command AI evaluation overhead for common dev tools. Commands not in the safe list fall through to auto mode evaluation. The phase dispatcher surfaces non-safe commands after each task so the user can grow the safe list.
+
 ## Key Constraints
 
 | Constraint | Why |
