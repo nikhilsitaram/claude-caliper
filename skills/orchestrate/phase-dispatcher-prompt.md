@@ -71,6 +71,7 @@ Task tool (general-purpose):
 
     2. **Extract task metadata:**
        - {TASK_METADATA} — the JSON object for this task from {PHASE_TASKS_JSON}
+       - Extract task `id` field — this is the TASK_ID used in validate-plan commands below
 
     3. **Read task prose:**
        - {TASK_PROSE} — content of {PHASE_DIR}/{task_id_lower}.md
@@ -112,7 +113,7 @@ Task tool (general-purpose):
 
     10. **Handle within-phase handoffs:**
         - For each later task in this phase that lists this task ID in its `depends_on`
-        - Write handoff section to {PHASE_DIR}/{target_task_id_lower}.md similarly
+        - Write handoff section to {PHASE_DIR}/{target_task_id_lower}.md using the same format as step 9 above (## Handoff from {TASK_ID} section after the H1 header)
         - Example: if A2 depends on A1, write to {PHASE_DIR}/a2.md
 
     ## Deviation Rules
@@ -131,7 +132,7 @@ Task tool (general-purpose):
 
     ## When All Tasks Are Done
 
-    Run first-task integration tests (if broad tests exist). Tests targeting future
+    Run phase integration tests (if broad integration tests exist). Tests targeting future
     phases can be xfail (note them). Failures within this phase's scope are real
     issues — fix before continuing.
 
