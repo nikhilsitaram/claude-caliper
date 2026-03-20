@@ -19,7 +19,7 @@ Agent tool (general-purpose):
     **Design doc:** {DESIGN_DOC_PATH} (if "None", skip design checks)
     **Codebase:** {REPO_PATH} (read existing files to verify paths/imports)
 
-    ## 6-Point Checklist
+    ## 7-Point Checklist
 
     Work through each systematically. Read ALL tasks and cross-reference.
 
@@ -108,6 +108,19 @@ Agent tool (general-purpose):
     - Flag: Done says "auth works" (not measurable)
     - Flag: References conversation context not in plan
 
+    ### 7. Success Criteria Coverage (skip if no design doc)
+    Read the Success Criteria section from the design doc at {DESIGN_DOC_PATH}.
+    For each criterion, verify it maps to at least one task's "Done when" field.
+
+    A criterion is covered if one or more tasks' "done when" fields collectively
+    satisfy the criterion's behavioral intent. The mapping need not be 1:1 —
+    a criterion like "users can log in" might be covered by Task A2's "login
+    endpoint returns JWT" plus Task A3's "login form submits and redirects."
+
+    - Flag: Criterion has no matching "done when" in any task (orphaned)
+    - Flag: "Done when" references a criterion but doesn't actually satisfy it
+    - Flag: Design doc has Success Criteria section but plan has no tasks covering them
+
     ### Phase Checks (multi-phase plans only)
     If plan has multiple phases:
     - Phase boundaries at meaningful verification points?
@@ -129,7 +142,7 @@ Agent tool (general-purpose):
     ### Issues Found
 
     For each issue:
-    - **Category** (1-6 or Phase)
+    - **Category** (1-7 or Phase)
     - **Tasks** (which tasks involved)
     - **Problem** (specific, quote the plan)
     - **Fix** (what to change)
@@ -144,6 +157,7 @@ Agent tool (general-purpose):
     | Test-implementation coherence | PASS/FAIL |
     | Completeness | PASS/FAIL |
     | Different Claude test | PASS/FAIL |
+    | Success criteria coverage | PASS/FAIL/SKIP |
     | Phase boundaries | PASS/FAIL/N/A |
 
     **Issues:** [count]
