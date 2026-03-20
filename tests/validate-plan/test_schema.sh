@@ -172,7 +172,7 @@ assert_fail "invalid workflow auto fails" "invalid_workflow" \
 echo "Test 19: Missing workflow field fails"
 rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
-jq '.phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]}' \
+jq 'del(.workflow)' \
   "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
 assert_fail "missing workflow fails" "missing_field: workflow" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
