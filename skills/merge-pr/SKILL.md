@@ -7,7 +7,7 @@ description: Use when a PR is ready to merge or needs review before merging, or 
 
 Address review feedback, comment on the PR, merge with squash, and clean up.
 
-**Prerequisite:** A PR created by `/ship` that has been reviewed.
+**Prerequisite:** A PR created by `/ship`.
 
 **Review principle:** Verify each suggestion against the codebase before implementing. Push back on incorrect suggestions with technical reasoning. No performative agreement ("Great point!", "You're right!").
 
