@@ -95,6 +95,15 @@ else
 fi
 
 reset_fixture
+if "$VALIDATE" --update-status "$TMPDIR/plan.json" --phase Z --status "In Progress" 2>/dev/null; then
+  echo "FAIL: invalid phase letter should fail"
+  ((FAIL++)) || true
+else
+  echo "PASS: invalid phase letter rejected"
+  ((PASS++)) || true
+fi
+
+reset_fixture
 if "$VALIDATE" --update-status "$TMPDIR/plan.json" --plan --status "bogus" 2>/dev/null; then
   echo "FAIL: invalid plan status should fail"
   ((FAIL++)) || true
