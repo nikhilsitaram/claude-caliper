@@ -51,7 +51,7 @@ For each phase:
    - `PHASE_DIR=${PLAN_DIR}/phase-{letter_lower}`
    - `PRIOR_COMPLETIONS` — concatenate only `completion.md` files for phases before the current one (indices `0..N-1`), in manifest order. Do not glob `phase-*/completion.md` — that includes the current/future phase stubs.
    - `CROSS_PHASE_HANDOFF_TARGETS` — JSON mapping source task to array of target paths, e.g. `{"A2": ["phase-b/b2.md", "phase-c/c1.md"]}`. Scan: `jq '.phases[(N+1):][].tasks[] | select(.depends_on[]? == "A2")'`. Arrays handle fan-out (multiple later tasks depending on the same source).
-4. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `PHASE_BASE_SHA`
+4. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_LETTER`, `PHASE_NAME`, `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `REPO_PATH`
 5. After dispatcher returns:
    - Rule 4 violation → ask user, pause (see Rule 4 Handling)
    - Otherwise → dispatch implementation-review with: `PHASE_BASE_SHA`, `HEAD`, `PLAN_DIR`, `PHASE_DIR`

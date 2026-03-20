@@ -10,7 +10,6 @@ Use this template when dispatching a phase dispatcher subagent. Substitute all {
 - `{PLAN_DIR}` — absolute path to plan directory (for validate-plan calls and cross-phase handoff writes)
 - `{PHASE_DIR}` — absolute path to current phase directory (for reading task .md files)
 - `{CROSS_PHASE_HANDOFF_TARGETS}` — JSON object mapping source task IDs to arrays of target task file paths in later phases (e.g., {"A2": ["phase-b/b1.md", "phase-c/c1.md"]}). Empty object {} if no cross-phase dependencies.
-- `{PHASE_BASE_SHA}` — commit SHA before this phase started (used as BASE_SHA for code-quality reviewer)
 - `{REPO_PATH}` — working directory
 
 ```text
