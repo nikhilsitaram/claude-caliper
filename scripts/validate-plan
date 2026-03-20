@@ -309,11 +309,11 @@ do_update_status_task() {
     exit 1
   fi
   local tmp
-  tmp=$(mktemp)
+  tmp=$(mktemp) || { echo "ERROR: failed to create temp file" >&2; exit 1; }
   jq --arg id "$task_id" --arg status "$new_status" '
     (.phases[].tasks[] | select(.id == $id)).status = $status
-  ' "$plan_json" > "$tmp"
-  mv "$tmp" "$plan_json"
+  ' "$plan_json" > "$tmp" || { rm -f "$tmp"; echo "ERROR: jq update failed" >&2; exit 1; }
+  mv "$tmp" "$plan_json" || { echo "ERROR: failed to write plan.json" >&2; exit 1; }
   do_render "$plan_json"
 }
 
@@ -323,12 +323,18 @@ do_update_status_phase() {
     echo "ERROR: invalid_phase_status: '$new_status' (expected Not Started, In Progress, or Complete (YYYY-MM-DD))" >&2
     exit 1
   fi
+  local phase_found
+  phase_found=$(jq --arg letter "$phase_letter" '[.phases[] | select(.letter == $letter)] | length' "$plan_json")
+  if [ "$phase_found" -eq 0 ]; then
+    echo "ERROR: phase_not_found: '$phase_letter' not found in plan" >&2
+    exit 1
+  fi
   local tmp
-  tmp=$(mktemp)
+  tmp=$(mktemp) || { echo "ERROR: failed to create temp file" >&2; exit 1; }
   jq --arg letter "$phase_letter" --arg status "$new_status" '
     (.phases[] | select(.letter == $letter)).status = $status
-  ' "$plan_json" > "$tmp"
-  mv "$tmp" "$plan_json"
+  ' "$plan_json" > "$tmp" || { rm -f "$tmp"; echo "ERROR: jq update failed" >&2; exit 1; }
+  mv "$tmp" "$plan_json" || { echo "ERROR: failed to write plan.json" >&2; exit 1; }
   do_render "$plan_json"
 }
 
@@ -344,9 +350,9 @@ do_update_status_plan() {
     exit 1
   fi
   local tmp
-  tmp=$(mktemp)
-  jq --arg status "$new_status" '.status = $status' "$plan_json" > "$tmp"
-  mv "$tmp" "$plan_json"
+  tmp=$(mktemp) || { echo "ERROR: failed to create temp file" >&2; exit 1; }
+  jq --arg status "$new_status" '.status = $status' "$plan_json" > "$tmp" || { rm -f "$tmp"; echo "ERROR: jq update failed" >&2; exit 1; }
+  mv "$tmp" "$plan_json" || { echo "ERROR: failed to write plan.json" >&2; exit 1; }
   do_render "$plan_json"
 }
 
