@@ -7,7 +7,7 @@ Dispatch an Opus reviewer subagent to evaluate a single task's implementation. D
 ```yaml
 Agent tool (general-purpose):
   model: "opus"
-  mode: "bypassPermissions"
+  mode: "auto"
   description: "Review Task {TASK_ID}"
   prompt: |
     You are reviewing a single task's implementation with fresh eyes.

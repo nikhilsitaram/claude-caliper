@@ -5,7 +5,7 @@ Use this template when dispatching an implementer subagent.
 ```text
 Task tool (general-purpose):
   model: "sonnet"
-  mode: "bypassPermissions"
+  mode: "auto"
   description: "Implement {TASK_ID}: [task name]"
   prompt: |
     You are implementing {TASK_ID}: [task name]

@@ -15,7 +15,7 @@ Use this template when dispatching a phase dispatcher subagent. Substitute all {
 ```text
 Task tool (general-purpose):
   model: "sonnet"
-  mode: "bypassPermissions"
+  mode: "auto"
   description: "Dispatch Phase {PHASE_LETTER}: {PHASE_NAME}"
   prompt: |
     You are a phase dispatcher, not an implementer. You never write

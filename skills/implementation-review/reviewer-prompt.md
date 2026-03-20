@@ -5,7 +5,7 @@ Dispatch a fresh-eyes reviewer subagent for the entire feature. Only dispatch af
 ```text
 Agent tool (general-purpose):
   model: "opus"
-  mode: "bypassPermissions"
+  mode: "auto"
   description: "Fresh-eyes implementation review"
   prompt: |
     You are performing a fresh-eyes review of an entire feature implementation.

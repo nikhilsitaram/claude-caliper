@@ -5,7 +5,7 @@ Dispatch a fresh-eyes Opus subagent to review the full PR diff before reading ex
 ````text
 Agent tool (general-purpose):
   model: "opus"
-  mode: "bypassPermissions"
+  mode: "auto"
   description: "Fresh-eyes PR review"
   prompt: |
     You are reviewing a PR diff with fresh eyes. You have NO context about
