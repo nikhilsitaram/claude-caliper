@@ -9,12 +9,25 @@ Usage:
   validate-plan --update-status <plan.json> --task <ID> --status <STATUS>
   validate-plan --update-status <plan.json> --phase <LETTER> --status <STATUS>
   validate-plan --update-status <plan.json> --plan --status <STATUS>
+  validate-plan --criteria <plan.json> --task <ID>
+  validate-plan --criteria <plan.json> --phase <LETTER>
+  validate-plan --criteria <plan.json> --plan
 USAGE
   exit 1
 }
 
 ERRORS=()
 err() { ERRORS+=("$1"); }
+
+find_timeout_cmd() {
+  if command -v timeout >/dev/null 2>&1; then
+    echo "timeout"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    echo "gtimeout"
+  else
+    echo ""
+  fi
+}
 
 do_schema() {
   local plan_json="$1"
@@ -362,6 +375,146 @@ do_update_status_plan() {
   do_render "$plan_json"
 }
 
+do_criteria() {
+  local plan_json="$1" target="$2" target_id="${3:-}"
+
+  local json
+  json=$(cat "$plan_json")
+
+  local criteria_json=""
+  local scope_label=""
+
+  case "$target" in
+    task)
+      if [[ -z "$target_id" ]]; then
+        echo "ERROR: --criteria --task requires a task ID" >&2
+        exit 2
+      fi
+      local task_found
+      task_found=$(echo "$json" | jq --arg id "$target_id" '[.phases[].tasks[] | select(.id == $id)] | length')
+      if [[ "$task_found" -eq 0 ]]; then
+        echo "ERROR: task '$target_id' not found in plan" >&2
+        exit 2
+      fi
+      criteria_json=$(echo "$json" | jq --arg id "$target_id" '[.phases[].tasks[] | select(.id == $id)][0].success_criteria // []')
+      scope_label="task $target_id"
+      ;;
+    phase)
+      if [[ -z "$target_id" ]]; then
+        echo "ERROR: --criteria --phase requires a phase letter" >&2
+        exit 2
+      fi
+      local phase_found
+      phase_found=$(echo "$json" | jq --arg letter "$target_id" '[.phases[] | select(.letter == $letter)] | length')
+      if [[ "$phase_found" -eq 0 ]]; then
+        echo "ERROR: phase '$target_id' not found in plan" >&2
+        exit 2
+      fi
+      criteria_json=$(echo "$json" | jq --arg letter "$target_id" '[.phases[] | select(.letter == $letter)][0].success_criteria // []')
+      scope_label="phase $target_id"
+      ;;
+    plan)
+      criteria_json=$(echo "$json" | jq '.success_criteria // []')
+      scope_label="plan"
+      ;;
+    *)
+      echo "ERROR: --criteria requires --task <ID>, --phase <LETTER>, or --plan" >&2
+      exit 2
+      ;;
+  esac
+
+  local count
+  count=$(echo "$criteria_json" | jq 'length')
+  if [[ "$count" -eq 0 ]]; then
+    exit 0
+  fi
+
+  local timeout_cmd
+  timeout_cmd=$(find_timeout_cmd)
+  if [[ -z "$timeout_cmd" ]]; then
+    echo "WARNING: neither timeout nor gtimeout found; commands will run without timeout enforcement" >&2
+  fi
+
+  local has_blocking_failure=0
+
+  for ((i=0; i<count; i++)); do
+    local run expect_exit expect_output severity timeout_secs
+    run=$(echo "$criteria_json" | jq -r ".[$i].run")
+    expect_exit=$(echo "$criteria_json" | jq -r ".[$i].expect_exit // empty")
+    expect_output=$(echo "$criteria_json" | jq -r ".[$i].expect_output // empty")
+    severity=$(echo "$criteria_json" | jq -r ".[$i].severity // \"blocking\"")
+    timeout_secs=$(echo "$criteria_json" | jq -r ".[$i].timeout // 60")
+
+    local stdout_file
+    stdout_file=$(mktemp)
+
+    local actual_exit=0
+    if [[ -n "$timeout_cmd" ]]; then
+      $timeout_cmd "$timeout_secs" bash -c "$run" > "$stdout_file" 2>&1 || actual_exit=$?
+    else
+      bash -c "$run" > "$stdout_file" 2>&1 || actual_exit=$?
+    fi
+
+    local exit_ok=true
+    local output_ok=true
+    local is_timeout=false
+
+    if [[ "$actual_exit" -eq 124 && -n "$timeout_cmd" ]]; then
+      is_timeout=true
+    fi
+
+    if [[ -n "$expect_exit" ]]; then
+      if [[ "$actual_exit" -ne "$expect_exit" ]]; then
+        exit_ok=false
+      fi
+    fi
+
+    if [[ -n "$expect_output" ]]; then
+      if ! grep -qF "$expect_output" "$stdout_file"; then
+        output_ok=false
+      fi
+    fi
+
+    local status_label details=""
+    if [[ "$is_timeout" == "true" ]]; then
+      status_label="TIMEOUT"
+      details="killed after ${timeout_secs}s [blocking]"
+      has_blocking_failure=1
+    elif [[ "$exit_ok" == "true" && "$output_ok" == "true" ]]; then
+      status_label="PASS"
+      if [[ -n "$expect_exit" ]]; then
+        details="exit=$actual_exit (expected $expect_exit)"
+      fi
+      if [[ -n "$expect_output" ]]; then
+        [[ -n "$details" ]] && details="$details, "
+        details="${details}output contains \"$expect_output\""
+      fi
+    else
+      if [[ "$severity" == "warning" ]]; then
+        status_label="WARN"
+      else
+        status_label="FAIL"
+        has_blocking_failure=1
+      fi
+      if [[ -n "$expect_exit" && "$exit_ok" == "false" ]]; then
+        details="exit=$actual_exit (expected $expect_exit)"
+      fi
+      if [[ -n "$expect_output" && "$output_ok" == "false" ]]; then
+        [[ -n "$details" ]] && details="$details, "
+        details="${details}output missing \"$expect_output\""
+      fi
+      if [[ "$severity" == "warning" ]]; then
+        details="$details [warning, non-blocking]"
+      fi
+    fi
+
+    echo "$status_label  $scope_label criteria[$i]: \"$run\" -- $details"
+    rm -f "$stdout_file"
+  done
+
+  exit "$has_blocking_failure"
+}
+
 MODE=""
 PLAN_JSON=""
 UPDATE_TARGET=""
@@ -388,6 +541,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --update-status)
       MODE="update-status"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --criteria)
+      MODE="criteria"
       shift
       if [[ $# -gt 0 ]]; then
         PLAN_JSON="$1"
@@ -439,6 +600,14 @@ case "$MODE" in
       phase) do_update_status_phase "$PLAN_JSON" "$UPDATE_ID" "$UPDATE_STATUS" ;;
       plan) do_update_status_plan "$PLAN_JSON" "$UPDATE_STATUS" ;;
       *) usage ;;
+    esac
+    ;;
+  criteria)
+    case "$UPDATE_TARGET" in
+      task) do_criteria "$PLAN_JSON" "task" "$UPDATE_ID" ;;
+      phase) do_criteria "$PLAN_JSON" "phase" "$UPDATE_ID" ;;
+      plan) do_criteria "$PLAN_JSON" "plan" ;;
+      *) echo "ERROR: --criteria requires --task <ID>, --phase <LETTER>, or --plan" >&2; exit 2 ;;
     esac
     ;;
   *) usage ;;
