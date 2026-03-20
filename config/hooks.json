@@ -1,4 +1,11 @@
 {
+  "PreToolUse": [{
+    "matcher": "Bash",
+    "hooks": [{
+      "type": "command",
+      "command": "${CLAUDE_PLUGIN_ROOT}/config/pretooluse-safe-commands.sh"
+    }]
+  }],
   "PostToolUse": [{
     "matcher": "AskUserQuestion",
     "hooks": [{
