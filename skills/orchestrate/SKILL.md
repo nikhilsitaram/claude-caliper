@@ -39,59 +39,56 @@ Why separate subagents per task: each implementer starts with fresh context, pre
 
 ## Per-Phase Execution
 
-For each phase (letter A, B, C...):
+For each phase:
 
 1. `PHASE_BASE_SHA=$(git rev-parse HEAD)` — before dispatching
-2. Create phase branch:
-   - Phase A: `git checkout -b phase-a` (from current HEAD)
-   - Phase B+: `git checkout -b phase-{letter}` (from prior phase tip)
-3. Extract context for dispatcher:
-   - Concatenate all `### Phase X Completion Notes` sections from prior phases (in order)
-   - Extract current phase section (from `## Phase X` through end of that phase's tasks, before next `## Phase`)
-   - Dispatcher does NOT receive the plan header/goal/architecture or other phases' task details — context isolation prevents the dispatcher from being overwhelmed by irrelevant details
-4. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: prior completion notes as PRIOR_COMPLETION_NOTES, current phase section (checklist + tasks), PHASE_BASE_SHA
+2. Create phase branch: `git checkout -b phase-{letter}` (Phase A from HEAD, others from prior tip)
+3. Extract context from plan.json:
+   - `PHASE_TASKS_JSON=$(jq '.phases[N].tasks' plan.json)`
+   - `PLAN_DIR` — absolute path to plan directory
+   - `PHASE_DIR=${PLAN_DIR}/phase-{letter_lower}`
+   - `PRIOR_COMPLETIONS` — concatenate prior `${PLAN_DIR}/phase-*/completion.md` files
+   - `CROSS_PHASE_HANDOFF_TARGETS` — scan later phases' `depends_on` fields, map source task ID to target .md path
+4. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `PHASE_BASE_SHA`
 5. After dispatcher returns:
-   - If it reported Rule 4 → ask the user directly and pause execution (see Rule 4 Handling). Do not proceed to implementation-review on partial work.
-   - Otherwise → dispatch implementation-review (`skills/implementation-review/reviewer-prompt.md`)
-     - BASE_SHA = PHASE_BASE_SHA, HEAD_SHA = `git rev-parse HEAD`
-6. Triage review findings through deviation rules (see `./phase-dispatcher-prompt.md` for full table) — dispatch implementer for Rule 1-3; Rule 4 → ask user and pause (see Rule 4 Handling)
-7. Re-Review Gate: >5 issues from any reviewer → re-review after all fixes applied
-8. Append implementation review changes to `### Phase X Completion Notes` (dispatcher already wrote its summary there; orchestrator appends review fixes below it)
-9. Emit phase summary: "Phase A complete. [N tasks]. Review: X issues — [brief list]. [All fixed / N deferred]."
-10. Update phase status: `Complete (YYYY-MM-DD)`
-11. Ship phase PR: invoke ship, which creates PR with `--base phase-{prior-letter}` (or `--base main` for Phase A)
+   - Rule 4 violation → ask user, pause (see Rule 4 Handling)
+   - Otherwise → dispatch implementation-review with: `PHASE_BASE_SHA`, `HEAD`, plan.json path, `${PHASE_DIR}/completion.md` path
+6. Triage review findings via deviation rules — dispatch implementer for Rule 1-3; Rule 4 → ask user and pause
+7. Re-Review Gate: >5 issues → re-review after fixes
+8. Append review changes to `${PHASE_DIR}/completion.md`
+9. Emit phase summary: "Phase A complete. [N tasks]. Review: X issues — [brief list]. [Status]."
+10. Update status: `validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
+11. Ship PR: invoke ship with `--base phase-{prior-letter}` (or `--base main` for Phase A)
 
 Single-phase plans: one iteration of the same loop. Skip handoff notes.
 
-After the final phase: update plan frontmatter `status: Complete`, then auto-invoke ship.
+After the final phase: `validate-plan --update-status plan.json --plan --status Complete`, then auto-invoke ship.
 
 ## Example Workflow
 
-```text
-[Read plan, identify phases]
+```bash
+# Phase A
+git checkout -b phase-a; PHASE_BASE_SHA=$(git rev-parse HEAD)
+PHASE_TASKS_JSON=$(jq '.phases[0].tasks' plan.json)
+# Dispatch with: PHASE_TASKS_JSON, PLAN_DIR, PHASE_DIR, no prior completions
+# Implementation-review: pass plan.json, phase-a/completion.md
+validate-plan --update-status plan.json --phase A --status "Complete (2026-03-20)"
+# Ship: --base main
 
-git checkout -b phase-a
-Phase A BASE_SHA = $(git rev-parse HEAD)
-[Extract Phase A section from plan]
-[Dispatch dispatcher: Phase A section only, no prior context]
-  ...returns with completion notes written to plan...
-[Dispatch implementation-review: PHASE_BASE_SHA..HEAD]
-[Append review fixes to Phase A Completion Notes]
-[Ship PR: --base main]
+# Phase B
+git checkout -b phase-b; PHASE_BASE_SHA=$(git rev-parse HEAD)
+PHASE_TASKS_JSON=$(jq '.phases[1].tasks' plan.json)
+PRIOR_COMPLETIONS=$(cat phase-a/completion.md)
+# Dispatch with: PHASE_TASKS_JSON, PLAN_DIR, PHASE_DIR, PRIOR_COMPLETIONS, CROSS_PHASE_HANDOFF_TARGETS
+# Ship: --base phase-a
 
-git checkout -b phase-b  (from phase-a tip)
-Phase B BASE_SHA = $(git rev-parse HEAD)
-[Extract Phase A Completion Notes + Phase B section]
-[Dispatch dispatcher: completion notes as context + Phase B section]
-  ...
-[Ship PR: --base phase-a]
+# All done
+validate-plan --update-status plan.json --plan --status Complete
 ```
-
-**Integration test levels:** First task (when broad tests exist) provides acceptance tests (Level 1). Implementers write boundary tests at cross-task seams (Level 2). Implementation-review verifies coverage (Level 3).
 
 ## Inline Handoff Notes
 
-Handoff notes live as blockquotes on individual tasks, not as separate sections. The plan author places placeholders on target tasks (e.g., `> **Handoff from A2:** [TBD]` on B2). The Phase A dispatcher fills in actual details (real function signatures, file paths, config keys) after completing the producing task. The orchestrator does not write separate handoff notes sections.
+Handoff notes live in task .md files. When a task in a later phase has `depends_on: ["A2"]`, the dispatcher writes handoff details to `${PLAN_DIR}/phase-{letter}/{target_task_id_lower}.md`, inserting a `## Handoff from {TASK_ID}` section after the H1 header. The dispatcher fills in real function signatures, file paths, config keys — concrete details the target task needs. The orchestrator builds `CROSS_PHASE_HANDOFF_TARGETS` by scanning later phases' `depends_on` fields and passes this map to the dispatcher.
 
 ## Rule 4 Handling
 
@@ -108,13 +105,13 @@ Do not attempt subsequent tasks or phases until the user decides.
 
 | When | Update |
 |------|--------|
-| First task starts | Frontmatter: `status: In Development` |
-| Task completes (inside dispatcher) | `- [ ] A1` → `- [x] A1` |
-| Phase dispatcher returns | Dispatcher writes summary to `### Phase X Completion Notes` |
-| Review fixes applied | Orchestrator appends review changes to `### Phase X Completion Notes` |
-| Phase review passes | Phase status: `Complete (YYYY-MM-DD)` |
+| First task starts | `validate-plan --update-status plan.json --plan --status "In Development"` |
+| Task completes (inside dispatcher) | `validate-plan --update-status plan.json --task {ID} --status complete` |
+| Phase dispatcher returns | Dispatcher writes `${PHASE_DIR}/completion.md` |
+| Review fixes applied | Orchestrator appends to `${PHASE_DIR}/completion.md` |
+| Phase review passes | `validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"` |
 | Phase PR shipped | Ship creates PR with stacked base branch |
-| All phases done | Frontmatter: `status: Complete` |
+| All phases done | `validate-plan --update-status plan.json --plan --status Complete` |
 | Rule 4 violation | Ask user, pause execution until resolved |
 
 ## Key Constraints
@@ -122,10 +119,11 @@ Do not attempt subsequent tasks or phases until the user decides.
 | Constraint | Why |
 |------------|-----|
 | Record BASE_SHA before dispatcher | Implementation-review needs the exact phase start SHA |
-| Extract only completion notes + current phase for dispatcher | Context isolation prevents dispatcher from being overwhelmed by irrelevant phase details |
+| Pass only PHASE_TASKS_JSON for current phase | Context isolation prevents dispatcher from being overwhelmed by irrelevant phase details |
 | Dispatch implementation-review from orchestrate context | Phase completion and any issues must be visible before advancing — prevents bugs compounding |
 | Fix review issues before next phase | Phase N bugs compound into Phase N+1 complexity |
 | Ship per-phase PR with stacked base | Each PR shows only its phase's diff, making review manageable |
+| Call validate-plan for all status updates | Keeps plan.json and plan.md in sync; triggers automatic re-render |
 | Escalate Rule 4 immediately | Ask the user — architectural changes need human judgment |
 
 ## Integration
