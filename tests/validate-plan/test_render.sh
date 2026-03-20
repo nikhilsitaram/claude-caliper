@@ -49,6 +49,26 @@ else
   ((FAIL++)) || true
 fi
 
+jq '.phases[0].tasks[0].status = "skipped"' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+"$VALIDATE" --render "$TMPDIR/plan.json"
+if grep -q '\[x\] A1.*skipped' "$TMPDIR/plan.md"; then
+  echo "PASS: skipped task renders with [x] and skipped annotation"
+  ((PASS++)) || true
+else
+  echo "FAIL: skipped task does not render with skipped annotation"
+  ((FAIL++)) || true
+fi
+
+cp "$FIXTURES/valid-plan/plan.json" "$TMPDIR/plan.json"
+"$VALIDATE" --render "$TMPDIR/plan.json"
+if grep -q '^---' "$TMPDIR/plan.md"; then
+  echo "PASS: plan status rendered in frontmatter"
+  ((PASS++)) || true
+else
+  echo "FAIL: plan status not rendered in frontmatter"
+  ((FAIL++)) || true
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

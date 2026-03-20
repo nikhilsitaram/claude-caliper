@@ -10,6 +10,7 @@ Use this template when dispatching a phase dispatcher subagent. Substitute all {
 - `{PLAN_DIR}` — absolute path to plan directory (for validate-plan calls and cross-phase handoff writes)
 - `{PHASE_DIR}` — absolute path to current phase directory (for reading task .md files)
 - `{CROSS_PHASE_HANDOFF_TARGETS}` — JSON object mapping source task IDs to arrays of target task file paths in later phases (e.g., {"A2": ["phase-b/b1.md", "phase-c/c1.md"]}). Empty object {} if no cross-phase dependencies.
+- `{PHASE_BASE_SHA}` — commit SHA before this phase started (used as BASE_SHA for code-quality reviewer)
 - `{REPO_PATH}` — working directory
 
 ```text
@@ -64,56 +65,58 @@ Task tool (general-purpose):
 
     For each task in {PHASE_TASKS_JSON}:
 
-    1. **Mark task in-progress:**
+    1. **Extract task metadata:**
+       - {TASK_METADATA} — the JSON object for this task from {PHASE_TASKS_JSON}
+       - Extract task `id` field — this is the TASK_ID used in validate-plan commands and handoff steps below
+
+    2. **Mark task in-progress:**
        ```bash
        bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status in_progress
        ```
-
-    2. **Extract task metadata:**
-       - {TASK_METADATA} — the JSON object for this task from {PHASE_TASKS_JSON}
-       - Extract task `id` field — this is the TASK_ID used in validate-plan commands below
 
     3. **Read task prose:**
        - {TASK_PROSE} — content of {PHASE_DIR}/{task_id_lower}.md
        - Example: for task A1, read {PHASE_DIR}/a1.md
 
-    4. **Dispatch implementer subagent** (see `./implementer-prompt.md`)
+    4. **Capture pre-task SHA:** `TASK_BASE_SHA=$(git rev-parse HEAD)` — needed for code-quality reviewer diff
+
+    5. **Dispatch implementer subagent** (see `./implementer-prompt.md`)
        - Pass both {TASK_METADATA} and {TASK_PROSE} to implementer
        - Include: if this task consumes output from a prior task (imports a module, reads
          config, calls an API created earlier), write a boundary integration test using
          real components — not mocks
 
-    5. **After implementer returns: dispatch spec compliance reviewer**
+    6. **After implementer returns: dispatch spec compliance reviewer**
        (`./spec-reviewer-prompt.md`)
        - Pass both {TASK_METADATA} and {TASK_PROSE} to reviewer
        - Issues found → dispatch new implementer to fix → re-review spec
 
-    6. **After spec passes: dispatch code quality reviewer**
+    7. **After spec passes: dispatch code quality reviewer**
        (`./code-quality-reviewer-prompt.md`)
-       - Pass both {TASK_METADATA} and {TASK_PROSE} to reviewer
+       - Pass {TASK_METADATA}, {TASK_PROSE}, BASE_SHA=TASK_BASE_SHA, HEAD_SHA=`git rev-parse HEAD`
        - Issues found → dispatch new implementer to fix → re-review quality
 
-    7. **Re-Review Gate:** if reviewer found >5 issues, dispatch fresh same-scope
+    8. **Re-Review Gate:** if reviewer found >5 issues, dispatch fresh same-scope
        reviewer after all fixes are applied
 
-    8. **Mark task complete:**
+    9. **Mark task complete:**
        ```bash
        bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status complete
        ```
 
-    9. **Handle cross-phase handoffs:**
-       - Check if this task ID exists as a key in {CROSS_PHASE_HANDOFF_TARGETS}
-       - If yes, iterate each target path in the array and write handoff section to {PLAN_DIR}/{target_path}
-       - Format: append after the H1 header, before existing content:
-         ```markdown
-         ## Handoff from {TASK_ID}
+    10. **Handle cross-phase handoffs:**
+        - Check if this task ID exists as a key in {CROSS_PHASE_HANDOFF_TARGETS}
+        - If yes, iterate each target path in the array and write handoff section to {PLAN_DIR}/{target_path}
+        - Format: append after the H1 header, before existing content:
+          ```markdown
+          ## Handoff from {TASK_ID}
 
-         [Actual details: function signatures, file paths, config keys, APIs created]
-         ```
+          [Actual details: function signatures, file paths, config keys, APIs created]
+          ```
 
-    10. **Handle within-phase handoffs:**
+    11. **Handle within-phase handoffs:**
         - For each later task in this phase that lists this task ID in its `depends_on`
-        - Write handoff section to {PHASE_DIR}/{target_task_id_lower}.md using the same format as step 9 above (## Handoff from {TASK_ID} section after the H1 header)
+        - Write handoff section to {PHASE_DIR}/{target_task_id_lower}.md using the same format as step 10 above (## Handoff from {TASK_ID} section after the H1 header)
         - Example: if A2 depends on A1, write to {PHASE_DIR}/a2.md
 
     ## Deviation Rules
