@@ -9,21 +9,6 @@ Execute plan phase by phase using per-phase worktrees and an integration branch.
 
 **Core principle:** Every level is a dispatcher — only the implementer subagent touches code.
 
-## When to Use
-
-- Have an implementation plan with mostly independent tasks
-- Don't use for tightly coupled tasks or when no plan exists
-
-## Subagent Hierarchy
-
-```text
-Orchestrate (you)           — 1 per plan
-├── Phase Dispatcher        — 1 per phase (dispatches implementers + reviewers, never writes code)
-│   ├── Implementer         — 1 per task (fresh context, writes code via TDD)
-│   └── Task Reviewer       — 1 per task (evaluates code cold, single-pass)
-└── Implementation Review   — 1 per phase (cross-task holistic, dispatched by you)
-```
-
 ## Prompt Templates
 
 | Template | Purpose |
@@ -129,34 +114,18 @@ Single-phase plans: one iteration. Skip final cross-phase review.
 
 **Continuity:** Execute all phases, reviews, and shipping in one continuous flow. Do not pause between phases or wait for user confirmation unless a Rule 4 violation occurs. The only human touchpoints are Rule 4 escalations.
 
-## Example Workflow (Diamond: A→B+C→D)
-
-```text
-Wave 1: A (no deps) → dispatch
-Wave 2: Reconciliation(B,C) from Phase A → dispatch B,C in parallel
-         B returns → review, rebase, merge
-         C returns → review, rebase on updated integration (has B), merge
-Wave 3: Reconciliation(D) from Phases A,B,C → dispatch D
-
-Setup: PLAN_BASE_SHA=$(git rev-parse HEAD); git push -u origin integrate/<feature>
-Each: worktree add; PHASE_BASE_SHA; dispatch; review; ship --base integrate/<feature>; merge; prune
-```
-
 ## Rule 4 Handling
 
-When a phase dispatcher reports a Rule 4 violation, ask the user directly — orchestrate runs in the main agent context. Present: what change is needed, which task triggered it, why the plan doesn't cover it. Options: update the plan or adjust task scope. Do not proceed until the user decides.
+When a dispatcher reports a Rule 4 violation, ask the user directly. Present: what change, which task, why the plan doesn't cover it. Do not proceed until the user decides.
 
 ## Key Constraints
 
 | Constraint | Why |
 |------------|-----|
 | Record PLAN_BASE_SHA before first phase | Final cross-phase review needs total diff |
-| Record PHASE_BASE_SHA per phase | Per-phase implementation-review needs exact phase start |
-| Pass only current phase's tasks | Context isolation prevents overload |
-| Fix review issues before next phase | Phase N bugs compound into N+1 |
+| Record PHASE_BASE_SHA per phase | Per-phase review needs exact phase start |
 | Reconciliation before dispatch | Planner may miss deps even without deviations |
 | Use validate-plan for all status updates | Keeps plan.json and plan.md in sync |
-| Escalate Rule 4 immediately | Architectural changes need human judgment |
 
 ## Integration
 
