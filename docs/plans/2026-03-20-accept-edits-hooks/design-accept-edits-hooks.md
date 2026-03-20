@@ -12,14 +12,14 @@ Automatically switch the Claude Code session to acceptEdits mode when the user a
 
 1. After a user approves a design, all subsequent file-creation and file-editing operations in that session proceed without manual permission confirmation
 2. Without a current-session `.design-approved` sentinel file, file edit permission dialogs behave normally (no false positives)
-3. The hooks ship with the plugin — no manual configuration required after plugin installation
+3. After installing or updating the plugin, the auto-approval behavior works without any manual configuration by the user
 4. If a user rejects the design ("Needs changes"), no sentinel is created and file permissions remain in default mode
 
 ## Alternatives Considered
 
 1. **Single PermissionRequest hook with transcript inspection** — the PermissionRequest hook could read the transcript JSONL (available via `transcript_path` in stdin) to check whether a design-approval AskUserQuestion was answered with "Approved." Eliminates the PostToolUse hook and sentinel file. Rejected because transcript parsing is fragile across compactions and slower than a file existence check.
 
-2. **PreToolUse hook with `allow` decision** — PreToolUse fires on every tool call (not just permission dialogs) and can return `allow`. But PreToolUse cannot return `updatedPermissions` with `setMode`, so it can't flip the session to acceptEdits — it would need to allow every individual Edit/Write, firing on every call for the rest of the session. Less efficient than a one-time mode switch.
+2. **PreToolUse hook with `allow` decision** — PreToolUse fires on every tool call (not just permission dialogs) and can return `allow`. But PreToolUse cannot return `updatedPermissions` with `setMode` (per Claude Code hooks API), so it can't flip the session to acceptEdits — it would need to allow every individual Edit/Write, firing on every call for the rest of the session. Less efficient than a one-time mode switch.
 
 3. **Native plan mode (EnterPlanMode/ExitPlanMode)** — ExitPlanMode triggers accept-edits on approval. But it hijacks the UX with its own plan review interface, conflicting with the design skill's collaborative dialogue flow. Also errors if called without entering plan mode first.
 
@@ -44,14 +44,14 @@ All subsequent Edit/Write: auto-approved
 
 **Trigger:** `tool_input.metadata.source == "design-approval"` (primary), with fallback to matching `"Plan dir:"` prefix in question text if metadata is not forwarded to PostToolUse.
 
-**Risk:** The AskUserQuestion schema defines a `metadata` field with a `source` property, but whether this field is forwarded verbatim to PostToolUse's `tool_input` is unverified. The hook implements both detection paths: metadata check first, then text-based fallback. If both paths fail, the hook exits silently and permission dialogs continue normally — safe degradation with no user-visible change. Consider logging to stderr for diagnosability.
+**Risk:** The AskUserQuestion schema defines a `metadata` field with a `source` property, but whether this field is forwarded verbatim to PostToolUse's `tool_input` is unverified. The hook implements both detection paths: metadata check first, then text-based fallback. If both paths fail, the hook exits silently and permission dialogs continue normally — safe degradation with no user-visible change. The hook logs to stderr when neither path matches an AskUserQuestion that contains "Plan dir:" text, so the failure is diagnosable. Verify metadata forwarding during implementation with a manual integration test.
 
 **Logic:**
 1. Read stdin JSON, extract `session_id`, `tool_name`, `tool_input`, and `tool_response`
 2. Bail if `tool_name != "AskUserQuestion"`
 3. Check `tool_input.metadata.source == "design-approval"` (primary) OR question text contains `"Plan dir:"` (fallback)
 4. Bail if neither matches
-5. Check `tool_response` for approval — bail if response contains "Needs changes" or does not contain "Approved"
+5. Check `tool_response` for approval — bail if response contains "Needs changes" or does not contain "Approved". The `tool_response` for AskUserQuestion with options is expected to be a plain string matching the selected option label (e.g., `"Approved"`). Verify this format during implementation; if it's a JSON object, adjust the matching logic accordingly
 6. Parse absolute plan directory path from question text (format: `Plan dir: /absolute/path/to/worktree/docs/plans/YYYY-MM-DD-topic`)
 7. `mkdir -p` the plan directory
 8. Write `session_id` to `.design-approved` inside the plan directory
@@ -67,7 +67,7 @@ All subsequent Edit/Write: auto-approved
 **CWD mismatch resolution:** The session CWD is typically the project root, not the worktree. The sentinel lives in the worktree at `<worktree>/docs/plans/YYYY-MM-DD-topic/.design-approved`. Since worktrees are created under `$cwd/.worktrees/`, the hook searches both the main repo and all worktree locations:
 
 ```bash
-find "$CWD/docs/plans" "$CWD/.worktrees" -maxdepth 5 -name .design-approved 2>/dev/null
+find "$CWD/docs/plans" "$CWD/.worktrees/*/docs/plans" -maxdepth 3 -name .design-approved 2>/dev/null
 ```
 
 **Logic:**
@@ -94,7 +94,7 @@ find "$CWD/docs/plans" "$CWD/.worktrees" -maxdepth 5 -name .design-approved 2>/d
 
 ### Design Skill Changes
 
-Steps 6 and 7 are swapped, and the verbal approval (step 6) is replaced with a structured AskUserQuestion gate that includes metadata for hook identification:
+Steps 6 (verbal approval) and 7 (worktree setup) are swapped, and the former step 6 verbal approval is replaced with a structured AskUserQuestion gate at its new position (step 7), including metadata for hook identification:
 
 **Reordered checklist:**
 
