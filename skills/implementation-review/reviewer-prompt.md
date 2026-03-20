@@ -31,6 +31,14 @@ Agent tool (general-purpose):
 
     Read every file in the diff.
 
+    ## Design Doc
+
+    {DESIGN_DOC_PATH}
+
+    If not "None", read ONLY the Goal and Success Criteria sections.
+    This check verifies outcomes, not architecture — ignore Architecture,
+    Key Decisions, and Implementation Approach sections.
+
     ## Phase Context (inter-phase reviews only)
 
     {PHASE_CONTEXT}
@@ -67,12 +75,25 @@ Agent tool (general-purpose):
 
     7. **Inadequate integration test coverage** — missing broad acceptance tests (Level 1), missing boundary tests at cross-task seams (Level 2), tests that mock away the boundaries they should verify
 
+    8. **Success Criteria Fulfillment** (skip if design doc is "None")
+       Read the Goal and Success Criteria sections from the design doc.
+       For each criterion: does the implementation deliver this outcome?
+
+       - Verify by tracing the criterion to actual code changes in the diff
+       - A criterion is "met" if the implementation makes the stated behavior possible
+       - A criterion is "partially met" if some but not all aspects are delivered
+       - A criterion is "unmet" if no code change addresses it
+
+       - Flag: Criterion with no corresponding implementation (unmet)
+       - Flag: Criterion only partially addressed (state what's missing)
+       - Flag: Implementation delivers something not covered by any criterion (potential scope creep)
+
     ## Output Format
 
     ### Cross-Task Issues Found
 
     For each issue:
-    - **Category** (1-7)
+    - **Category** (1-8)
     - **Files** (with line references)
     - **Problem**
     - **Suggested fix**
