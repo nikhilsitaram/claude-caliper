@@ -105,7 +105,23 @@ Task tool (general-purpose):
        If exit 1: criteria failed. Report failure to orchestrate context with the failing criteria output. Do not proceed to the next task.
        If exit 0: criteria passed (or no criteria defined). Continue.
 
-    9. **Handle cross-phase handoffs:**
+    9. **Safe commands learning loop:**
+       - Read `$TMPDIR/claude-safe-cmds-nonmatch.log` (may not exist if all commands were safe)
+       - If the file exists and is non-empty:
+         a. Read and deduplicate the command names (one per line in the log)
+         b. Ask the user via AskUserQuestion with a numbered list:
+            "These commands were not in the safe list and were evaluated by auto
+            mode during this task. Enter the numbers of any to permanently add
+            to the safe list (comma-separated), or 'none' to skip:
+            1. brew
+            2. cargo
+            3. rustc"
+         c. For each command the user approves, append it to
+            `hooks/safe-commands.txt` (one per line)
+         d. Truncate the log: `> $TMPDIR/claude-safe-cmds-nonmatch.log`
+       - If the file doesn't exist or is empty, skip silently
+
+    10. **Handle cross-phase handoffs:**
        - Check if this task ID exists as a key in {CROSS_PHASE_HANDOFF_TARGETS}
        - If yes, iterate each target path in the array and write handoff section to {PLAN_DIR}/{target_path}
        - Format: append after the H1 header, before existing content:
@@ -115,7 +131,7 @@ Task tool (general-purpose):
          [Actual details: function signatures, file paths, config keys, APIs created]
          ```
 
-    10. **Handle within-phase handoffs:**
+    11. **Handle within-phase handoffs:**
         - For each later task in this phase that lists this task ID in its `depends_on`
         - Write handoff section to {PHASE_DIR}/{target_task_id_lower}.md using the same format as step 11 above (## Handoff from {TASK_ID} section after the H1 header)
         - Example: if A2 depends on A1, write to {PHASE_DIR}/a2.md
