@@ -27,7 +27,20 @@ Complete in order:
 6. **Get verbal approval** — explicit "yes" before proceeding
 7. **Set up worktree** — `git worktree add .worktrees/<branch-name> -b <branch-name>`; run tests to establish a clean baseline
 8. **Write design doc** — `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`, commit
-9. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero design context)
+9. **Dispatch design-review subagent** — fresh Opus agent validates design before planning (hard gate)
+10. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero design context)
+
+```text
+Agent(
+  subagent_type: "general-purpose",
+  model: "opus",
+  prompt: "Review the design doc at docs/plans/<folder>/design-<topic>.md
+    using the design-review skill.
+    Working directory: <absolute-worktree-path>"
+)
+```
+
+If design-review finds issues, present them to the user, collaboratively fix the design doc, and re-dispatch design-review until clean. Only dispatch draft-plan after design-review passes.
 
 ```text
 Agent(
@@ -73,5 +86,7 @@ Use AskUserQuestion with "Looks good" / "Adjust phases" options.
 ## Design Doc Contents
 
 When writing the design doc (`docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`):
-- Include: goal, architecture approach, key decisions, non-goals
-- If multi-phase: add **Implementation Approach** section with phase rationale
+- Sections in order: Problem, Goal, Success Criteria, Architecture, Key Decisions, Non-Goals, Implementation Approach
+- **Problem** — what's broken, who's affected, consequences of not solving
+- **Success Criteria** — human-verifiable behavioral statements (not "tests pass"); collectively complete (all pass = goal met), individually necessary
+- If multi-phase: **Implementation Approach** includes phase rationale
