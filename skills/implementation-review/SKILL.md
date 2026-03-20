@@ -36,6 +36,7 @@ Use `./reviewer-prompt.md` template with these variables:
 | `{PLAN_FILE_PATH}` | Path to plan document |
 | `{REPO_PATH}` | Repository root path |
 | `{PHASE_CONTEXT}` | Phase letter and name (e.g., "Phase A of C: Core API"), and what downstream phases expect (interfaces, config, APIs). Empty string for final/single-phase reviews. |
+| `{DESIGN_DOC_PATH}` | Path to design doc (from plan frontmatter, or "None") |
 
 **Use `model: "opus"`** — fresh-eyes review requires the strongest reasoning to catch subtle cross-task issues.
 
@@ -54,6 +55,7 @@ Use `./reviewer-prompt.md` template with these variables:
 | Documentation gaps | Feature supported but undocumented |
 | Inconsistent errors | Same generic error from multiple locations |
 | Missing boundary tests | Components interact but no integration test |
+| Unmet success criteria | Design says "users can X" but implementation doesn't deliver it |
 
 ## Post-Review: Plan Doc Updates
 
