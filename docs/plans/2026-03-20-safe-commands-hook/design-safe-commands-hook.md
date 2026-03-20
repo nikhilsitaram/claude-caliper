@@ -4,7 +4,7 @@
 
 All five subagent prompt files use `bypassPermissions`, which runs every command without oversight — no prompt injection safeguards, no visibility into what commands are executed, and no mechanism to build a curated allowlist over time. Meanwhile, users who run the plugin in safer permission modes (like `acceptEdits`) get friction from perfectly safe commands (e.g., `stat`, `brew`) that aren't pre-approved.
 
-There's no middle ground: either everything is auto-approved or common dev commands trigger manual prompts.
+There's no middle ground: either everything is auto-approved or common dev commands trigger manual prompts. There's also no feedback mechanism to grow the safe list from actual usage, so the initial list either under-covers (causing repeated friction) or over-covers (reducing security).
 
 ## Goal
 
@@ -122,7 +122,7 @@ After each task's implementer + reviewer cycle, the phase dispatcher reads the n
 Auto mode provides prompt injection safeguards that `acceptEdits` lacks, and handles the long tail of commands the safe list doesn't cover. The safe commands hook reduces auto mode's per-evaluation token overhead for common commands.
 
 ### Phase dispatcher owns per-task user communication
-The orchestrator only sees phase results. Per-task granularity requires the dispatcher (a subagent) to call AskUserQuestion directly. This is architecturally unusual — subagents typically don't communicate with users — but the user explicitly chose this pattern for faster feedback.
+Per-task granularity requires the dispatcher to call AskUserQuestion directly because the orchestrator only sees phase-level results and cannot intervene between tasks. Trade-off: the user interacts with a subagent rather than the main context, so they can't escalate pipeline-level decisions from this prompt. This is acceptable because the question is narrowly scoped (approve/reject specific command prefixes) and doesn't require pipeline-level context. The typical scenario — the same non-safe command appearing repeatedly across tasks — makes immediate addition more valuable than batching at phase boundaries.
 
 ### Deterministic safe list alongside auto mode
 Auto mode's judgments are probabilistic. The safe list provides a deterministic fast-path for known commands — predictable, zero token cost, and version-controlled so teams share the same baseline.
@@ -131,7 +131,10 @@ Auto mode's judgments are probabilistic. The safe list provides a deterministic 
 The safe list ships with ~35 common dev prefixes. Domain-specific tools (MCP servers, Dataiku, Tableau) are left to users' personal hooks. This keeps the plugin generic.
 
 ### Destructive commands excluded from default safe list
-`rm`, `curl`, and `bash` are intentionally not in the default safe list. `rm` is destructive, `curl` can exfiltrate data, and `bash` can execute arbitrary scripts. Auto mode evaluates these per-invocation, which is the right trade-off for a default config. Users who trust their environment can add them via the learning loop — the first time one triggers, the dispatcher asks and it's one click to permanently allow.
+`rm`, `curl`, and `bash` are intentionally not in the default safe list. `rm` is destructive, `curl` can exfiltrate data, and `bash` can execute arbitrary scripts. Auto mode evaluates these per-invocation, which is the right trade-off for a default config. Users who trust their environment can add them via the learning loop — the first time one triggers, the dispatcher asks and it's one click to permanently allow. `mv` and `cp` are included despite being potentially destructive because they're essential for refactoring workflows — they move/copy rather than delete, and git provides recovery.
+
+### Coexistence with personal hooks
+Multiple PreToolUse hooks run independently — if any returns `permissionDecision: allow`, the command is approved. The repo hook covers dev workflow commands; users keep personal hooks for domain-specific MCP tools (Dataiku, Tableau, Slack, etc.). Overlapping commands are harmless — the first hook to match wins.
 
 ### Hook distribution gap
 Hook scripts ship with the plugin (files in `hooks/`), but `settings.json` hook config doesn't auto-install via the plugin system. Users must manually wire the hook. The setup path will be documented; a setup skill may follow later.
