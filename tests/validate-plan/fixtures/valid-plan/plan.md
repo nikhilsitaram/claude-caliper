@@ -1,3 +1,7 @@
+---
+status: Not Yet Started
+---
+
 # Build a sample feature Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use orchestrate

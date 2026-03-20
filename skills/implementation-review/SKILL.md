@@ -29,7 +29,7 @@ Use `./reviewer-prompt.md` template with these variables:
 
 | Variable | Value |
 |----------|-------|
-| `{BASE_SHA}` | `git merge-base HEAD origin/main` — where branch diverged |
+| `{BASE_SHA}` | Phase start SHA (`PHASE_BASE_SHA` from orchestrate) — scopes diff to current phase only |
 | `{HEAD_SHA}` | `git rev-parse HEAD` — current tip |
 | `{FEATURE_SUMMARY}` | What the feature does (1-2 sentences) |
 | `{TASK_LIST}` | Extract from plan.json: `jq '.phases[N].tasks[] \| .id + ": " + .name'` |

@@ -142,6 +142,13 @@ jq '.phases[0].letter = "a"' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.js
 assert_fail "lowercase phase letter" "invalid_phase_letter_format" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
+echo "Test 16: Empty phases array"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '.phases = []' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "empty phases array" "empty_phases" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

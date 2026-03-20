@@ -58,6 +58,7 @@ do_schema() {
 
   local phase_count
   phase_count=$(echo "$json" | jq '(.phases // []) | length')
+  [[ "$phase_count" -eq 0 ]] && err "ERROR: empty_phases: plan must have at least one phase"
 
   local all_task_ids=()
   local all_create_paths=()
@@ -245,12 +246,14 @@ do_render() {
   local out="$plan_dir/plan.md"
   local tmp="${out}.tmp.$$"
 
-  local goal architecture tech_stack
+  local plan_status goal architecture tech_stack
+  plan_status=$(jq -r '.status' "$plan_json")
   goal=$(jq -r '.goal' "$plan_json")
   architecture=$(jq -r '.architecture' "$plan_json")
   tech_stack=$(jq -r '.tech_stack' "$plan_json")
 
   {
+    printf -- '---\nstatus: %s\n---\n\n' "$plan_status"
     printf '# %s Implementation Plan\n\n' "$goal"
     printf '> **For Claude:** REQUIRED SUB-SKILL: Use orchestrate\n\n'
     printf '**Goal:** %s\n' "$goal"
@@ -283,6 +286,9 @@ do_render() {
 
         if [ "$tstatus" = "complete" ]; then
           checkbox="[x]"
+        elif [ "$tstatus" = "skipped" ]; then
+          checkbox="[x]"
+          tname="~~${tname}~~ (skipped)"
         else
           checkbox="[ ]"
         fi
