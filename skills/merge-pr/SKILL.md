@@ -9,7 +9,7 @@ Address review feedback, comment on the PR, merge with squash, and clean up.
 
 **Prerequisite:** A PR created by `/ship`.
 
-**Review principle:** Verify each suggestion against the codebase before implementing. Push back on incorrect suggestions with technical reasoning. No performative agreement ("Great point!", "You're right!").
+**Review principle:** Verify each suggestion against the codebase before implementing. Push back on incorrect ones with technical reasoning — no performative agreement.
 
 ## Workflow
 
@@ -23,7 +23,7 @@ Detect environment:
 - `IS_WORKTREE` — true when `--git-dir` differs from `--git-common-dir`
 - `WORKTREE_PATH` — look up from `git worktree list` by matching `$BRANCH_NAME` (works regardless of CWD)
 
-If not on the PR branch: look up `WORKTREE_PATH` first — if the branch is in a worktree, `cd` into it (gh pr checkout fails when a worktree holds the branch). Otherwise `gh pr checkout $PR_NUMBER`.
+If not on the PR branch: look up `WORKTREE_PATH` first — if the branch is in a worktree, `cd` into it (`gh pr checkout` fails when a worktree holds the branch). Otherwise `gh pr checkout $PR_NUMBER`.
 
 ### Step 2: PR Review
 
@@ -53,7 +53,13 @@ Categorize each item:
 
 ### Step 4: Present & Confirm
 
-Show the user a summary table of all findings with source, category, and planned action (fix / dismiss / no action). Ask the user to confirm before proceeding to fixes.
+Show the user a summary table with source, category, planned action, and counts per category.
+
+Use AskUserQuestion with options:
+- **Fix all** — actionable + suggestion items (excludes dismissed/false positives)
+- **Fix critical only** — actionable items only (bugs, security, correctness)
+- **Skip fixes, merge as-is** — jump to Step 7
+- **Other** — user provides custom instructions (e.g. "fix items 1, 3, 5")
 
 ### Step 5: Fix, Test, Push
 
@@ -63,21 +69,34 @@ For each actionable item: make the fix. Run project tests — do not merge with 
 
 ### Step 6: Comment on PR
 
-Post a `gh pr comment` with the unified assessment covering all sources (subagent review + external reviewers). Include: what was fixed, what was dismissed (with reasons), and what needed no action. Omit empty sections.
+Post a `gh pr comment` with the unified assessment covering all sources. Include: what was fixed, what was dismissed (with reasons), what needed no action. Omit empty sections.
 
 ### Step 7: Confirm Merge
 
-Ask the user for final confirmation before merging. Show: PR URL, number of fixes applied, any dismissed items.
+Show: PR URL, number of fixes applied, any dismissed items.
+
+Use AskUserQuestion with options:
+- **Merge** — proceed with squash merge
+- **Abort** — stop without merging
 
 ### Step 8: Merge
 
 If branch protection requires human approval and the PR lacks it, tell the user and stop with the PR URL.
 
+**Pre-merge rebase check:** Before merging, verify the PR branch is up-to-date with the default branch:
+
+```bash
+git fetch origin $DEFAULT_BRANCH
+git merge-base --is-ancestor origin/$DEFAULT_BRANCH HEAD
+```
+
+If behind (non-zero exit): rebase onto the default branch, resolve conflicts, run tests, and force-push. Post a `gh pr comment` explaining each resolved conflict with file, what changed upstream, and how it was resolved. If conflicts are too complex to resolve confidently, stop and ask the user.
+
 **CWD safety:** Always `cd "$MAIN_REPO"` before merging. In worktrees, the merge triggers remote branch deletion which bricks the shell if CWD is inside the worktree. Running from the main repo is safe in all cases.
 
 ```bash
 cd "$MAIN_REPO"
-gh pr merge $PR_NUMBER --squash  # adjust flag if repo uses merge or rebase
+gh pr merge $PR_NUMBER --squash
 ```
 
 Never use `--delete-branch` — branch cleanup is handled in Step 9.
@@ -86,7 +105,7 @@ Never use `--delete-branch` — branch cleanup is handled in Step 9.
 
 **Worktree — run each sub-step as a SEPARATE Bash tool call.** Never chain with `&&` — CWD changes don't persist if a later chained command fails, bricking the shell.
 
-Derive `WORKTREE_PATH` if not already captured (exact branch match — grep substring would collide on similar names like `feature` vs `feature-2`):
+Derive `WORKTREE_PATH` if not already captured (exact branch match — substring grep collides on `feature` vs `feature-2`):
 ```bash
 git worktree list --porcelain | awk -v b="refs/heads/$BRANCH_NAME" '$1=="worktree"{wt=$2} $1=="branch" && $2==b{print wt; exit}'
 ```
