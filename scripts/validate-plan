@@ -275,6 +275,13 @@ do_schema() {
     done
   done
 
+  # Defense-in-depth: BFS cycle check across phase depends_on edges.
+  # The backward-reference check above already guarantees acyclicity:
+  # every depends_on entry must reference a phase that appeared earlier
+  # in the phases array, so forward references — and therefore cycles —
+  # are impossible by construction. This BFS block will never fire
+  # independently of that check; it is kept as a safety net in case the
+  # ordering constraint is relaxed in the future.
   local cd_cycle_detected=0
   for ((cd_start=0; cd_start<phase_count && cd_cycle_detected==0; cd_start++)); do
     local cd_start_letter

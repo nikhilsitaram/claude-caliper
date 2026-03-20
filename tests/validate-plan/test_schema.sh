@@ -49,7 +49,7 @@ assert_pass "valid plan passes schema check" \
 echo "Test 2: Missing required field (remove goal)"
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
 jq 'del(.goal)' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
-assert_fail "missing goal field" "missing_field" \
+assert_fail "missing goal field" "missing_field: goal" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
 echo "Test 3: depends_on references future phase"
@@ -153,12 +153,12 @@ jq '.phases = []' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
 assert_fail "empty phases array" "empty_phases" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 17: Valid workflow ship passes"
+echo "Test 17: Valid workflow review-only passes"
 rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
-jq '. + {"workflow": "ship"} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]}' \
+jq '. + {"workflow": "review-only"} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]}' \
   "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
-assert_pass "valid workflow ship passes" \
+assert_pass "valid workflow review-only passes" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
 echo "Test 18: Invalid workflow value fails"
@@ -177,12 +177,15 @@ jq '.phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]}' \
 assert_fail "missing workflow fails" "missing_field: workflow" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 20: Valid phase depends_on passes"
+echo "Test 20: Multi-phase depends_on (C depends on A and B)"
 rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
-jq '. + {"workflow": "ship"} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]}' \
+mkdir -p "$TMPDIR/phase-c"
+touch "$TMPDIR/phase-c/completion.md"
+echo "# C1: Phase C task" > "$TMPDIR/phase-c/c1.md"
+jq '. + {"workflow": "ship"} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]} | .phases += [{"letter": "C", "name": "Integration", "status": "Not Started", "rationale": "Depends on A and B", "depends_on": ["A", "B"], "tasks": [{"id": "C1", "name": "Phase C task", "status": "pending", "depends_on": [], "files": {"create": ["src/c1.ts"], "modify": [], "test": ["tests/c1.test.ts"]}, "verification": "echo ok", "done_when": "C1 done", "success_criteria": []}]}]' \
   "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
-assert_pass "valid phase depends_on passes" \
+assert_pass "multi-phase depends_on C depends on A and B passes" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
 echo "Test 21: depends_on references non-existent phase fails"
@@ -199,6 +202,14 @@ cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
 jq '. + {"workflow": "ship"} | .phases[0] += {"depends_on": ["B"]} | .phases[1] += {"depends_on": ["A"]}' \
   "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
 assert_fail "circular phase dependency" "circular_dependency" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 23: Valid workflow plan-only passes"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '. + {"workflow": "plan-only"} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]}' \
+  "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_pass "valid workflow plan-only passes" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
 echo ""
