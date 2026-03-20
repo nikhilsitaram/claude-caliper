@@ -240,6 +240,7 @@ do_render() {
   local plan_dir
   plan_dir="$(dirname "$(realpath "$plan_json")")"
   local out="$plan_dir/plan.md"
+  local tmp="${out}.tmp.$$"
 
   local goal architecture tech_stack
   goal=$(jq -r '.goal' "$plan_json")
@@ -286,7 +287,8 @@ do_render() {
         printf -- '- %s %s: %s — *%s*\n' "$checkbox" "$tid" "$tname" "$done_when"
       done
     done
-  } > "$out"
+  } > "$tmp"
+  mv "$tmp" "$out"
 }
 
 MODE=""
