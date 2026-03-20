@@ -37,16 +37,18 @@ Why separate subagents per task: each implementer starts with fresh context, pre
 
 ## Per-Phase Execution
 
+Before first phase: `validate-plan --update-status plan.json --plan --status "In Development"`
+
 For each phase:
 
 1. `PHASE_BASE_SHA=$(git rev-parse HEAD)` — before dispatching
 2. Create phase branch: `git checkout -b phase-{letter}` (Phase A from HEAD, others from prior tip)
 3. Extract context from plan.json:
    - `PHASE_TASKS_JSON=$(jq '.phases[N].tasks' plan.json)`
-   - `PLAN_DIR` — absolute path to plan directory
+   - `PLAN_DIR=$(dirname "$(realpath plan.json)")`
    - `PHASE_DIR=${PLAN_DIR}/phase-{letter_lower}`
-   - `PRIOR_COMPLETIONS` — concatenate prior `${PLAN_DIR}/phase-*/completion.md` files
-   - `CROSS_PHASE_HANDOFF_TARGETS` — scan later phases' `depends_on` fields, map source task ID to target .md path
+   - `PRIOR_COMPLETIONS=$(cat "${PLAN_DIR}"/phase-*/completion.md 2>/dev/null | cat)` — concatenate in phase order
+   - `CROSS_PHASE_HANDOFF_TARGETS` — JSON mapping source task to target path, e.g. `{"A2": "phase-b/b2.md"}`. Scan: `jq '.phases[(N+1):][].tasks[] | select(.depends_on[]? == "A2")'`
 4. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `PHASE_BASE_SHA`
 5. After dispatcher returns:
    - Rule 4 violation → ask user, pause (see Rule 4 Handling)
@@ -99,19 +101,6 @@ When a phase dispatcher reports a Rule 4 violation, ask the user directly — or
 - **Options:** Update the plan to include the change, or adjust task scope to avoid it
 
 Do not attempt subsequent tasks or phases until the user decides.
-
-## Plan Doc Updates
-
-| When | Update |
-|------|--------|
-| First task starts | `validate-plan --update-status plan.json --plan --status "In Development"` |
-| Task completes (inside dispatcher) | `validate-plan --update-status plan.json --task {ID} --status complete` |
-| Phase dispatcher returns | Dispatcher writes `${PHASE_DIR}/completion.md` |
-| Review fixes applied | Orchestrator appends to `${PHASE_DIR}/completion.md` |
-| Phase review passes | `validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"` |
-| Phase PR shipped | Ship creates PR with stacked base branch |
-| All phases done | `validate-plan --update-status plan.json --plan --status Complete` |
-| Rule 4 violation | Ask user, pause execution until resolved |
 
 ## Key Constraints
 
