@@ -41,8 +41,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 echo "Test 1: Valid plan passes"
 rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
-jq '. + {"workflow": "ship"} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]}' \
-  "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+cp "$FIXTURES/valid-plan/plan.json" "$TMPDIR/plan.json"
 assert_pass "valid plan passes schema check" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 

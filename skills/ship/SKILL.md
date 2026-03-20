@@ -70,11 +70,12 @@ EOF
 )"
 ```
 
-### Step 6: Rebase on Main
+### Step 6: Rebase on Target Base
 
 ```bash
-git fetch origin $DEFAULT_BRANCH
-git rebase origin/$DEFAULT_BRANCH
+REBASE_BASE="${BASE_BRANCH:-$DEFAULT_BRANCH}"
+git fetch origin "$REBASE_BASE"
+git rebase "origin/$REBASE_BASE"
 ```
 
 If conflicts occur, resolve them and re-run tests before continuing.

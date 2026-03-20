@@ -24,7 +24,7 @@ Complete in order:
 3. **Ask clarifying questions** — smart batches (see below)
 4. **Propose 2-3 approaches** — trade-offs and your recommendation
 5. **Present design** — sections scaled to complexity, approval after each
-6. **Set up worktree** — `git worktree add .claude/worktrees/<feature> -b integrate/<feature>`; run tests to establish a clean baseline. This is the integration branch — phase worktrees are created by orchestrate as siblings.
+6. **Set up worktree** — `git worktree add -b integrate/<feature> .claude/worktrees/<feature>`; run tests to establish a clean baseline. This is the integration branch — phase worktrees are created by orchestrate as siblings.
 7. **Design approval gate** — use AskUserQuestion with options `["Approved", "Needs changes"]`, include `metadata: { source: "design-approval" }` and absolute plan dir path in question text (format: `Plan dir: /absolute/path/.claude/worktrees/<feature>/docs/plans/YYYY-MM-DD-topic`). If "Needs changes," return to step 5. The PostToolUse hook creates a `.design-approved` sentinel enabling auto-approved edits for the rest of the session.
 8. **Write design doc** — `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`, commit
 9. **Dispatch design-review subagent** — fresh Opus agent validates design before planning (hard gate)
@@ -36,7 +36,7 @@ Complete in order:
     - **Review only** — Orchestrate executes and reviews, creates final PR but doesn't merge
     - **Plan only** — Stop here. Plan is written and reviewed.
 
-    Write chosen value to plan.json: `jq --arg w "<value>" '.workflow = $w' plan.json > tmp && mv tmp plan.json`
+    Map the chosen label to the schema enum value (`Ship` → `ship`, `Review only` → `review-only`, `Plan only` → `plan-only`), then write: `jq --arg w "<mapped-value>" '.workflow = $w' plan.json > tmp && mv tmp plan.json`
 
     For **Ship** or **Review only**: invoke orchestrate.
     For **Plan only**: report the plan file path and stop.

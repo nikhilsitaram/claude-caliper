@@ -108,22 +108,20 @@ do_schema() {
         err "ERROR: duplicate_phase_letter: phase letter '$letter' appears more than once"
       fi
 
-      if [[ -n "$letter" ]]; then
-        local phase_has_deps
-        phase_has_deps=$(echo "$json" | jq ".phases[$p] | has(\"depends_on\")")
-        if [[ "$phase_has_deps" != "true" ]]; then
-          err "ERROR: missing_field: phases[$p].depends_on"
-        else
-          local phase_dep_count
-          phase_dep_count=$(echo "$json" | jq "(.phases[$p].depends_on // []) | length")
-          for ((pd=0; pd<phase_dep_count; pd++)); do
-            local phase_dep_ref
-            phase_dep_ref=$(echo "$json" | jq -r ".phases[$p].depends_on[$pd]")
-            if [[ " $seen_phase_letters " != *" $phase_dep_ref "* ]]; then
-              err "ERROR: invalid_depends_on: Phase $letter references $phase_dep_ref which is not an earlier phase"
-            fi
-          done
-        fi
+      local phase_has_deps
+      phase_has_deps=$(echo "$json" | jq ".phases[$p] | has(\"depends_on\")")
+      if [[ "$phase_has_deps" != "true" ]]; then
+        err "ERROR: missing_field: phases[$p].depends_on"
+      else
+        local phase_dep_count
+        phase_dep_count=$(echo "$json" | jq "(.phases[$p].depends_on // []) | length")
+        for ((pd=0; pd<phase_dep_count; pd++)); do
+          local phase_dep_ref
+          phase_dep_ref=$(echo "$json" | jq -r ".phases[$p].depends_on[$pd]")
+          if [[ " $seen_phase_letters " != *" $phase_dep_ref "* ]]; then
+            err "ERROR: invalid_depends_on: Phase $letter references $phase_dep_ref which is not an earlier phase"
+          fi
+        done
       fi
 
       seen_phase_letters="$seen_phase_letters $letter"
