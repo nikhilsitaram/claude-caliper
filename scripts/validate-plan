@@ -50,6 +50,17 @@ do_schema() {
   [[ -z "$architecture" ]] && err "ERROR: missing_field: architecture"
   [[ -z "$tech_stack" ]] && err "ERROR: missing_field: tech_stack"
 
+  local workflow
+  workflow=$(echo "$json" | jq -r '.workflow // empty')
+  if [[ -z "$workflow" ]]; then
+    err "ERROR: missing_field: workflow"
+  else
+    case "$workflow" in
+      "ship"|"review-only"|"plan-only") ;;
+      *) err "ERROR: invalid_workflow: $workflow" ;;
+    esac
+  fi
+
   if [[ -n "$status" ]]; then
     case "$status" in
       "Not Yet Started"|"In Development"|"Complete") ;;
@@ -96,6 +107,25 @@ do_schema() {
       if [[ " $seen_phase_letters " == *" $letter "* ]]; then
         err "ERROR: duplicate_phase_letter: phase letter '$letter' appears more than once"
       fi
+
+      if [[ -n "$letter" ]]; then
+        local phase_has_deps
+        phase_has_deps=$(echo "$json" | jq ".phases[$p] | has(\"depends_on\")")
+        if [[ "$phase_has_deps" != "true" ]]; then
+          err "ERROR: missing_field: phases[$p].depends_on"
+        else
+          local phase_dep_count
+          phase_dep_count=$(echo "$json" | jq "(.phases[$p].depends_on // []) | length")
+          for ((pd=0; pd<phase_dep_count; pd++)); do
+            local phase_dep_ref
+            phase_dep_ref=$(echo "$json" | jq -r ".phases[$p].depends_on[$pd]")
+            if [[ " $seen_phase_letters " != *" $phase_dep_ref "* ]]; then
+              err "ERROR: invalid_depends_on: Phase $letter references $phase_dep_ref which is not an earlier phase"
+            fi
+          done
+        fi
+      fi
+
       seen_phase_letters="$seen_phase_letters $letter"
     fi
 
@@ -242,6 +272,36 @@ do_schema() {
       fi
 
       all_task_ids+=("$id")
+    done
+  done
+
+  local cd_cycle_detected=0
+  for ((cd_start=0; cd_start<phase_count && cd_cycle_detected==0; cd_start++)); do
+    local cd_start_letter
+    cd_start_letter=$(echo "$json" | jq -r ".phases[$cd_start].letter")
+    local cd_visited=""
+    local -a cd_queue=("$cd_start_letter")
+    while [[ ${#cd_queue[@]} -gt 0 && $cd_cycle_detected -eq 0 ]]; do
+      local cd_current="${cd_queue[0]}"
+      cd_queue=("${cd_queue[@]:1}")
+      if [[ " $cd_visited " == *" $cd_current "* ]]; then
+        continue
+      fi
+      cd_visited="$cd_visited $cd_current"
+      local cd_dep_cnt
+      cd_dep_cnt=$(echo "$json" | jq --arg l "$cd_current" '([.phases[] | select(.letter == $l)][0].depends_on // []) | length')
+      for ((cd_d=0; cd_d<cd_dep_cnt; cd_d++)); do
+        local cd_dep
+        cd_dep=$(echo "$json" | jq -r --arg l "$cd_current" --argjson idx "$cd_d" '([.phases[] | select(.letter == $l)][0].depends_on // [])[$idx]')
+        if [[ "$cd_dep" == "$cd_start_letter" && "$cd_current" != "$cd_start_letter" ]]; then
+          err "ERROR: circular_dependency: cycle detected involving phase $cd_start_letter"
+          cd_cycle_detected=1
+          break
+        fi
+        if [[ " $cd_visited " != *" $cd_dep "* ]]; then
+          cd_queue+=("$cd_dep")
+        fi
+      done
     done
   done
 
