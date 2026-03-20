@@ -1,0 +1,164 @@
+{
+  "schema": 1,
+  "status": "In Development",
+  "goal": "Replace unrestricted bypassPermissions with auto mode + a deterministic safe commands hook + a learning loop so subagents run with prompt injection safeguards while common dev commands execute without friction",
+  "architecture": "Three layers: (1) all 5 subagent prompt files switch from bypassPermissions to auto mode for built-in prompt injection safeguards, (2) a PreToolUse hook reads hooks/safe-commands.txt prefixes and instantly approves matching Bash commands (zero token cost), logging non-matches to a temp file for auto mode to evaluate, (3) the phase dispatcher reads the non-match log after each task and asks the user whether to add new commands to the safe list.",
+  "tech_stack": "Bash, jq, Claude Code hooks API (PreToolUse), Claude Code auto mode",
+  "phases": [
+    {
+      "letter": "A",
+      "name": "Hook infrastructure, permission migration, and learning loop",
+      "status": "Not Started",
+      "rationale": "Single phase because the three layers are tightly coupled: auto mode without the hook causes friction on safe commands, the hook without auto mode leaves non-safe commands unprotected, and the learning loop requires both to be in place. No meaningful verification gate exists between them.",
+      "tasks": [
+        {
+          "id": "A1",
+          "name": "Write test suite for the PreToolUse safe commands hook",
+          "status": "complete",
+          "depends_on": [],
+          "files": {
+            "create": [
+              "tests/hooks/test_safe_commands.sh"
+            ],
+            "modify": [],
+            "test": [
+              "tests/hooks/test_safe_commands.sh"
+            ]
+          },
+          "verification": "bash tests/hooks/test_safe_commands.sh (all tests should FAIL since hook script does not exist yet)",
+          "done_when": "test_safe_commands.sh has 15 tests for: single safe command approved, single unsafe command logs and falls through, compound command (&&) all safe approved, compound command with one unsafe falls through, pipe chain all safe approved, pipe with unsafe falls through, subshell $() extraction, quoted strings not split, path basename extraction (./node_modules/.bin/jest -> jest), empty input handled, variable assignment VAR=$(cmd) extracts cmd, semicolon separator treated like &&, 20-command-word limit enforced, log file written with non-matching commands. All tests FAIL because hook script does not exist."
+        },
+        {
+          "id": "A2",
+          "name": "Create safe-commands.txt and PreToolUse hook script",
+          "status": "complete",
+          "depends_on": [
+            "A1"
+          ],
+          "files": {
+            "create": [
+              "hooks/safe-commands.txt",
+              "hooks/pretooluse-safe-commands.sh"
+            ],
+            "modify": [],
+            "test": [
+              "tests/hooks/test_safe_commands.sh"
+            ]
+          },
+          "verification": "bash tests/hooks/test_safe_commands.sh",
+          "done_when": "safe-commands.txt contains ~35 dev workflow prefixes from design doc. Hook script reads stdin JSON, extracts Bash command, splits on &&/;/|, extracts command words from $() and VAR=, checks basenames against safe-commands.txt, returns {permissionDecision: allow} when all match, logs non-matches to $TMPDIR/claude-safe-cmds-nonmatch.log and exits silently when any don't match. All A1 tests pass."
+        },
+        {
+          "id": "A3",
+          "name": "Register PreToolUse hook in hooks.json",
+          "status": "complete",
+          "depends_on": [
+            "A2"
+          ],
+          "files": {
+            "create": [],
+            "modify": [
+              "hooks/hooks.json"
+            ],
+            "test": [
+              "tests/hooks/test_safe_commands.sh"
+            ]
+          },
+          "verification": "jq -e '.PreToolUse' hooks/hooks.json",
+          "done_when": "hooks.json has a PreToolUse entry with matcher 'Bash' pointing to ${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-safe-commands.sh. Existing PostToolUse and PermissionRequest entries unchanged. All hook tests still pass."
+        },
+        {
+          "id": "A4",
+          "name": "Switch all 5 subagent prompt files from bypassPermissions to auto",
+          "status": "complete",
+          "depends_on": [],
+          "files": {
+            "create": [],
+            "modify": [
+              "skills/orchestrate/implementer-prompt.md",
+              "skills/orchestrate/phase-dispatcher-prompt.md",
+              "skills/orchestrate/task-reviewer-prompt.md",
+              "skills/implementation-review/reviewer-prompt.md",
+              "skills/merge-pr/reviewer-prompt.md"
+            ],
+            "test": []
+          },
+          "verification": "grep -r 'bypassPermissions' skills/orchestrate/ skills/implementation-review/ skills/merge-pr/ && echo 'FAIL: bypassPermissions still present' || echo 'PASS: no bypassPermissions found'",
+          "done_when": "All 5 prompt files have mode: \"auto\" instead of mode: \"bypassPermissions\". No other content changes. grep finds zero occurrences of bypassPermissions in skills/."
+        },
+        {
+          "id": "A5",
+          "name": "Add learning loop to phase dispatcher prompt",
+          "status": "complete",
+          "depends_on": [
+            "A2"
+          ],
+          "files": {
+            "create": [],
+            "modify": [
+              "skills/orchestrate/phase-dispatcher-prompt.md"
+            ],
+            "test": []
+          },
+          "verification": "grep -q 'safe-cmds-nonmatch' skills/orchestrate/phase-dispatcher-prompt.md && grep -q 'AskUserQuestion' skills/orchestrate/phase-dispatcher-prompt.md && grep -q 'safe-commands.txt' skills/orchestrate/phase-dispatcher-prompt.md && echo 'PASS' || echo 'FAIL'",
+          "done_when": "Phase dispatcher prompt has a new section in 'Your Process' after step 4 (update plan doc) that: reads $TMPDIR/claude-safe-cmds-nonmatch.log, deduplicates entries, presents them via AskUserQuestion for user to approve, appends approved commands to hooks/safe-commands.txt, truncates the log. Instructions are clear enough for a fresh dispatcher subagent to execute without clarification."
+        },
+        {
+          "id": "A6",
+          "name": "Update orchestrate SKILL.md with hook documentation",
+          "status": "complete",
+          "depends_on": [
+            "A5"
+          ],
+          "files": {
+            "create": [],
+            "modify": [
+              "skills/orchestrate/SKILL.md"
+            ],
+            "test": []
+          },
+          "verification": "grep -q 'safe-commands' skills/orchestrate/SKILL.md && grep -q 'auto' skills/orchestrate/SKILL.md && echo 'PASS' || echo 'FAIL'",
+          "done_when": "Orchestrate SKILL.md has a brief section explaining: subagents run in auto mode, the PreToolUse hook auto-approves commands matching safe-commands.txt, non-matching commands are logged and surfaced per-task via the learning loop. Section is concise (under 100 words) to respect the 1000-word skill cap."
+        },
+        {
+          "id": "A7",
+          "name": "Write setup documentation for hook wiring",
+          "status": "complete",
+          "depends_on": [
+            "A3"
+          ],
+          "files": {
+            "create": [
+              "docs/safe-commands-setup.md"
+            ],
+            "modify": [],
+            "test": []
+          },
+          "verification": "test -f docs/safe-commands-setup.md && grep -q 'settings.json' docs/safe-commands-setup.md && echo 'PASS' || echo 'FAIL'",
+          "done_when": "docs/safe-commands-setup.md explains how to wire the PreToolUse hook in the user's settings.json, including: the hook config JSON snippet, where settings.json lives (~/.claude/settings.json), that the hook coexists with personal hooks, and a note that plugin-installed hooks wire automatically but settings.json hooks require manual setup."
+        },
+        {
+          "id": "A8",
+          "name": "Bump version in marketplace.json",
+          "status": "complete",
+          "depends_on": [
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A7"
+          ],
+          "files": {
+            "create": [],
+            "modify": [
+              ".claude-plugin/marketplace.json"
+            ],
+            "test": []
+          },
+          "verification": "jq -r '.plugins[].version' .claude-plugin/marketplace.json | sort -u && bash tests/hooks/test_safe_commands.sh && bash tests/hooks/test_post_tool_use.sh && bash tests/hooks/test_permission_request.sh",
+          "done_when": "All three plugin versions bumped (version number incremented from whatever the current value is at implementation time). Single consistent version across all three plugins. All hook test suites pass (test_safe_commands.sh, test_post_tool_use.sh, test_permission_request.sh), confirming existing pipeline behavior unchanged (SC5)."
+        }
+      ]
+    }
+  ]
+}
