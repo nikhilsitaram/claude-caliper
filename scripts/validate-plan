@@ -76,6 +76,9 @@ do_schema() {
     [[ -z "$rationale" ]] && err "ERROR: missing_field: phases[$p].rationale"
 
     if [[ -n "$letter" ]]; then
+      if [[ ! "$letter" =~ ^[A-Z]$ ]]; then
+        err "ERROR: invalid_phase_letter_format: phases[$p].letter='$letter' must be a single uppercase A-Z character"
+      fi
       if [[ " $seen_phase_letters " == *" $letter "* ]]; then
         err "ERROR: duplicate_phase_letter: phase letter '$letter' appears more than once"
       fi

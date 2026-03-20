@@ -135,6 +135,13 @@ jq '.phases[1].letter = "A"' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.js
 assert_fail "duplicate phase letter" "duplicate_phase_letter" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
+echo "Test 15: Lowercase phase letter"
+rm -rf "$TMPDIR/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '.phases[0].letter = "a"' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "lowercase phase letter" "invalid_phase_letter_format" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
