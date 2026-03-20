@@ -291,8 +291,70 @@ do_render() {
   mv "$tmp" "$out"
 }
 
+do_update_status_task() {
+  local plan_json="$1" task_id="$2" new_status="$3"
+  local valid_statuses=("pending" "in_progress" "complete" "skipped")
+  local valid=false
+  for s in "${valid_statuses[@]}"; do
+    if [ "$new_status" = "$s" ]; then valid=true; break; fi
+  done
+  if [ "$valid" = false ]; then
+    echo "ERROR: invalid_task_status: '$new_status'" >&2
+    exit 1
+  fi
+  local task_found
+  task_found=$(jq --arg id "$task_id" '[.phases[].tasks[] | select(.id == $id)] | length' "$plan_json")
+  if [ "$task_found" -eq 0 ]; then
+    echo "ERROR: task_not_found: '$task_id' not found in plan" >&2
+    exit 1
+  fi
+  local tmp
+  tmp=$(mktemp)
+  jq --arg id "$task_id" --arg status "$new_status" '
+    (.phases[].tasks[] | select(.id == $id)).status = $status
+  ' "$plan_json" > "$tmp"
+  mv "$tmp" "$plan_json"
+  do_render "$plan_json"
+}
+
+do_update_status_phase() {
+  local plan_json="$1" phase_letter="$2" new_status="$3"
+  if [[ "$new_status" != "Not Started" && "$new_status" != "In Progress" && ! "$new_status" =~ ^Complete\ \([0-9]{4}-[0-9]{2}-[0-9]{2}\)$ ]]; then
+    echo "ERROR: invalid_phase_status: '$new_status' (expected Not Started, In Progress, or Complete (YYYY-MM-DD))" >&2
+    exit 1
+  fi
+  local tmp
+  tmp=$(mktemp)
+  jq --arg letter "$phase_letter" --arg status "$new_status" '
+    (.phases[] | select(.letter == $letter)).status = $status
+  ' "$plan_json" > "$tmp"
+  mv "$tmp" "$plan_json"
+  do_render "$plan_json"
+}
+
+do_update_status_plan() {
+  local plan_json="$1" new_status="$2"
+  local valid_plan_statuses=("Not Yet Started" "In Development" "Complete")
+  local valid=false
+  for s in "${valid_plan_statuses[@]}"; do
+    if [ "$new_status" = "$s" ]; then valid=true; break; fi
+  done
+  if [ "$valid" = false ]; then
+    echo "ERROR: invalid_plan_status: '$new_status' (expected Not Yet Started, In Development, or Complete)" >&2
+    exit 1
+  fi
+  local tmp
+  tmp=$(mktemp)
+  jq --arg status "$new_status" '.status = $status' "$plan_json" > "$tmp"
+  mv "$tmp" "$plan_json"
+  do_render "$plan_json"
+}
+
 MODE=""
 PLAN_JSON=""
+UPDATE_TARGET=""
+UPDATE_ID=""
+UPDATE_STATUS=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -313,8 +375,39 @@ while [[ $# -gt 0 ]]; do
       fi
       ;;
     --update-status)
-      echo "Not implemented yet"
-      exit 1
+      MODE="update-status"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --task)
+      shift
+      UPDATE_TARGET="task"
+      if [[ $# -gt 0 ]]; then
+        UPDATE_ID="$1"
+        shift
+      fi
+      ;;
+    --phase)
+      shift
+      UPDATE_TARGET="phase"
+      if [[ $# -gt 0 ]]; then
+        UPDATE_ID="$1"
+        shift
+      fi
+      ;;
+    --plan)
+      UPDATE_TARGET="plan"
+      shift
+      ;;
+    --status)
+      shift
+      if [[ $# -gt 0 ]]; then
+        UPDATE_STATUS="$1"
+        shift
+      fi
       ;;
     *)
       usage
@@ -328,6 +421,13 @@ done
 case "$MODE" in
   schema) do_schema "$PLAN_JSON" ;;
   render) do_render "$PLAN_JSON" ;;
-  update-status) echo "Not implemented yet" ; exit 1 ;;
+  update-status)
+    case "$UPDATE_TARGET" in
+      task) do_update_status_task "$PLAN_JSON" "$UPDATE_ID" "$UPDATE_STATUS" ;;
+      phase) do_update_status_phase "$PLAN_JSON" "$UPDATE_ID" "$UPDATE_STATUS" ;;
+      plan) do_update_status_plan "$PLAN_JSON" "$UPDATE_STATUS" ;;
+      *) usage ;;
+    esac
+    ;;
   *) usage ;;
 esac
