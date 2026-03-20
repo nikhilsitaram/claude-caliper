@@ -32,8 +32,9 @@ Use `./reviewer-prompt.md` template with these variables:
 | `{BASE_SHA}` | `git merge-base HEAD origin/main` — where branch diverged |
 | `{HEAD_SHA}` | `git rev-parse HEAD` — current tip |
 | `{FEATURE_SUMMARY}` | What the feature does (1-2 sentences) |
-| `{TASK_LIST}` | Tasks that were implemented |
-| `{PLAN_FILE_PATH}` | Path to plan document |
+| `{TASK_LIST}` | Extract from plan.json: `jq '.phases[N].tasks[] \| .id + ": " + .name'` |
+| `{PLAN_DIR}` | Path to plan directory |
+| `{PHASE_DIR}` | Path to current phase directory |
 | `{REPO_PATH}` | Repository root path |
 | `{PHASE_CONTEXT}` | Phase letter and name (e.g., "Phase A of C: Core API"), and what downstream phases expect (interfaces, config, APIs). Empty string for final/single-phase reviews. |
 
@@ -59,7 +60,7 @@ Use `./reviewer-prompt.md` template with these variables:
 
 After review passes, the **orchestrator** updates the plan document:
 
-1. **Document fixups** — append `### Implementation Review Changes` to `### Phase X Completion Notes` listing each change. Omit if no fixups needed.
+1. **Document fixups** — append `### Implementation Review Changes` to `phase-{letter}/completion.md` listing each change. Omit if no fixups needed.
 
 2. **Handoff notes (multi-phase only)** — if future phases exist, the dispatcher has already written inline handoff notes on target tasks. The orchestrator verifies these are accurate post-review and updates if review changes affected interfaces.
 

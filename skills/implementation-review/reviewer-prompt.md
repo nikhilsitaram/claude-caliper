@@ -43,9 +43,12 @@ Agent tool (general-purpose):
 
     ## Context
 
-    Read the plan at {PLAN_FILE_PATH} for:
-    - What was completed (Summary section)
-    - What deviated from the plan and why (Deviations section)
+    Read the plan at {PLAN_DIR}/plan.json for:
+    - Task metadata: files created/modified, verification commands, done_when criteria
+
+    Read {PHASE_DIR}/completion.md for:
+    - What was completed (Summary)
+    - What deviated from the plan and why (Deviations)
 
     Intentional deviations documented in the completion report are NOT review issues.
 
