@@ -67,6 +67,17 @@ Agent(
 }
 ```
 
+11. **Route next workflow** — After draft-plan returns, ask the user:
+
+    AskUserQuestion (header: "Pipeline"):
+    - **Ship** — Orchestrate executes all phases with implementation review, then auto-ships PRs
+    - **Implementation review** — Orchestrate executes and reviews, then pauses — no auto-ship
+    - **Plan review** — Stop here. Plan is written and reviewed — you take it from here.
+
+    **Ship:** invoke the orchestrate skill with `WORKFLOW_MODE: ship`.
+    **Implementation review:** invoke the orchestrate skill with `WORKFLOW_MODE: review-only`.
+    **Plan review:** report the plan file path and stop.
+
 ## Challenging Assumptions
 
 Before clarifying questions, challenge the framing like a senior PM:

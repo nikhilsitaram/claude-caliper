@@ -5,7 +5,7 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Orchestrate
 
-Execute plan phase by phase: dispatch a fresh phase dispatcher subagent per phase, then dispatch implementation-review from the orchestrate context, report phase completion, and advance. After all phases, auto-invoke ship.
+Execute plan phase by phase: dispatch a fresh phase dispatcher subagent per phase, then dispatch implementation-review from the orchestrate context, report phase completion, and advance. After all phases, auto-invoke ship (unless `WORKFLOW_MODE: review-only`).
 
 **Core principle:** Every level is a dispatcher. Orchestrate dispatches phase dispatchers. Phase dispatchers dispatch implementers and reviewers. No level writes application code itself — only the implementer subagent touches code.
 
@@ -35,6 +35,21 @@ Why separate subagents per task: each implementer starts with fresh context, pre
 | `./task-reviewer-prompt.md` | Per-task reviewer (used inside phase dispatcher) |
 | `skills/implementation-review/reviewer-prompt.md` | Holistic cross-task reviewer (dispatched from orchestrate context) |
 
+## Progress Tracking
+
+Before executing, create a visible task list so the user can track progress:
+
+1. **Read the plan** — identify phases and task counts
+2. **Build task list** — TaskCreate for each major step:
+   - Per phase: "Phase {X}: Execute tasks ({N} tasks)", "Phase {X}: Implementation review", "Phase {X}: Ship PR"
+   - Final: "Mark plan complete"
+   Set dependencies with `addBlockedBy` so each phase blocks the next.
+3. **Update as you go** — mark tasks `in_progress` before starting, `completed` when done. After each subagent returns, output a one-line progress note:
+   - Dispatcher: `Phase A complete — [what was built]`
+   - Review: `Phase A review — N issues, all resolved`
+   - Ship: `Phase A PR — [URL]`
+4. **Skip ship tasks** if `WORKFLOW_MODE: review-only` — omit "Ship PR" tasks from the list entirely
+
 ## Per-Phase Execution
 
 Before first phase:
@@ -62,7 +77,7 @@ For each phase:
 9. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`. If exit 1, pause and report failing criteria to user — do not advance to next phase.
 10. Emit phase summary: "Phase A complete. [N tasks]. Review: X issues — [brief list]. [Status]."
 11. Update status: `scripts/validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
-12. Ship PR: invoke ship with `--base phase-{prior-letter}` (or `--base main` for Phase A)
+12. Ship PR (skip if `WORKFLOW_MODE: review-only`): invoke ship with `--base phase-{prior-letter}` (or `--base main` for Phase A)
 
 Single-phase plans: one iteration of the same loop. Skip handoff notes and final cross-phase review.
 
@@ -72,7 +87,9 @@ After the final phase:
 2. Final cross-phase review (multi-phase plans only): dispatch implementation-review with `PLAN_BASE_SHA` (pre-Phase-A) and `HEAD` — reviewer sees the total diff across all phases, catching cross-phase integration issues that per-phase reviews miss (e.g., Phase A exported an interface that Phase C consumed differently than intended)
 3. Triage findings via deviation rules, fix issues
 4. `scripts/validate-plan --update-status plan.json --plan --status Complete`
-5. Auto-invoke ship
+5. If `WORKFLOW_MODE: ship`, auto-invoke ship. If `review-only`, report completion and stop — the user decides when to ship.
+
+**Continuity:** Execute all phases, reviews, and shipping in one continuous flow. Do not pause between phases or wait for user confirmation unless a Rule 4 violation occurs. The only human touchpoints are Rule 4 escalations.
 
 ## Example Workflow
 
