@@ -61,6 +61,7 @@ do_schema() {
 
   local all_task_ids=()
   local all_create_paths=()
+  local seen_phase_letters=""
 
   for ((p=0; p<phase_count; p++)); do
     local letter name phase_status rationale
@@ -73,6 +74,13 @@ do_schema() {
     [[ -z "$name" ]] && err "ERROR: missing_field: phases[$p].name"
     [[ -z "$phase_status" ]] && err "ERROR: missing_field: phases[$p].status"
     [[ -z "$rationale" ]] && err "ERROR: missing_field: phases[$p].rationale"
+
+    if [[ -n "$letter" ]]; then
+      if [[ " $seen_phase_letters " == *" $letter "* ]]; then
+        err "ERROR: duplicate_phase_letter: phase letter '$letter' appears more than once"
+      fi
+      seen_phase_letters="$seen_phase_letters $letter"
+    fi
 
     if [[ -n "$phase_status" ]]; then
       case "$phase_status" in
@@ -117,6 +125,17 @@ do_schema() {
       [[ -z "$task_status" ]] && err "ERROR: missing_field: phases[$p].tasks[$t].status"
       [[ -z "$verification" ]] && err "ERROR: missing_field: phases[$p].tasks[$t].verification"
       [[ -z "$done_when" ]] && err "ERROR: missing_field: phases[$p].tasks[$t].done_when"
+
+      if [[ -n "$id" ]]; then
+        if [[ ${#all_task_ids[@]} -gt 0 ]]; then
+          for existing_id in "${all_task_ids[@]}"; do
+            if [[ "$existing_id" == "$id" ]]; then
+              err "ERROR: duplicate_task_id: task ID '$id' appears more than once"
+              break
+            fi
+          done
+        fi
+      fi
 
       if [[ -n "$task_status" ]]; then
         case "$task_status" in
