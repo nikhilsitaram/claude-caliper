@@ -98,7 +98,7 @@
         {
           "id": "A3",
           "name": "Update draft-plan SKILL.md for workflow and phase depends_on",
-          "status": "in_progress",
+          "status": "complete",
           "depends_on": [],
           "files": {
             "create": [],
