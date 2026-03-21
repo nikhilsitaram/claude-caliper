@@ -25,7 +25,7 @@ Complete in order:
 4. **Propose 2-3 approaches** — trade-offs and your recommendation
 5. **Present design** — sections scaled to complexity, approval after each
 6. **Set up worktree** — `git worktree add -b integrate/<feature> .claude/worktrees/<feature>`; run tests to establish a clean baseline. This is the integration branch — phase worktrees are created by orchestrate as siblings.
-7. **Design approval gate** — use AskUserQuestion with options `["Approved", "Needs changes"]`, include `metadata: { source: "design-approval" }` and absolute plan dir path in question text (format: `Plan dir: /absolute/path/.claude/worktrees/<feature>/docs/plans/YYYY-MM-DD-topic`). If "Needs changes," return to step 5. The PostToolUse hook creates a `.design-approved` sentinel enabling auto-approved edits for the rest of the session.
+7. **Design approval gate** — use AskUserQuestion with options `["Approved", "Needs changes"]`. If "Needs changes," return to step 5. On approval, create the sentinel: `mkdir -p <plan-dir> && touch <plan-dir>/.design-approved` — this enables auto-approved edits for the rest of the session via the PermissionRequest hook.
 8. **Write design doc** — `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`, commit
 9. **Dispatch design-review subagent** — fresh Opus agent validates design before planning (hard gate)
 10. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero design context)
@@ -68,15 +68,16 @@ Agent(
 ```json
 {
   "questions": [{
-    "question": "Design approved? Plan dir: <absolute-worktree-path>/docs/plans/YYYY-MM-DD-topic",
+    "question": "Design approved?",
     "options": [
       { "label": "Approved", "description": "Write design doc and proceed to review" },
       { "label": "Needs changes", "description": "Continue iterating on the design" }
     ]
-  }],
-  "metadata": { "source": "design-approval" }
+  }]
 }
 ```
+
+On "Approved", immediately run: `mkdir -p <plan-dir> && touch <plan-dir>/.design-approved`
 
 ## Challenging Assumptions
 

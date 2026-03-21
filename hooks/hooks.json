@@ -7,13 +7,6 @@
         "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-safe-commands.sh"
       }]
     }],
-    "PostToolUse": [{
-      "matcher": "AskUserQuestion",
-      "hooks": [{
-        "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use-design-approval.sh"
-      }]
-    }],
     "PermissionRequest": [{
       "matcher": "Edit|Write",
       "hooks": [{
