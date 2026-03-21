@@ -1,0 +1,30 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Hook tests
+        run: |
+          bash tests/hooks/test_safe_commands.sh
+          bash tests/hooks/test_permission_request.sh
+          bash tests/hooks/test_permission_request_safe_bash.sh
+
+      - name: Validate-plan tests
+        run: |
+          bash tests/validate-plan/test_schema.sh
+          bash tests/validate-plan/test_e2e.sh
+          bash tests/validate-plan/test_render.sh
+          bash tests/validate-plan/test_update_status.sh
+          bash tests/validate-plan/test_criteria.sh
