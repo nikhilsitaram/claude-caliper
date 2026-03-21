@@ -69,32 +69,45 @@ For each phase being dispatched:
    git worktree add .claude/worktrees/<feature>-phase-{letter} -b phase-{letter} integrate/<feature>
    ```
 2. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in the phase worktree
-3. Extract context from plan.json:
+3. **Bootstrap dependencies** in the phase worktree — detect lockfiles/manifests and run the matching install command. Common patterns:
+   | Detected file | Install command |
+   |---------------|-----------------|
+   | `pyproject.toml` with `[project]` | `uv venv && uv pip install -e '.[dev]'` (or `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'`) |
+   | `requirements.txt` | `uv venv && uv pip install -r requirements.txt` |
+   | `package-lock.json` | `npm ci` |
+   | `yarn.lock` | `yarn install --frozen-lockfile` |
+   | `pnpm-lock.yaml` | `pnpm install --frozen-lockfile` |
+   | `Cargo.toml` | `cargo fetch` |
+   | `go.mod` | `go mod download` |
+   | None of the above | Skip (no deps to install) |
+
+   This ensures bare commands (`pytest`, `node`, `cargo test`) resolve correctly inside the worktree. Only runs once per phase — tasks inherit the environment.
+4. Extract context from plan.json:
    - `PHASE_TASKS_JSON=$(jq '.phases[N].tasks' plan.json)`
    - `PLAN_DIR=$(dirname "$(realpath plan.json)")`
    - `PHASE_DIR=${PLAN_DIR}/phase-{letter_lower}`
    - `PRIOR_COMPLETIONS` — concatenate `completion.md` from the transitive `depends_on` closure. Phase D (deps: B, C) receives A+B+C. Empty when no dependencies.
    - `CROSS_PHASE_HANDOFF_TARGETS` — JSON mapping source task to target paths. Scan phases that transitively depend on the current phase (not positional — in a DAG, later-indexed phases may be siblings, not dependents).
-4. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_LETTER`, `PHASE_NAME`, `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `REPO_PATH` (= phase worktree path)
-5. After dispatcher returns:
+5. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_LETTER`, `PHASE_NAME`, `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `REPO_PATH` (= phase worktree path)
+6. After dispatcher returns:
    - Rule 4 violation → ask user, pause (see Rule 4 Handling)
    - Otherwise → dispatch implementation-review with: `PHASE_BASE_SHA`, `HEAD`, `PLAN_DIR`, `PHASE_DIR`
      - DESIGN_DOC_PATH = `design-doc` from plan.json (or "None")
-6. Triage: dispatch implementer for Rule 1-3; Rule 4 → ask user and pause
-7. Re-Review Gate: >5 issues → re-review after fixes
-8. Append review changes to `${PHASE_DIR}/completion.md`
-9. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`. If exit 1, pause and report failing criteria to user — do not advance.
-10. Emit phase summary: "Phase {LETTER} complete. [N tasks]. Review: X issues — [brief list]. [Status]."
-11. Update status: `scripts/validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
-12. Rebase on latest integration:
+7. Triage: dispatch implementer for Rule 1-3; Rule 4 → ask user and pause
+8. Re-Review Gate: >5 issues → re-review after fixes
+9. Append review changes to `${PHASE_DIR}/completion.md`
+10. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`. If exit 1, pause and report failing criteria to user — do not advance.
+11. Emit phase summary: "Phase {LETTER} complete. [N tasks]. Review: X issues — [brief list]. [Status]."
+12. Update status: `scripts/validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
+13. Rebase on latest integration:
     ```bash
     git -C .claude/worktrees/<feature>-phase-{letter} fetch origin integrate/<feature>
     git -C .claude/worktrees/<feature>-phase-{letter} rebase origin/integrate/<feature>
     ```
     Clean → run tests → continue. Conflict markers → `git rebase --abort`, escalate to user. First to merge: no-op.
-13. Ship phase PR: invoke ship with `--base integrate/<feature>`
-14. Merge phase PR: `gh pr merge --squash`, then update integration worktree: `git pull` in `.claude/worktrees/<feature>/`
-15. Clean up phase worktree:
+14. Ship phase PR: invoke ship with `--base integrate/<feature>`
+15. Merge phase PR: `gh pr merge --squash`, then update integration worktree: `git pull` in `.claude/worktrees/<feature>/`
+16. Clean up phase worktree:
     ```bash
     git worktree remove .claude/worktrees/<feature>-phase-{letter}
     git branch -D phase-{letter}
