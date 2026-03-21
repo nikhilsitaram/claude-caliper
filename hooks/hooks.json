@@ -7,12 +7,21 @@
         "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-safe-commands.sh"
       }]
     }],
-    "PermissionRequest": [{
-      "matcher": "Edit|Write",
-      "hooks": [{
-        "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/permission-request-accept-edits.sh"
-      }]
-    }]
+    "PermissionRequest": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/permission-request-accept-edits.sh"
+        }]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [{
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/permission-request-safe-bash.sh"
+        }]
+      }
+    ]
   }
 }

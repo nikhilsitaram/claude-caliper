@@ -127,9 +127,7 @@ extract_segments() {
     words+=("$segment")
   fi
 
-  for seg in "${words[@]+"${words[@]}"}"; do
-    echo "$seg"
-  done
+  SEGMENTS=("${words[@]+"${words[@]}"}")
 }
 
 extract_command_words_from_segment() {
@@ -199,7 +197,8 @@ is_safe() {
   return 1
 }
 
-mapfile -t segments < <(extract_segments "$cmd")
+extract_segments "$cmd"
+segments=("${SEGMENTS[@]+"${SEGMENTS[@]}"}")
 
 count=0
 all_safe=1
