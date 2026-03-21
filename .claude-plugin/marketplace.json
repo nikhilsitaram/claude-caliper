@@ -15,6 +15,7 @@
         "email": "nikhil5890@gmail.com"
       },
       "strict": false,
+      "hooks": "./config/hooks.json",
       "skills": [
         "./skills/design",
         "./skills/design-review",
