@@ -66,7 +66,7 @@ Use AskUserQuestion with options:
 
 If `--skip-fixes` was passed, skip this entire step.
 
-For each actionable item: make the fix. Run project tests — do not merge with failing tests. Commit and push.
+For each actionable item: make the fix. Run project tests — do not merge with failing tests. Commit and push with `git push -u origin HEAD`.
 
 ### Step 6: Comment on PR
 
@@ -91,7 +91,7 @@ git fetch origin $DEFAULT_BRANCH
 git merge-base --is-ancestor origin/$DEFAULT_BRANCH HEAD
 ```
 
-If behind (non-zero exit): rebase onto default branch, resolve conflicts, run tests, push `--force-with-lease`. Comment on PR with conflict resolution details. Complex conflicts → stop and ask user.
+If behind (non-zero exit): rebase onto default branch, resolve conflicts, run tests, push with `git push -u origin HEAD --force-with-lease`. Always use `origin HEAD` explicitly — worktrees lose upstream tracking after rebase, so bare `git push` fails. Comment on PR with conflict resolution details. Complex conflicts → stop and ask user.
 
 **CWD safety:** Always `cd "$MAIN_REPO"` before merging — merge triggers remote branch deletion which bricks the shell if CWD is inside the worktree.
 

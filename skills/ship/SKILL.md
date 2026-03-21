@@ -86,7 +86,7 @@ If conflicts occur, resolve them and re-run tests before continuing.
 git push -u origin HEAD
 ```
 
-If branch was rebased and already has remote, use `git push --force-with-lease`.
+If branch was rebased and already has remote, use `git push -u origin HEAD --force-with-lease`. Always use `origin HEAD` explicitly — worktrees lose upstream tracking after rebase, so bare `git push` fails.
 
 ### Step 8: Create PR
 
