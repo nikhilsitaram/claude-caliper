@@ -8,14 +8,13 @@
     {
       "name": "claude-caliper",
       "description": "claude-caliper bundle",
-      "version": "1.9.1",
+      "version": "1.9.2",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
         "email": "nikhil5890@gmail.com"
       },
       "strict": false,
-      "hooks": "./config/hooks.json",
       "skills": [
         "./skills/design",
         "./skills/design-review",
@@ -32,14 +31,13 @@
     {
       "name": "claude-caliper-workflow",
       "description": "End-to-end development workflow: design → draft-plan → orchestrate → review → ship → merge",
-      "version": "1.9.1",
+      "version": "1.9.2",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
         "email": "nikhil5890@gmail.com"
       },
       "strict": false,
-      "hooks": "./config/hooks.json",
       "skills": [
         "./skills/design",
         "./skills/design-review",
@@ -54,7 +52,7 @@
     {
       "name": "claude-caliper-tooling",
       "description": "Standalone tools: codebase audit and skill evaluation",
-      "version": "1.9.1",
+      "version": "1.9.2",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",

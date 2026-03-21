@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-HOOK="$REPO_ROOT/config/permission-request-accept-edits.sh"
+HOOK="$REPO_ROOT/hooks/permission-request-accept-edits.sh"
 PASS=0
 FAIL=0
 

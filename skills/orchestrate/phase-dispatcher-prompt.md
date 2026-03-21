@@ -117,7 +117,7 @@ Task tool (general-purpose):
             2. cargo
             3. rustc"
          c. If `~/.claude/safe-commands.txt` does not exist yet, copy the bundled
-            defaults from `config/safe-commands.txt` first (so the user file starts
+            defaults from `hooks/safe-commands.txt` first (so the user file starts
             with the full default list, then user additions build on top)
          d. For each command the user approves, append it to
             `~/.claude/safe-commands.txt` (one per line)

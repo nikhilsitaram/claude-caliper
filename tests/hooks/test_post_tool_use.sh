@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-HOOK="$REPO_ROOT/config/post-tool-use-design-approval.sh"
+HOOK="$REPO_ROOT/hooks/post-tool-use-design-approval.sh"
 PASS=0
 FAIL=0
 

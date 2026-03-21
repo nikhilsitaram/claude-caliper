@@ -1,4 +1,4 @@
-# Config — Hooks and Safe Commands
+# Hooks and Safe Commands
 
 Hook scripts and configuration for the claude-caliper plugin.
 
@@ -17,14 +17,14 @@ Hook scripts and configuration for the claude-caliper plugin.
 The hook checks for a **user file first**, falling back to bundled defaults:
 
 - If `~/.claude/safe-commands.txt` exists, **only** that file is used (full user control)
-- If it doesn't exist, `config/safe-commands.txt` (bundled defaults) is used
+- If it doesn't exist, `hooks/safe-commands.txt` (bundled defaults) is used
 
 This means you can remove commands from the defaults by creating your own file. The learning loop copies bundled defaults to the user file before the first append, so you start with the full default list.
 
 To customize:
 
 ```bash
-cp "$(dirname "$(which claude)")/../config/safe-commands.txt" ~/.claude/safe-commands.txt
+cp "$(dirname "$(which claude)")/../hooks/safe-commands.txt" ~/.claude/safe-commands.txt
 # Now edit ~/.claude/safe-commands.txt to add/remove commands
 ```
 

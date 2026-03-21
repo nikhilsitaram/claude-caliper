@@ -120,7 +120,7 @@ When a dispatcher reports a Rule 4 violation, ask the user directly. Present: wh
 
 ## Permission Model
 
-Subagents run in `auto` mode — Claude evaluates each permission request with built-in prompt injection safeguards. A PreToolUse hook (`config/pretooluse-safe-commands.sh`) intercepts Bash commands and instantly approves those matching safe list prefixes, avoiding per-command AI evaluation overhead for common dev tools. The hook uses `~/.claude/safe-commands.txt` if it exists (user override), otherwise falls back to bundled `config/safe-commands.txt`. Commands not in the active list fall through to auto mode. The phase dispatcher surfaces non-safe commands after each task so the user can grow their safe list.
+Subagents run in `auto` mode — Claude evaluates each permission request with built-in prompt injection safeguards. A PreToolUse hook (`hooks/pretooluse-safe-commands.sh`) intercepts Bash commands and instantly approves those matching safe list prefixes, avoiding per-command AI evaluation overhead for common dev tools. The hook uses `~/.claude/safe-commands.txt` if it exists (user override), otherwise falls back to bundled `hooks/safe-commands.txt`. Commands not in the active list fall through to auto mode. The phase dispatcher surfaces non-safe commands after each task so the user can grow their safe list.
 
 ## Key Constraints
 

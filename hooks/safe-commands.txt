@@ -35,6 +35,7 @@ test
 touch
 uv
 uvx
+validate-plan
 wc
 which
 xargs
