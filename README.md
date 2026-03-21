@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/caliper-icon.png" alt="caliper icon" width="120">
+<img src="assets/banner.png" alt="claude-caliper banner" width="700">
 
 # claude-caliper
 
