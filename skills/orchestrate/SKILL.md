@@ -31,12 +31,12 @@ Before executing, create a visible task list so the user can track progress:
    - Dispatcher: `Phase A complete — [what was built]`
    - Review: `Phase A review — N issues, all resolved`
    - Ship: `Phase A PR — [URL]`
-4. **Skip ship tasks** if workflow is `review-only` — omit "Ship PR" tasks from the list entirely
+4. **Ship tasks** apply to both `create-pr` and `merge-pr` workflows — the difference is only whether the final PR is merged
 
 ## Setup
 
 Before first phase:
-- Read workflow: `WORKFLOW=$(jq -r '.workflow' plan.json)` — controls ship behavior (`ship`, `review-only`)
+- Read workflow: `WORKFLOW=$(jq -r '.workflow' plan.json)` — controls ship behavior (`create-pr`, `merge-pr`)
 - `scripts/validate-plan --update-status plan.json --plan --status "In Development"`
 - `PLAN_BASE_SHA=$(git rev-parse HEAD)` — saved for final cross-phase review
 - Push integration branch: `git push -u origin integrate/<feature>`
@@ -124,8 +124,8 @@ Single-phase plans: one iteration. Skip final cross-phase review.
 3. Triage findings, fix issues
 4. `scripts/validate-plan --update-status plan.json --plan --status Complete`
 5. Route on workflow:
-   - `"ship"`: create final PR (`integrate/<feature>` → main), merge, clean up integration worktree
-   - `"review-only"`: create final PR but stop — user reviews and merges manually
+   - `"merge-pr"`: create final PR (`integrate/<feature>` → main), invoke merge-pr, clean up integration worktree
+   - `"create-pr"`: create final PR but stop — user reviews and merges manually
 
 **Continuity:** Execute all phases, reviews, and shipping in one continuous flow. Do not pause between phases or wait for user confirmation unless a Rule 4 violation occurs. The only human touchpoints are Rule 4 escalations.
 

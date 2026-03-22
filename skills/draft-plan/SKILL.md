@@ -45,7 +45,7 @@ docs/plans/YYYY-MM-DD-topic/
 {
   "schema": 1,
   "status": "Not Yet Started",
-  "workflow": "ship",
+  "workflow": "create-pr",
   "goal": "One sentence",
   "architecture": "2-3 sentences",
   "tech_stack": "Key technologies",
@@ -76,7 +76,7 @@ docs/plans/YYYY-MM-DD-topic/
 }
 ```
 
-Optional: `success_criteria` array at plan, phase, and task levels for automated verification. `workflow` field controls post-plan behavior: `ship` (full auto), `review-only` (execute but don't merge final PR), `plan-only` (stop after planning). Set by the design skill based on user choice.
+Optional: `success_criteria` array at plan, phase, and task levels for automated verification. `workflow` field controls post-plan behavior: `create-pr` (orchestrate + ship, default), `merge-pr` (orchestrate + ship + merge), `plan-only` (stop after planning). Set by the design skill based on user choice.
 
 **See:** `docs/plans/2026-03-19-structured-plans/design-structured-plans.md` for full schema reference.
 

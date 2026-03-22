@@ -47,7 +47,7 @@ Then the pipeline runs:
 | 6 | Orchestrator dispatches one fresh subagent per task, each running RED-GREEN-REFACTOR | Fresh subagents |
 | 7 | Per-task reviewer checks each task (never the implementer) | Fresh subagents |
 | 8 | Implementation review does a cross-task holistic pass | Fresh subagent |
-| 9 | Ship opens a PR | Automated |
+| 9 | Ship creates a PR | Automated |
 | 10 | You review the PR and run `/merge-pr` | **You** |
 | 11 | Fresh-eyes review reads the diff cold before any external feedback | Fresh subagent |
 | 12 | Fixes applied, PR merged, branch cleaned up | Automated |
@@ -153,7 +153,7 @@ These skills chain automatically. You trigger the first one by describing what t
 | **Plan Gate** | [plan-review](skills/plan-review/) | Catches vague steps, missing file paths, design-plan drift, the "Different Claude Test" |
 | **Execution** | [orchestrate](skills/orchestrate/) | Dispatches fresh subagent per task running RED-GREEN-REFACTOR TDD; parallel phases via git worktrees |
 | **Review Gate** | [implementation-review](skills/implementation-review/) | Cross-task holistic review — catches inconsistencies invisible to per-task reviewers |
-| **Ship** | [ship](skills/ship/) | Commits, rebases, tests, pushes, opens PR with structured summary |
+| **Create PR** | [ship](skills/ship/) | Commits, rebases, tests, pushes, opens PR with structured summary |
 | **Merge** | [merge-pr](skills/merge-pr/) | Fresh-eyes review before reading external feedback, addresses comments, squash merges, cleans up |
 
 ### Standalone Tools
@@ -288,7 +288,7 @@ Every task specifies exact files, a verification command, and a measurable end s
 {
   "schema": 1,
   "status": "Not Yet Started",
-  "workflow": "ship",
+  "workflow": "create-pr",
   "goal": "Add rate limiting with per-route config",
   "architecture": "Sliding window counter in Redis, middleware per route group",
   "tech_stack": "Node.js, Redis, Express",
@@ -419,7 +419,7 @@ Skills degrade silently. A prompt tweak that looks better might fail on edge cas
 Yes. Skills are language-agnostic. They auto-detect test runners, respect project conventions, and work with any git repository.
 
 **Can I stop after the plan?**
-Yes. After approving the design, you choose: **Ship** (full auto), **Review only** (execute but don't auto-merge), or **Plan only** (stop after planning).
+Yes. After approving the design, you choose: **Create PR** (execute and open PR for human review), **Merge PR** (execute, open PR, and auto-merge), or **Plan only** (stop after planning).
 
 **What if the design is wrong?**
 The design skill waits for explicit approval. Say "needs changes" and iterate. Nothing proceeds until you approve.

@@ -28,8 +28,8 @@ Complete in order:
 7. **Choose workflow extent** — if not already chosen, ask the user:
 
     AskUserQuestion (header: "Workflow"):
-    - **Ship** — Full auto: orchestrate executes, reviews, and ships
-    - **Review only** — Orchestrate executes and reviews, creates final PR but doesn't merge
+    - **Create PR** (default) — Orchestrate → ship (PR created, stops for human review)
+    - **Merge PR** — Orchestrate → ship → merge-pr (PR created, reviewed, and merged)
     - **Plan only** — Stop after the plan is written and reviewed (orchestrate will not run)
 
     Store the choice for step 12.
@@ -38,9 +38,9 @@ Complete in order:
 9. **Write design doc** — `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`, commit
 10. **Dispatch design-review subagent** — fresh Opus agent validates design before planning (hard gate)
 11. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero design context)
-12. **Route workflow** — Map the step 7 choice to the schema enum value (`Ship` → `ship`, `Review only` → `review-only`, `Plan only` → `plan-only`), then write: `jq --arg w "<mapped-value>" '.workflow = $w' plan.json > tmp && mv tmp plan.json`
+12. **Route workflow** — Map the step 7 choice to the schema enum value (`Create PR` → `create-pr`, `Merge PR` → `merge-pr`, `Plan only` → `plan-only`), then write: `jq --arg w "<mapped-value>" '.workflow = $w' plan.json > tmp && mv tmp plan.json`
 
-    For **Ship** or **Review only**: invoke orchestrate.
+    For **Create PR** or **Merge PR**: invoke orchestrate.
     For **Plan only**: report the plan file path and stop.
 
 ```text
