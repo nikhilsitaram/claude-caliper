@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Not Yet Started",
+  "status": "In Development",
   "workflow": "ship",
   "goal": "Make worktree dependency bootstrapping reliable across single-root repos, workspace-based monorepos, and multi-manifest repos, with clear failure reporting and tool availability fallbacks",
   "architecture": "Extract the bootstrap procedure to skills/design/dependency-bootstrap.md as a shared reference file. The design skill step 6 gains a sub-step that bootstraps deps via See reference before running tests. The orchestrate skill step 3 replaces its inline install table (~180 words) with a one-line summary plus a See reference to the same file, freeing token budget.",
