@@ -25,12 +25,12 @@ Complete in order:
 4. **Propose 2-3 approaches** — trade-offs and your recommendation
 5. **Present design** — sections scaled to complexity, approval after each
 6. **Set up worktree** — `git worktree add -b integrate/<feature> .claude/worktrees/<feature>`; run tests to establish a clean baseline. This is the integration branch — phase worktrees are created by orchestrate as siblings.
-7. **Choose workflow extent** — ask the user:
+7. **Choose workflow extent** — if not already chosen, ask the user:
 
     AskUserQuestion (header: "Workflow"):
     - **Ship** — Full auto: orchestrate executes, reviews, and ships
     - **Review only** — Orchestrate executes and reviews, creates final PR but doesn't merge
-    - **Plan only** — Stop here. Plan is written and reviewed.
+    - **Plan only** — Stop after the plan is written and reviewed (orchestrate will not run)
 
     Store the choice for step 12.
 
