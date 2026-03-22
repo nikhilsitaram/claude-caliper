@@ -25,18 +25,20 @@ Complete in order:
 4. **Propose 2-3 approaches** — trade-offs and your recommendation
 5. **Present design** — sections scaled to complexity, approval after each
 6. **Set up worktree** — `git worktree add -b integrate/<feature> .claude/worktrees/<feature>`; run tests to establish a clean baseline. This is the integration branch — phase worktrees are created by orchestrate as siblings.
-7. **Design approval gate** — use AskUserQuestion with options `["Approved", "Needs changes"]`. If "Needs changes," return to step 5. On approval, create the sentinel: `mkdir -p <plan-dir> && touch <plan-dir>/.design-approved` — this enables auto-approved edits for the rest of the session via the PermissionRequest hook.
-8. **Write design doc** — `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`, commit
-9. **Dispatch design-review subagent** — fresh Opus agent validates design before planning (hard gate)
-10. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero design context)
-11. **Route workflow** — After draft-plan returns, ask the user:
+7. **Choose workflow extent** — if not already chosen, ask the user:
 
     AskUserQuestion (header: "Workflow"):
     - **Ship** — Full auto: orchestrate executes, reviews, and ships
     - **Review only** — Orchestrate executes and reviews, creates final PR but doesn't merge
-    - **Plan only** — Stop here. Plan is written and reviewed.
+    - **Plan only** — Stop after the plan is written and reviewed (orchestrate will not run)
 
-    Map the chosen label to the schema enum value (`Ship` → `ship`, `Review only` → `review-only`, `Plan only` → `plan-only`), then write: `jq --arg w "<mapped-value>" '.workflow = $w' plan.json > tmp && mv tmp plan.json`
+    Store the choice for step 12.
+
+8. **Design approval gate** — use AskUserQuestion with options `["Approve design (auto turn on acceptEdits)", "Needs changes"]`. If "Needs changes," return to step 5. On approval, create the sentinel: `mkdir -p <plan-dir> && touch <plan-dir>/.design-approved` — this enables auto-approved edits for the rest of the session via the PermissionRequest hook.
+9. **Write design doc** — `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`, commit
+10. **Dispatch design-review subagent** — fresh Opus agent validates design before planning (hard gate)
+11. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero design context)
+12. **Route workflow** — Map the step 7 choice to the schema enum value (`Ship` → `ship`, `Review only` → `review-only`, `Plan only` → `plan-only`), then write: `jq --arg w "<mapped-value>" '.workflow = $w' plan.json > tmp && mv tmp plan.json`
 
     For **Ship** or **Review only**: invoke orchestrate.
     For **Plan only**: report the plan file path and stop.
@@ -70,14 +72,14 @@ Agent(
   "questions": [{
     "question": "Design approved?",
     "options": [
-      { "label": "Approved", "description": "Write design doc and proceed to review" },
+      { "label": "Approve design (auto turn on acceptEdits)", "description": "Write design doc and proceed to review" },
       { "label": "Needs changes", "description": "Continue iterating on the design" }
     ]
   }]
 }
 ```
 
-On "Approved", immediately run: `mkdir -p <plan-dir> && touch <plan-dir>/.design-approved`
+On "Approve design (auto turn on acceptEdits)", immediately run: `mkdir -p <plan-dir> && touch <plan-dir>/.design-approved`
 
 ## Challenging Assumptions
 
