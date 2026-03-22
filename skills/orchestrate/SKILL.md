@@ -5,7 +5,7 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Orchestrate
 
-Execute plan phase by phase using per-phase worktrees and an integration branch. Dispatch a fresh phase dispatcher per phase, then implementation-review, and advance. Workflow routing from plan.json controls ship behavior.
+Execute phases via per-phase worktrees on an integration branch. Dispatch phase dispatcher → implementation-review → advance. Workflow from plan.json controls ship behavior.
 
 **Core principle:** Every level is a dispatcher — only the implementer subagent touches code.
 
@@ -20,14 +20,14 @@ Execute plan phase by phase using per-phase worktrees and an integration branch.
 
 ## Progress Tracking
 
-Before executing, create a visible task list so the user can track progress:
+Create task list for progress tracking:
 
-1. **Read the plan** — identify phases and task counts
-2. **Build task list** — TaskCreate for each major step:
+1. **Read plan** — identify phases and task counts
+2. **Build task list** — TaskCreate per step:
    - Per phase: "Phase {X}: Execute tasks ({N} tasks)", "Phase {X}: Implementation review", "Phase {X}: Ship PR"
    - Final: "Mark plan complete"
    Set dependencies with `addBlockedBy` so each phase blocks the next.
-3. **Update as you go** — mark tasks `in_progress` before starting, `completed` when done. After each subagent returns, output a one-line progress note:
+3. **Update as you go** — mark tasks `in_progress` / `completed`. After subagents, output progress note:
    - Dispatcher: `Phase A complete — [what was built]`
    - Review: `Phase A review — N issues, all resolved`
    - Ship: `Phase A PR — [URL]`
@@ -43,13 +43,13 @@ Before first phase:
 
 ## Phase DAG Construction
 
-Build the dependency graph from plan.json before dispatching any phases:
+Build dependency graph from plan.json before dispatching:
 
 ```bash
 jq -r '.phases[] | "\(.letter):\(.depends_on | join(","))"' plan.json
 ```
 
-Identify the initial wave: phases with empty `depends_on`. Sequential plans (A→B→C) produce waves of size 1 — no special-casing needed.
+Initial wave: phases with empty `depends_on`. Sequential plans produce waves of size 1.
 
 ## Per-Phase Execution (Wave Loop)
 
@@ -68,31 +68,31 @@ For each phase being dispatched:
    ```bash
    git worktree add .claude/worktrees/<feature>-phase-{letter} -b phase-{letter} integrate/<feature>
    ```
-2. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in the phase worktree
+2. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in phase worktree
 3. **Bootstrap dependencies** in the phase worktree. **See:** skills/design/dependency-bootstrap.md
 4. Extract context from plan.json:
    - `PHASE_TASKS_JSON=$(jq '.phases[N].tasks' plan.json)`
    - `PLAN_DIR=$(dirname "$(realpath plan.json)")`
    - `PHASE_DIR=${PLAN_DIR}/phase-{letter_lower}`
-   - `PRIOR_COMPLETIONS` — concatenate `completion.md` from the transitive `depends_on` closure. Phase D (deps: B, C) receives A+B+C. Empty when no dependencies.
-   - `CROSS_PHASE_HANDOFF_TARGETS` — JSON mapping source task to target paths. Scan phases that transitively depend on the current phase (not positional — in a DAG, later-indexed phases may be siblings, not dependents).
-5. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_LETTER`, `PHASE_NAME`, `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `REPO_PATH` (= phase worktree path)
+   - `PRIOR_COMPLETIONS` — concatenate `completion.md` from transitive `depends_on` closure. Phase D (deps: B, C) receives A+B+C. Empty if no dependencies.
+   - `CROSS_PHASE_HANDOFF_TARGETS` — JSON mapping source task to target paths. Scan phases transitively depending on current phase (not positional — later-indexed phases may be siblings in DAG).
+5. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_LETTER`, `PHASE_NAME`, `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `REPO_PATH` (phase worktree path)
 6. After dispatcher returns:
    - Rule 4 violation → ask user, pause (see Rule 4 Handling)
-   - Otherwise → dispatch implementation-review with: `PHASE_BASE_SHA`, `HEAD`, `PLAN_DIR`, `PHASE_DIR`
+   - Otherwise → dispatch implementation-review with `PHASE_BASE_SHA`, `HEAD`, `PLAN_DIR`, `PHASE_DIR`
      - DESIGN_DOC_PATH = `design-doc` from plan.json (or "None")
 7. Triage: dispatch implementer for Rule 1-3; Rule 4 → ask user and pause
 8. Re-Review Gate: >5 issues → re-review after fixes
 9. Append review changes to `${PHASE_DIR}/completion.md`
-10. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`. If exit 1, pause and report failing criteria to user — do not advance.
-11. Emit phase summary: "Phase {LETTER} complete. [N tasks]. Review: X issues — [brief list]. [Status]."
+10. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`. If exit 1, pause and report failing criteria — do not advance.
+11. Emit phase summary: "Phase {LETTER} complete. [N tasks]. Review: X issues. [Status]."
 12. Update status: `scripts/validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
 13. Rebase on latest integration:
     ```bash
     git -C .claude/worktrees/<feature>-phase-{letter} fetch origin integrate/<feature>
     git -C .claude/worktrees/<feature>-phase-{letter} rebase origin/integrate/<feature>
     ```
-    Clean → run tests → continue. Conflict markers → `git rebase --abort`, escalate to user. First to merge: no-op.
+    Clean → run tests → continue. Conflicts → `git rebase --abort`, escalate. First to merge: no-op.
 14. Ship phase PR: invoke ship with `--base integrate/<feature>`
 15. Merge phase PR: `gh pr merge --squash`, then update integration worktree: `git pull` in `.claude/worktrees/<feature>/`
 16. Clean up phase worktree:
@@ -106,22 +106,22 @@ Single-phase plans: one iteration. Skip final cross-phase review.
 ## After All Phases
 
 1. Run plan criteria: `scripts/validate-plan --criteria plan.json --plan`. If exit 1, do not mark complete.
-2. Final cross-phase review (multi-phase only): dispatch implementation-review with `PLAN_BASE_SHA..HEAD` on integration branch
+2. Final cross-phase review (multi-phase only): dispatch implementation-review with `PLAN_BASE_SHA..HEAD`
 3. Triage findings, fix issues
 4. `scripts/validate-plan --update-status plan.json --plan --status Complete`
 5. Route on workflow:
    - `"merge-pr"`: create final PR (`integrate/<feature>` → main), invoke merge-pr, clean up integration worktree
    - `"create-pr"`: create final PR but stop — user reviews and merges manually
 
-**Continuity:** Execute all phases, reviews, and shipping in one continuous flow. Do not pause between phases or wait for user confirmation unless a Rule 4 violation occurs. The only human touchpoints are Rule 4 escalations.
+**Continuity:** Execute all phases, reviews, and shipping continuously. Pause only for Rule 4 violations.
 
 ## Rule 4 Handling
 
-When a dispatcher reports a Rule 4 violation, ask the user directly. Present: what change, which task, why the plan doesn't cover it. Do not proceed until the user decides.
+When dispatcher reports Rule 4 violation, ask user. Present: what change, which task, why plan doesn't cover it. Wait for user decision.
 
 ## Permission Model
 
-Subagents run in `auto` mode — Claude evaluates each permission request with built-in prompt injection safeguards. A PreToolUse hook (`hooks/pretooluse-safe-commands.sh`) intercepts Bash commands and instantly approves those matching safe list prefixes, avoiding per-command AI evaluation overhead for common dev tools. The hook uses `~/.claude/safe-commands.txt` if it exists (user override), otherwise falls back to bundled `hooks/safe-commands.txt`. Commands not in the active list fall through to auto mode. The phase dispatcher surfaces non-safe commands after each task so the user can grow their safe list.
+Subagents run in `auto` mode — Claude evaluates permissions with prompt injection safeguards. PreToolUse hook (`hooks/pretooluse-safe-commands.sh`) intercepts Bash commands and auto-approves those matching safe list prefixes, avoiding per-command AI evaluation. Hook uses `~/.claude/safe-commands.txt` if present (user override), else bundled `hooks/safe-commands.txt`. Non-safe commands fall through to auto mode. Phase dispatcher surfaces non-safe commands after each task for user to grow safe list.
 
 ## Key Constraints
 
@@ -134,6 +134,6 @@ Subagents run in `auto` mode — Claude evaluates each permission request with b
 
 ## Integration
 
-**Workflow:** design (creates integration branch + worktree) → draft-plan → **this skill** → ship (per-phase + final) → merge-pr
+**Workflow:** design (creates integration branch + worktree) → draft-plan → **this skill** → ship → merge-pr
 
 **See:** `tdd.md` — TDD reference; content is embedded in implementer prompts
