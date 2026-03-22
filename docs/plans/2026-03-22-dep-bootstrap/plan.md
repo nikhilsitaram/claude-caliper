@@ -13,7 +13,7 @@ status: Complete
 ---
 
 ## Phase A — Shared bootstrap procedure and skill integration
-**Status:** Not Started | **Rationale:** Single phase because the three deliverables are tightly coupled: the reference file must exist before either SKILL.md can reference it, and both SKILL.md edits are textual changes with no independent verification gate between them.
+**Status:** Complete (2026-03-22) | **Rationale:** Single phase because the three deliverables are tightly coupled: the reference file must exist before either SKILL.md can reference it, and both SKILL.md edits are textual changes with no independent verification gate between them.
 
 - [x] A1: Create dependency-bootstrap.md reference file — *dependency-bootstrap.md exists under skills/design/ with all 5 sections: (a) detection order (4 tiers: root manifests, workspace indicators, subdirectory scan, symlink fallback), (b) install command table with entries for pyproject.toml, requirements.txt, package-lock.json, yarn.lock, pnpm-lock.yaml, Cargo.toml, go.mod, (c) Python tool fallback (uv -> python3 -m venv + pip), (d) failure handling (check exit code, escalate on non-zero), (e) symlink fallback. Under 400 words.*
 - [x] A2: Add bootstrap sub-step to design SKILL.md step 6 — *Step 6 in design SKILL.md is split into three sub-steps: (a) create worktree, (b) bootstrap dependencies per See reference to ./dependency-bootstrap.md, (c) run tests to establish a clean baseline. No new top-level step added. Total SKILL.md word count stays under 1000.*

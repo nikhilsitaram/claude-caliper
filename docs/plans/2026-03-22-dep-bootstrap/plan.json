@@ -9,7 +9,7 @@
     {
       "letter": "A",
       "name": "Shared bootstrap procedure and skill integration",
-      "status": "Not Started",
+      "status": "Complete (2026-03-22)",
       "depends_on": [],
       "rationale": "Single phase because the three deliverables are tightly coupled: the reference file must exist before either SKILL.md can reference it, and both SKILL.md edits are textual changes with no independent verification gate between them.",
       "tasks": [
