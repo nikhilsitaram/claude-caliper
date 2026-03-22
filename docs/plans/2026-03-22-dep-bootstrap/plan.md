@@ -1,5 +1,5 @@
 ---
-status: In Development
+status: Complete
 ---
 
 # Make worktree dependency bootstrapping reliable across single-root repos, workspace-based monorepos, and multi-manifest repos, with clear failure reporting and tool availability fallbacks Implementation Plan
@@ -15,7 +15,7 @@ status: In Development
 ## Phase A — Shared bootstrap procedure and skill integration
 **Status:** Not Started | **Rationale:** Single phase because the three deliverables are tightly coupled: the reference file must exist before either SKILL.md can reference it, and both SKILL.md edits are textual changes with no independent verification gate between them.
 
-- [ ] A1: Create dependency-bootstrap.md reference file — *dependency-bootstrap.md exists under skills/design/ with all 5 sections: (a) detection order (4 tiers: root manifests, workspace indicators, subdirectory scan, symlink fallback), (b) install command table with entries for pyproject.toml, requirements.txt, package-lock.json, yarn.lock, pnpm-lock.yaml, Cargo.toml, go.mod, (c) Python tool fallback (uv -> python3 -m venv + pip), (d) failure handling (check exit code, escalate on non-zero), (e) symlink fallback. Under 400 words.*
-- [ ] A2: Add bootstrap sub-step to design SKILL.md step 6 — *Step 6 in design SKILL.md is split into three sub-steps: (a) create worktree, (b) bootstrap dependencies per See reference to ./dependency-bootstrap.md, (c) run tests to establish a clean baseline. No new top-level step added. Total SKILL.md word count stays under 1000.*
-- [ ] A3: Replace orchestrate inline install table with See reference — *Orchestrate SKILL.md step 3 no longer contains the inline install table (lines with pyproject.toml, requirements.txt, package-lock.json, etc.) or the symlink fallback prose. Replaced with a one-line summary ('Bootstrap dependencies in the phase worktree') plus **See:** skills/design/dependency-bootstrap.md. Net word reduction of ~150 words. Total SKILL.md word count stays under 1000.*
-- [ ] A4: Bump version in marketplace.json — *All three plugin versions in marketplace.json bumped to 1.9.7 (from 1.9.6). Single consistent version across all three plugins.*
+- [x] A1: Create dependency-bootstrap.md reference file — *dependency-bootstrap.md exists under skills/design/ with all 5 sections: (a) detection order (4 tiers: root manifests, workspace indicators, subdirectory scan, symlink fallback), (b) install command table with entries for pyproject.toml, requirements.txt, package-lock.json, yarn.lock, pnpm-lock.yaml, Cargo.toml, go.mod, (c) Python tool fallback (uv -> python3 -m venv + pip), (d) failure handling (check exit code, escalate on non-zero), (e) symlink fallback. Under 400 words.*
+- [x] A2: Add bootstrap sub-step to design SKILL.md step 6 — *Step 6 in design SKILL.md is split into three sub-steps: (a) create worktree, (b) bootstrap dependencies per See reference to ./dependency-bootstrap.md, (c) run tests to establish a clean baseline. No new top-level step added. Total SKILL.md word count stays under 1000.*
+- [x] A3: Replace orchestrate inline install table with See reference — *Orchestrate SKILL.md step 3 no longer contains the inline install table (lines with pyproject.toml, requirements.txt, package-lock.json, etc.) or the symlink fallback prose. Replaced with a one-line summary ('Bootstrap dependencies in the phase worktree') plus **See:** skills/design/dependency-bootstrap.md. Net word reduction of ~150 words. Total SKILL.md word count stays under 1000.*
+- [x] A4: Bump version in marketplace.json — *All three plugin versions in marketplace.json bumped to 1.9.7 (from 1.9.6). Single consistent version across all three plugins.*
