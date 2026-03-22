@@ -28,6 +28,7 @@ Identify the PR from argument, current branch (`gh pr view`), or `gh pr list --a
 
 Detect environment:
 - `DEFAULT_BRANCH` from `refs/remotes/origin/HEAD` (fallback: main/master)
+- `WORKTREE_PATH` — look up from `git worktree list` by matching `$BRANCH_NAME` (needed for cleanup even though we're in the main repo)
 - `IS_INTEGRATION` — true when `$BRANCH_NAME` matches `integrate/*`; extract `FEATURE=${BRANCH_NAME#integrate/}`
 
 ### Step 2: Confirm Merge
