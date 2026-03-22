@@ -21,7 +21,6 @@ Make worktree dependency bootstrapping reliable across single-root repos, worksp
 2. An agent on a machine without `uv` falls back to `python3 -m venv + pip` without error.
 3. When `npm ci` exits non-zero, the agent stops and escalates to the user instead of continuing with broken deps.
 4. The design skill bootstraps dependencies before running baseline tests, using the same procedure as orchestrate.
-5. The bootstrap reference file stays under 400 words (token budget for a conditional-read reference).
 
 ## Architecture
 
@@ -29,9 +28,15 @@ Extract the bootstrap procedure to `skills/design/dependency-bootstrap.md` — a
 
 ```text
 skills/design/dependency-bootstrap.md  ← authoritative procedure (new)
-skills/design/SKILL.md step 6          ← adds bootstrap before test run
-skills/orchestrate/SKILL.md step 3     ← replaces inline table with reference
+skills/design/SKILL.md step 6          ← new sub-step: bootstrap deps, then run tests
+skills/orchestrate/SKILL.md step 3     ← replaces inline table + symlink prose with
+                                          one-line summary + **See:** reference
 ```
+
+**What changes in each SKILL.md:**
+
+- **design/SKILL.md step 6** currently reads: "Set up worktree — `git worktree add ...`; run tests to establish a clean baseline." It becomes two sub-steps: (a) create worktree, (b) bootstrap dependencies per `**See:** ./dependency-bootstrap.md`, (c) run tests. No new top-level step is added.
+- **orchestrate/SKILL.md step 3** currently has the full install table (lines 72-86, ~180 words) and symlink fallback prose. These are replaced by a one-line summary ("Bootstrap dependencies in the phase worktree") with `**See:** skills/design/dependency-bootstrap.md` for the full procedure. This frees ~150 words of token budget.
 
 ### Detection Order
 
@@ -51,11 +56,17 @@ else: python3 -m venv + pip
 
 Check exit code of every install command. Non-zero → log the error output and escalate to the user. Do not continue with a broken environment — tasks will fail with misleading errors.
 
+## Alternatives Considered
+
+1. **Extend the inline table in orchestrate SKILL.md** — simplest, but duplicates the procedure when design also needs it. Both skills would drift independently over time. Rejected.
+2. **PreToolUse hook that auto-installs deps** — would run outside the agent's control, making failures harder to diagnose. Hooks can't escalate to the user. Rejected.
+3. **Shared reference file (chosen)** — single source of truth, on-demand read via `**See:**`, no token cost when bootstrap isn't needed. The cross-skill reference (`orchestrate` → `skills/design/dependency-bootstrap.md`) is a new pattern but follows the existing `**See:**` convention — the agent reads the file path at execution time, so cross-directory references work the same as local ones.
+
 ## Key Decisions
 
-- **Reference file lives under `skills/design/`** — design creates the first worktree, making it the natural owner. Orchestrate references it cross-skill.
+- **Reference file lives under `skills/design/`** — design creates the first worktree, making it the natural owner. Orchestrate references it via `**See:** skills/design/dependency-bootstrap.md`. This is a cross-skill reference, which is new for this repo. The trade-off: if the design skill directory is renamed, orchestrate's reference breaks. Acceptable because skill directory renames are rare and grep-detectable.
 - **Exit code check, not import validation** — if `npm ci` exits 0, deps are installed. No need for `python -c "import pkg"` which requires knowing package names and is fragile.
-- **Subdirectory scan is one level deep** — deeply nested manifests are an edge case not worth the complexity. One level covers `backend/`, `frontend/`, `services/api/` patterns.
+- **Subdirectory scan is one level deep** — deeply nested manifests are an edge case not worth the complexity. One level covers `backend/`, `frontend/`, `packages/foo/` patterns.
 - **Workspace managers get root-level install** — `pnpm install`, `npm ci`, `yarn install` at root handle all packages in a workspace. No need to install per-package.
 
 ## Non-Goals
@@ -67,8 +78,8 @@ Check exit code of every install command. Non-zero → log the error output and 
 
 ## Implementation Approach
 
-Single phase — three tightly coupled files:
+Single phase — three tightly coupled files, all modifying skill text (no code):
 
-1. Create `skills/design/dependency-bootstrap.md` with the full procedure
-2. Edit `skills/design/SKILL.md` step 6 to add bootstrap + reference
-3. Edit `skills/orchestrate/SKILL.md` step 3 to replace inline table with reference
+1. Create `skills/design/dependency-bootstrap.md` — full bootstrap procedure with detection order, install table, Python tool fallback, failure handling, and symlink fallback. Target: under 400 words (token budget for a conditional-read reference file).
+2. Edit `skills/design/SKILL.md` step 6 — split into sub-steps: (a) create worktree, (b) bootstrap deps via `**See:** ./dependency-bootstrap.md`, (c) run tests.
+3. Edit `skills/orchestrate/SKILL.md` step 3 — replace the inline install table and symlink prose (~180 words) with a one-line summary + `**See:** skills/design/dependency-bootstrap.md`.
