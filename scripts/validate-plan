@@ -56,7 +56,7 @@ do_schema() {
     err "ERROR: missing_field: workflow"
   else
     case "$workflow" in
-      "ship"|"review-only"|"plan-only") ;;
+      "create-pr"|"merge-pr"|"plan-only") ;;
       *) err "ERROR: invalid_workflow: $workflow" ;;
     esac
   fi

@@ -288,7 +288,7 @@ Every task specifies exact files, a verification command, and a measurable end s
 {
   "schema": 1,
   "status": "Not Yet Started",
-  "workflow": "ship",
+  "workflow": "create-pr",
   "goal": "Add rate limiting with per-route config",
   "architecture": "Sliding window counter in Redis, middleware per route group",
   "tech_stack": "Node.js, Redis, Express",

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "status": "Not Yet Started",
-  "workflow": "ship",
+  "workflow": "create-pr",
   "goal": "Build a sample feature",
   "architecture": "Two-phase plan for testing validation",
   "tech_stack": "Bash, jq",
