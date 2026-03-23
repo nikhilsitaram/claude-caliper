@@ -1,0 +1,4 @@
+reviews:
+  base_branches:
+    - "main"
+    - "integrate/**"
