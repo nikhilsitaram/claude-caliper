@@ -53,7 +53,7 @@ Single `reviews.json` file in the plan directory. Each review cycle appends a re
 ]
 ```
 
-Valid `type` values: `design-review`, `plan-review`, `task-review`, `impl-review`.
+Valid `type` values: `design-review`, `plan-review`, `task-review`, `impl-review`. Task-review records are for audit trail only — no gate checks them. Phase and plan gates check impl-review (cross-task) and design/plan-review respectively.
 Valid `scope` values: `design`, `plan`, `task-A1` (task ID), `phase-A` (phase letter), `final`.
 Verdict is binary: `pass` (zero remaining issues) or `fail` (issues remain or re-review needed).
 
@@ -74,11 +74,13 @@ Each reviewer subagent outputs a fenced JSON block labeled `review-summary` at t
 }
 ```
 
-The controller extracts this block from the subagent response. Convention: the JSON appears in a fenced code block with the info string `json review-summary`. The controller searches for this marker and parses the block. If the block is missing or malformed, the controller treats the review as failed (verdict: "fail") and dispatches a fresh reviewer — this prevents silent skipping.
+The controller extracts this block from the subagent response. Convention: the JSON appears in a fenced code block with the info string `json review-summary`. The controller searches for this marker and parses the block. If multiple blocks appear (e.g., reviewer included an example before the real one), the controller uses the last one. If the block is missing or malformed, the controller treats the review as failed (verdict: "fail") and dispatches a fresh reviewer — this prevents silent skipping.
 
 ### Review Loop Protocol
 
-Every dispatcher (design, orchestrate, phase-dispatcher) runs the same deterministic loop:
+Every dispatcher (orchestrate, phase-dispatcher) runs the same deterministic loop. **Exception:** design-review retains its current user-collaborative model — the user approved the design, so changes require their involvement. The design skill presents design-review findings to the user, collaboratively fixes them, and re-dispatches until clean. Plan-review follows the autonomous loop since the plan is a derivative artifact.
+
+Autonomous loop protocol:
 
 ```text
 MAX_ITERATIONS = 3
@@ -219,7 +221,6 @@ Single phase — changes are interconnected.
 | `skills/implementation-review/reviewer-prompt.md` | Modify | Add `review-summary` JSON output block |
 | `skills/orchestrate/task-reviewer-prompt.md` | Modify | Add `review-summary` JSON output block |
 | `skills/review-pr/SKILL.md` | Modify | Remove "Skip fixes, proceed" option when invoked from automated merge-pr workflow |
-| `skills/review-pr/reviewer-prompt.md` | Modify | Add `review-summary` JSON output block |
 
 ### Task Order
 
