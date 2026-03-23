@@ -19,10 +19,10 @@ Add a two-level supervision hierarchy to orchestrate:
 
 ## Success Criteria
 
-1. Independent phases in the same wave execute concurrently (dispatched with `run_in_background: true`).
+1. Independent phases in the same wave execute concurrently rather than sequentially.
 2. The user sees a progress update every 60s showing task completion counts and health status per active phase.
-3. A stuck task implementer is detected and intervention begins within 2 minutes of the implementer becoming stuck.
-4. A stuck phase dispatcher is detected and the user is notified within 3 minutes of the dispatcher becoming stuck.
+3. A stuck task implementer is detected and intervention begins within 3 minutes of the implementer becoming stuck. (Worst case: up to 29s before first observation + 2 cycles × 30s for two consecutive no-progress detections + intervention = ~89s typical, ~119s worst case.)
+4. A stuck phase dispatcher is detected and the user is notified within 4 minutes of the dispatcher becoming stuck. (Worst case: up to 59s before first observation + 2 cycles × 60s for two consecutive no-progress detections + intervention = ~179s typical, ~239s worst case.)
 5. An unresolvable task (2 failed interventions) is escalated via `escalation.json`, surfaced to the user on next orchestrator poll, and the phase continues to the next task.
 6. Task implementers within a phase still execute sequentially (one at a time) to avoid git conflicts.
 
@@ -59,8 +59,8 @@ Orchestrator (L1 supervisor — polls every 60s, user progress updates)
 Implementer stuck
   → Phase dispatcher: TaskStop + re-dispatch with diagnosis and additional context
   → 2nd attempt: TaskStop + re-dispatch with broader context (prior output summary)
-  → After 2 failed re-dispatches: write escalation.json, skip to next task
-  → Orchestrator reads escalation.json on next poll → alerts user
+  → After 2 failed re-dispatches: write escalation-{task_id}.json, skip to next task
+  → Orchestrator reads escalation-*.json on next poll → alerts user
 
 Phase dispatcher stuck
   → Orchestrator: TaskStop + re-dispatch with diagnosis
@@ -136,7 +136,7 @@ Each poll cycle checks (cheapest first):
 **Stuck indicators** (any one triggers intervention):
 - TaskOutput shows the same error repeated 3+ times
 - TaskOutput shows "permission" / "denied" / "blocked" language
-- No new commits since last poll AND no new tool output
+- No new commits AND no new tool output for 2 consecutive poll cycles
 - Implementer has returned with an error exit
 
 **Healthy indicators** (all must hold):
@@ -153,7 +153,7 @@ TaskOutput returns cumulative text. The supervisor stores the previous output le
 
 **No progress:** Compare current `git log --format=%H -1` and TaskOutput length against values stored from the previous cycle. If both are unchanged → no progress. Two consecutive no-progress cycles → stuck.
 
-**Completion:** `TaskOutput(task_id, block: false)` returns status information. If the task status indicates completion → complete.
+**Completion:** `TaskOutput(task_id, block: false)` returns an object with `status` (e.g., `running`, `completed`) and `output` (cumulative text). Completion is detected by `status === 'completed'`. The supervisor then reads the final output for any error signals before proceeding to post-phase processing.
 
 ### Intervention Protocol
 
@@ -224,11 +224,11 @@ All fields optional with defaults shown.
 
 ## Key Decisions
 
-1. **Inline polling loop over stop-hook pattern and foreground dispatch + monitor:** Three approaches considered: (a) Stop-hook pattern (ralph-loop): fires on exit attempts, not on a timer — semantic mismatch for periodic monitoring. (b) Foreground dispatch + parallel monitor agent: keeps synchronous dispatch but adds a monitoring subagent alongside — avoids TaskOutput/TaskStop dependency but the monitor can't intervene (it has no authority over the foreground-blocking parent). (c) Inline polling with `Bash("sleep N")`: supervisor dispatches background agents and actively polls — full tool access, direct intervention capability. Chose (c). **Risk:** Sleep-based polling loops are a novel pattern in this codebase. If `Bash("sleep N")` blocks agent responsiveness or the agent fails to continue the loop reliably, the fallback is: replace the sleep-based loop with a single-shot monitor subagent dispatched per poll cycle. Each monitor agent sleeps, checks signals, writes results to a status file, and exits. The supervisor reads the status file and decides whether to intervene. This trades one long-lived loop for N short-lived agents but preserves the same detection/intervention logic.
+1. **Inline polling loop over stop-hook pattern and foreground dispatch + monitor:** Three approaches considered: (a) Stop-hook pattern (ralph-loop): fires on exit attempts, not on a timer — semantic mismatch for periodic monitoring. (b) Foreground dispatch + parallel monitor agent: keeps synchronous dispatch but adds a monitoring subagent alongside. The monitor could use TaskStop on the foreground task's ID, but the parent is blocked and can't react to intervention signals — it sees an unexpected termination with no way to receive the monitor's diagnosis or guidance. This creates a coordination gap: the monitor knows *why* it stopped the task but the parent doesn't, leading to confused re-dispatch. The inline polling pattern avoids this by keeping detection, diagnosis, and intervention in a single agent. (c) Inline polling with `Bash("sleep N")`: supervisor dispatches background agents and actively polls — full tool access, direct intervention capability. Chose (c). **Risk:** Sleep-based polling loops are a novel pattern in this codebase. If `Bash("sleep N")` blocks agent responsiveness or the agent fails to continue the loop reliably, the fallback is: replace the sleep-based loop with a single-shot monitor subagent dispatched per poll cycle. Each monitor agent sleeps, checks signals, writes results to a status file, and exits. The supervisor reads the status file and decides whether to intervene. This trades one long-lived loop for N short-lived agents but preserves the same detection/intervention logic. If step 0 of the Implementation Approach (prototype validation) fails, this design is blocked — revisit the architecture before proceeding.
 
 2. **L1 never auto-kills phases:** A phase timeout isn't meaningful because legitimate tasks can run 20+ minutes. The only signal is lack of progress, and even then, the user should decide whether to kill a phase dispatcher — the system can't distinguish "genuinely stuck" from "working on a hard problem slowly."
 
-3. **Sequential tasks with background dispatch:** Tasks within a phase stay sequential (git conflict avoidance). `run_in_background: true` is for supervision visibility, not parallelism. The phase dispatcher sends one task at a time but can poll and intervene while it runs.
+3. **Sequential tasks with background dispatch:** Tasks within a phase stay sequential (git conflict avoidance). `run_in_background: true` is for supervision visibility, not parallelism. The phase dispatcher sends one task at a time but can poll and intervene while it runs. The foreground+monitor pattern (dismissed for L1) was also rejected for L2: the phase dispatcher must remain free to execute intervention logic (TaskStop + re-dispatch), which requires non-blocking dispatch.
 
 4. **escalation.json for L2→L1 communication:** Phase dispatchers can't signal the orchestrator directly (no inter-agent messaging available). File-based signaling via a known path in the phase worktree is simple and the orchestrator already polls the worktree. **Alternatives considered:** (a) Shared message queue file — rejected as over-engineered for the single-message escalation use case. (b) Phase dispatcher returns early with escalation info — rejected because it terminates the dispatcher, losing progress on remaining tasks.
 
@@ -246,4 +246,4 @@ Single phase — this is a fundamental control flow rewrite of both the orchestr
 1. **Update `phase-dispatcher-prompt.md`** — Replace the existing synchronous "For each task" loop in `## Your Process` with a background-dispatch + polling pattern. Add sections: supervision loop (sleep 30s, check signals, evaluate health), intervention protocol (TaskStop + re-dispatch → escalation.json), and escalation file writing. The sequential task constraint remains — background dispatch is for supervision visibility, not parallelism.
 2. **Update `SKILL.md`** — Replace the "Per-Phase Execution (Wave Loop)" pseudocode (current steps a-e) with async dispatch + L1 supervision loop. Steps a-c become: build DAG, dispatch all ready phases with `run_in_background: true`, capture task IDs. Steps d-e become the supervision loop: sleep, poll each active phase (TaskOutput + git log + plan.json + escalation files), evaluate health, output progress, intervene if needed. Existing per-phase post-processing (current steps 6-18: review loop, rebase, create-pr, poll, review-pr, merge, cleanup) remains unchanged but moves inside the supervision loop's completion handler — it runs inline when a phase is detected as complete via TaskOutput status.
 3. **Update `scripts/validate-plan`** — Add schema validation for the optional `supervision` object at plan.json root level (fields: `orchestrator_poll_seconds`, `dispatcher_poll_seconds`, `max_intervention_attempts`, all optional integers with defaults).
-4. **Update SKILL.md phase cleanup** — Add `escalation.json` removal to the Per-Phase Execution step 18 (worktree removal) so escalation files don't persist after merge.
+4. **Update SKILL.md phase cleanup** — Add `escalation-*.json` removal to the Per-Phase Execution step 18 (worktree removal) so escalation files don't persist after merge.
