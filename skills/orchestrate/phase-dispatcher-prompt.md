@@ -85,27 +85,33 @@ Task tool (general-purpose):
          config, calls an API created earlier), write a boundary integration test using
          real components — not mocks
 
-    5. **After implementer returns: dispatch task reviewer**
-       (`./task-reviewer-prompt.md`)
-       - Pass both {TASK_METADATA} and {TASK_PROSE} to reviewer
-       - Issues found → dispatch new implementer to fix → re-review
+    5. **After implementer returns: run task review loop**
+       a. Dispatch task reviewer (`./task-reviewer-prompt.md`) with TASK_BASE_SHA..HEAD
+       b. Extract the last `json review-summary` fenced block from the reviewer response
+          - If the block is missing or malformed JSON → treat as verdict:fail, dispatch a fresh reviewer (this prevents silent skipping — a missing summary means re-review, not pass)
+       c. Triage each issue in the `issues` array:
+          - "fix" → dispatch implementer to fix
+          - "dismiss" → document reasoning (will be included in report to orchestrate)
+       d. Count actionable (non-dismissed) issues:
+          - 0 actionable → proceed to step 6
+          - 1-5 actionable → fix all, verify fixes, proceed to step 6
+          - >5 actionable → fix all, dispatch fresh reviewer (back to 5a)
+          - Max 3 iterations. After 3rd iteration with >5 issues → stop and report to orchestrate context for user escalation
+       e. Report review results to orchestrate: issues_found, severity counts, dismissed (with reasons), fixed count, verdict
 
-    6. **Re-Review Gate:** if reviewer found >5 issues, dispatch fresh reviewer
-       after all fixes are applied
-
-    7. **Mark task complete:**
+    6. **Mark task complete:**
        ```bash
        bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status complete
        ```
 
-    8. **Run task criteria:**
+    7. **Run task criteria:**
        ```bash
        bash scripts/validate-plan --criteria {PLAN_DIR}/plan.json --task {TASK_ID}
        ```
        If exit 1: criteria failed. Report failure to orchestrate context with the failing criteria output. Do not proceed to the next task.
        If exit 0: criteria passed (or no criteria defined). Continue.
 
-    9. **Safe commands learning loop:**
+    8. **Safe commands learning loop:**
        - Read `$TMPDIR/claude-safe-cmds-nonmatch.log` (may not exist if all commands were safe)
        - If the file exists and is non-empty:
          a. Read and deduplicate the command names (one per line in the log)
@@ -176,5 +182,6 @@ Task tool (general-purpose):
     - HEAD SHA: `git rev-parse HEAD`
     - Integration test status
     - Deviations (if any)
+    - Per-task review summaries: for each task, include the final review-summary JSON and dismissal reasoning
     - Any concerns for the orchestrate context
 ```
