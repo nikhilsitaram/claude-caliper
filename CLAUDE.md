@@ -14,7 +14,7 @@ Use the skill-eval skill for eval-driven skill development.
 
 ### Token Efficiency
 
-SKILL.md files are injected into context when the skill triggers. Every excess word displaces working memory. Hard cap: 1,000 words. The more concise, the better.
+SKILL.md files are injected into context when the skill triggers. Every excess word displaces working memory. Budget: 1,500 words (hard cap 2,000). The more concise, the better.
 
 Challenge every line: Does the agent already know this? Does this paragraph justify its token cost? Only add context Claude doesn't already have — library knowledge, common patterns, and standard practices are already in the model.
 

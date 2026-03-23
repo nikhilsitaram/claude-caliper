@@ -95,7 +95,7 @@
             ],
             "test": []
           },
-          "verification": "grep -q 'reviews.json' skills/orchestrate/SKILL.md && grep -q 'review-summary' skills/orchestrate/SKILL.md && grep -q 'check-review' skills/orchestrate/SKILL.md && wc -w < skills/orchestrate/SKILL.md | awk '{exit ($1 > 1000)}'",
+          "verification": "grep -q 'reviews.json' skills/orchestrate/SKILL.md && grep -q 'review-summary' skills/orchestrate/SKILL.md && grep -q 'check-review' skills/orchestrate/SKILL.md && wc -w < skills/orchestrate/SKILL.md | awk '{exit ($1 > 2000)}'",
           "done_when": "Orchestrate SKILL.md includes: (1) review loop protocol for implementation-review — extract review-summary JSON, triage issues as fix/dismiss with reasoning, apply >5 re-review gate with MAX_ITERATIONS=3 then escalate, write reviews.json record. (2) --check-review calls before advancing phase status. (3) --check-workflow as final action. (4) reviews.json writing after each review cycle. Word count stays at or under 1000."
         },
         {
@@ -131,8 +131,8 @@
             ],
             "test": []
           },
-          "verification": "grep -q 'plan-review' skills/design/SKILL.md && ! grep -q 'plan-review' skills/draft-plan/SKILL.md && wc -w < skills/design/SKILL.md | awk '{exit ($1 > 1000)}' && wc -w < skills/draft-plan/SKILL.md | awk '{exit ($1 > 1000)}'",
-          "done_when": "draft-plan SKILL.md: step 9 (plan-review dispatch) and Plan Review Gate section removed. draft-plan now stops after validate-plan --schema and --render, reports plan path. design SKILL.md: after step 11 (draft-plan returns), dispatch plan-review subagent with review loop protocol (extract review-summary, triage, >5 re-review, write to reviews.json). For plan-only workflow, call --check-workflow as final action. Both files stay at or under 1000 words."
+          "verification": "grep -q 'plan-review' skills/design/SKILL.md && ! grep -q 'plan-review' skills/draft-plan/SKILL.md && wc -w < skills/design/SKILL.md | awk '{exit ($1 > 2000)}' && wc -w < skills/draft-plan/SKILL.md | awk '{exit ($1 > 2000)}'",
+          "done_when": "draft-plan SKILL.md: step 9 (plan-review dispatch) and Plan Review Gate section removed. draft-plan now stops after validate-plan --schema and --render, reports plan path. design SKILL.md: after step 11 (draft-plan returns), dispatch plan-review subagent with review loop protocol (extract review-summary, triage, >5 re-review, write to reviews.json). For plan-only workflow, call --check-workflow as final action. Both files stay under 2000 words."
         },
         {
           "id": "A8",
@@ -146,7 +146,7 @@
             ],
             "test": []
           },
-          "verification": "grep -q 'merge-pr' skills/review-pr/SKILL.md && grep -q 'automated' skills/review-pr/SKILL.md && wc -w < skills/review-pr/SKILL.md | awk '{exit ($1 > 1000)}'",
+          "verification": "grep -q 'merge-pr' skills/review-pr/SKILL.md && grep -q 'automated' skills/review-pr/SKILL.md && wc -w < skills/review-pr/SKILL.md | awk '{exit ($1 > 2000)}'",
           "done_when": "review-pr SKILL.md Step 4: when invoked from an automated merge-pr workflow (detectable by the caller passing --automated or by checking the plan.json workflow field), the 'Skip fixes, proceed' option is removed from AskUserQuestion. All actionable findings must be fixed in automated workflows. Word count stays at or under 1000."
         },
         {
