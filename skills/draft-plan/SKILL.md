@@ -76,7 +76,7 @@ docs/plans/YYYY-MM-DD-topic/
 }
 ```
 
-Optional: `success_criteria` array at plan, phase, and task levels for automated verification. `workflow` field controls post-plan behavior: `create-pr` (orchestrate + create-pr, default), `merge-pr` (orchestrate + create-pr + review-pr + merge-pr), `plan-only` (stop after planning). Set by the design skill based on user choice.
+Optional: `success_criteria` array at plan, phase, and task levels for automated verification. `workflow` field controls post-plan behavior: `create-pr` (orchestrate + create-pr, default), `merge-pr` (orchestrate + create-pr + review-pr + merge-pr), `plan-only` (stop after planning). Set by the design skill based on user choice. `review_wait_minutes` integer sets the max wait for external reviewers (default 10, set 0 to skip polling).
 
 **See:** `docs/plans/2026-03-19-structured-plans/design-structured-plans.md` for full schema reference.
 
@@ -108,7 +108,7 @@ H1 header must match `# {id}: {name}` from plan.json. When a task consumes outpu
 
 **Phase boundaries** fall where "run full suite and verify" is meaningful. Each phase gets its own directory (`phase-a/`, `phase-b/`) with a `completion.md` stub and task `.md` files. The phase's `rationale` field in plan.json explains why the phase exists.
 
-Each phase declares `depends_on` in plan.json — an array of phase letters this phase requires to complete first. Independent phases (empty or non-overlapping depends_on) can execute concurrently. The orchestrator uses this to build a dependency graph.
+Each phase declares `depends_on` — phase letters required to complete first. Independent phases (empty or non-overlapping) execute concurrently.
 
 **Design doc inheritance:** If the design doc has approved phases, use those. Don't contradict without flagging.
 
