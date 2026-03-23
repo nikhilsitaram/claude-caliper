@@ -16,7 +16,7 @@ Usage:
   validate-plan --check-workflow <plan.json>
 
   Valid types:  design-review, plan-review, task-review, impl-review
-  Valid scopes: design, plan, task-{ID}, phase-{LETTER}, final
+  Valid scopes: design, plan, task-{ID}, phase-{letter}, final
 USAGE
   exit 1
 }
@@ -469,6 +469,12 @@ do_update_status_plan() {
     local phase_count
     phase_count=$(echo "$json" | jq '.phases | length')
 
+    local incomplete_phases
+    incomplete_phases=$(echo "$json" | jq -r '[.phases[] | select((.status | startswith("Complete")) | not) | .letter] | join(", ")')
+    if [[ -n "$incomplete_phases" ]]; then
+      gate_errors+=("phases not complete: $incomplete_phases")
+    fi
+
     for ((p=0; p<phase_count; p++)); do
       local letter letter_lower
       letter=$(echo "$json" | jq -r ".phases[$p].letter")
@@ -747,13 +753,32 @@ do_check_workflow() {
     local base="$1" head="$2" state="${3:-open}"
     local count
     if ! count=$(gh pr list --base "$base" --head "$head" --state "$state" --json number --jq 'length' 2>/dev/null); then
-      gate_errors+=("gh pr list failed for base=$base head=$head — gh CLI may not be authenticated or network unavailable")
-      return 1
+      return 2
     fi
     if [[ "$count" -eq 0 ]]; then
       return 1
     fi
     return 0
+  }
+
+  check_pr_with_fallback() {
+    local head="$1" state="${2:-all}" error_msg="$3"
+    local rc=0
+    check_pr_exists "main" "$head" "$state" || rc=$?
+    if [[ "$rc" -eq 2 ]]; then
+      gate_errors+=("gh pr list failed — gh CLI may not be authenticated or network unavailable")
+      return
+    fi
+    if [[ "$rc" -eq 0 ]]; then return; fi
+    rc=0
+    check_pr_exists "master" "$head" "$state" || rc=$?
+    if [[ "$rc" -eq 2 ]]; then
+      gate_errors+=("gh pr list failed — gh CLI may not be authenticated or network unavailable")
+      return
+    fi
+    if [[ "$rc" -eq 1 ]]; then
+      gate_errors+=("$error_msg")
+    fi
   }
 
   local current_branch
@@ -764,36 +789,24 @@ do_check_workflow() {
       local letter letter_lower
       letter=$(echo "$json" | jq -r ".phases[$p].letter")
       letter_lower=$(echo "$letter" | tr '[:upper:]' '[:lower:]')
-      if ! check_pr_exists "$current_branch" "phase-$letter_lower" "all"; then
+      local phase_rc=0
+      check_pr_exists "$current_branch" "phase-$letter_lower" "all" || phase_rc=$?
+      if [[ "$phase_rc" -eq 2 ]]; then
+        gate_errors+=("gh pr list failed — gh CLI may not be authenticated or network unavailable")
+      elif [[ "$phase_rc" -eq 1 ]]; then
         gate_errors+=("no PR found for phase-$letter_lower → $current_branch")
       fi
     done
-    if ! check_pr_exists "main" "$current_branch" "all"; then
-      if ! check_pr_exists "master" "$current_branch" "all"; then
-        gate_errors+=("no final PR found for $current_branch → main/master")
-      fi
-    fi
+    check_pr_with_fallback "$current_branch" "all" "no final PR found for $current_branch → main/master"
   else
-    if ! check_pr_exists "main" "$current_branch" "all"; then
-      if ! check_pr_exists "master" "$current_branch" "all"; then
-        gate_errors+=("no PR found for $current_branch → main/master")
-      fi
-    fi
+    check_pr_with_fallback "$current_branch" "all" "no PR found for $current_branch → main/master"
   fi
 
   if [[ "$workflow" == "merge-pr" ]]; then
     if [[ "$current_branch" == integrate/* ]]; then
-      if ! check_pr_exists "main" "$current_branch" "merged"; then
-        if ! check_pr_exists "master" "$current_branch" "merged"; then
-          gate_errors+=("final PR not merged for $current_branch → main/master")
-        fi
-      fi
+      check_pr_with_fallback "$current_branch" "merged" "final PR not merged for $current_branch → main/master"
     else
-      if ! check_pr_exists "main" "$current_branch" "merged"; then
-        if ! check_pr_exists "master" "$current_branch" "merged"; then
-          gate_errors+=("PR not merged for $current_branch → main/master")
-        fi
-      fi
+      check_pr_with_fallback "$current_branch" "merged" "PR not merged for $current_branch → main/master"
     fi
   fi
 

@@ -204,11 +204,22 @@ printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0
 assert_fail "create-pr two-phase without final impl-review exits 1" "impl-review final" \
   "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
 
-echo "Test 9: single-phase skips final impl-review check"
+echo "Test 9: single-phase create-pr does not require final impl-review (fails on PR state, not reviews)"
+if ! command -v gh >/dev/null 2>&1; then
+  echo "SKIP: gh CLI not available"
+else
+  setup_plan_dir
+  write_single_phase_plan "create-pr" "Complete"
+  printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+  assert_fail "single-phase create-pr fails on PR state not final impl-review" "no PR found\|no final PR found\|gh pr list failed" \
+    "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+fi
+
+echo "Test 9b: single-phase create-pr fails when missing phase impl-review"
 setup_plan_dir
-write_single_phase_plan "plan-only"
+write_single_phase_plan "create-pr" "Complete"
 printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
-assert_pass "plan-only single-phase with both reviews exits 0 (no final impl-review needed)" \
+assert_fail "single-phase create-pr without impl-review exits 1" "impl-review phase-a" \
   "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
 
 echo ""

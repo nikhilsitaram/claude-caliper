@@ -63,7 +63,8 @@ Use AskUserQuestion with options:
 
 ### Step 5: Fix, Test, Push
 
-If `--skip-fixes` was passed, skip this entire step.
+If `--automated` is passed, always run fixes — `--skip-fixes` is invalid with `--automated` (fail fast if both are passed).
+If `--skip-fixes` was passed (without `--automated`), skip this entire step.
 
 For each actionable item: make the fix. Run project tests — do not proceed with failing tests. Commit and push with `git push -u origin HEAD`.
 
@@ -82,8 +83,8 @@ If inside a worktree, tell the user: "When ready to merge: `cd` to the main repo
 | `<PR number>` | Target specific PR (`/review-pr 42`) |
 | *(none)* | Detect from current branch |
 | `--skip-review` / `-R` | Skip subagent review (Step 2) — external feedback still processed |
-| `--skip-fixes` / `-S` | Skip fixing — just comment |
-| `--automated` / `-A` | Suppress "Skip fixes, proceed" option (used by merge-pr workflow) |
+| `--skip-fixes` / `-S` | Skip fixing — just comment (invalid with `--automated`) |
+| `--automated` / `-A` | Force fixes for all actionable items, suppress "Skip fixes" option (used by merge-pr workflow) |
 
 ## Pitfalls
 

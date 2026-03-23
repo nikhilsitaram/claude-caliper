@@ -82,15 +82,37 @@ rm -f "$TMPDIR/reviews.json"
 assert_pass "phase In Progress not gated — no reviews.json needed" \
   "$VALIDATE" --update-status "$TMPDIR/plan.json" --phase A --status "In Progress"
 
+mark_all_phases_complete() {
+  local plan_json="$1"
+  local phase_count
+  phase_count=$(jq '.phases | length' "$plan_json")
+  local tmp="${plan_json}.tmp.$$"
+  cp "$plan_json" "$tmp"
+  for ((p=0; p<phase_count; p++)); do
+    jq --argjson idx "$p" '.phases[$idx].status = "Complete (2026-03-23)"' "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
+  done
+  mv "$tmp" "$plan_json"
+}
+
 echo "Test 5: Plan completion blocked without design-review"
 setup_plan_dir
+mark_all_phases_complete "$TMPDIR/plan.json"
 local_reviews=$(all_phase_reviews "$TMPDIR/plan.json")
 echo "$local_reviews" > "$TMPDIR/reviews.json"
 assert_fail "plan complete blocked — missing design-review" "cannot mark plan complete" \
   "$VALIDATE" --update-status "$TMPDIR/plan.json" --plan --status "Complete"
 
+echo "Test 5b: Plan completion blocked when phases not complete"
+setup_plan_dir
+local_reviews=$(all_phase_reviews "$TMPDIR/plan.json")
+local_reviews=$(echo "$local_reviews" | jq '. + [{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"final","verdict":"pass","remaining":0}]')
+echo "$local_reviews" > "$TMPDIR/reviews.json"
+assert_fail "plan complete blocked — phases not complete" "phases not complete" \
+  "$VALIDATE" --update-status "$TMPDIR/plan.json" --plan --status "Complete"
+
 echo "Test 6: Plan completion blocked without plan-review"
 setup_plan_dir
+mark_all_phases_complete "$TMPDIR/plan.json"
 local_reviews=$(all_phase_reviews "$TMPDIR/plan.json")
 local_reviews=$(echo "$local_reviews" | jq '. + [{"type":"design-review","scope":"design","verdict":"pass","remaining":0}]')
 echo "$local_reviews" > "$TMPDIR/reviews.json"
@@ -99,6 +121,7 @@ assert_fail "plan complete blocked — missing plan-review" "cannot mark plan co
 
 echo "Test 7: Multi-phase plan completion blocked without final impl-review"
 setup_plan_dir
+mark_all_phases_complete "$TMPDIR/plan.json"
 local_reviews=$(all_phase_reviews "$TMPDIR/plan.json")
 local_reviews=$(echo "$local_reviews" | jq '. + [{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0}]')
 echo "$local_reviews" > "$TMPDIR/reviews.json"
@@ -107,6 +130,7 @@ assert_fail "multi-phase plan complete blocked — missing final impl-review" "i
 
 echo "Test 8: Multi-phase plan completion succeeds with all reviews including final"
 setup_plan_dir
+mark_all_phases_complete "$TMPDIR/plan.json"
 local_reviews=$(all_phase_reviews "$TMPDIR/plan.json")
 local_reviews=$(echo "$local_reviews" | jq '. + [{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"final","verdict":"pass","remaining":0}]')
 echo "$local_reviews" > "$TMPDIR/reviews.json"
@@ -115,7 +139,7 @@ assert_pass "multi-phase plan complete succeeds with all reviews" \
 
 echo "Test 9: Single-phase plan does not require final impl-review"
 setup_plan_dir
-jq '.phases = [.phases[0]]' "$TMPDIR/plan.json" > "$TMPDIR/plan_single.json"
+jq '.phases = [.phases[0]] | .phases[0].status = "Complete (2026-03-23)"' "$TMPDIR/plan.json" > "$TMPDIR/plan_single.json"
 printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_pass "single-phase plan complete succeeds without final impl-review" \
   "$VALIDATE" --update-status "$TMPDIR/plan_single.json" --plan --status "Complete"

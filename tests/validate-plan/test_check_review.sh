@@ -60,59 +60,59 @@ echo "Test 1: Missing reviews.json"
 setup_plan_dir
 rm -f "$TMPDIR/reviews.json"
 assert_fail "missing reviews.json exits 1 with error" "reviews.json not found" \
-  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-A
+  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-a
 
 echo "Test 2: Empty reviews.json array"
 setup_plan_dir
 echo '[]' > "$TMPDIR/reviews.json"
 assert_fail "empty reviews.json exits 1 with no record error" "no review record for" \
-  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-A
+  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-a
 
 echo "Test 3: No matching type+scope"
 setup_plan_dir
 printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_fail "no matching type+scope exits 1" "no review record for" \
-  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-A
+  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-a
 
 echo "Test 4: Matching record with verdict:fail"
 setup_plan_dir
-printf '[{"type":"impl-review","scope":"phase-A","verdict":"fail","remaining":3}]' > "$TMPDIR/reviews.json"
+printf '[{"type":"impl-review","scope":"phase-a","verdict":"fail","remaining":3}]' > "$TMPDIR/reviews.json"
 assert_fail "verdict:fail exits 1 with gate failed error" "review gate failed" \
-  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-A
+  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-a
 
 echo "Test 5: Matching record with verdict:pass but remaining>0"
 setup_plan_dir
-printf '[{"type":"impl-review","scope":"phase-A","verdict":"pass","remaining":2}]' > "$TMPDIR/reviews.json"
+printf '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":2}]' > "$TMPDIR/reviews.json"
 assert_fail "verdict:pass but remaining>0 exits 1" "review gate failed" \
-  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-A
+  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-a
 
 echo "Test 6: Passing record (verdict:pass, remaining:0)"
 setup_plan_dir
-printf '[{"type":"impl-review","scope":"phase-A","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+printf '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_pass "verdict:pass remaining:0 exits 0" \
-  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-A
+  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-a
 
 echo "Test 7: Multiple records — latest wins (first fails, second passes)"
 setup_plan_dir
-printf '[{"type":"impl-review","scope":"phase-A","verdict":"fail","remaining":5},{"type":"impl-review","scope":"phase-A","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+printf '[{"type":"impl-review","scope":"phase-a","verdict":"fail","remaining":5},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_pass "latest record passes even though first failed" \
-  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-A
+  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-a
 
 echo "Test 8: Latest record fails (first passes, second fails)"
 setup_plan_dir
-printf '[{"type":"impl-review","scope":"phase-A","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-A","verdict":"fail","remaining":2}]' > "$TMPDIR/reviews.json"
+printf '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"fail","remaining":2}]' > "$TMPDIR/reviews.json"
 assert_fail "latest record fails even though first passed" "review gate failed" \
-  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-A
+  "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review --scope phase-a
 
 echo "Test 9: Missing --type argument"
 setup_plan_dir
-printf '[{"type":"impl-review","scope":"phase-A","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+printf '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_exit "missing --type exits 2" 2 \
-  "$VALIDATE" --check-review "$TMPDIR/plan.json" --scope phase-A
+  "$VALIDATE" --check-review "$TMPDIR/plan.json" --scope phase-a
 
 echo "Test 10: Missing --scope argument"
 setup_plan_dir
-printf '[{"type":"impl-review","scope":"phase-A","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+printf '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_exit "missing --scope exits 2" 2 \
   "$VALIDATE" --check-review "$TMPDIR/plan.json" --type impl-review
 
