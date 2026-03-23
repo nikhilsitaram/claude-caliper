@@ -48,7 +48,7 @@ Initial wave: phases with empty `depends_on`. Sequential plans: waves of size 1.
 ```text
 LOOP until all phases complete:
   a. Ready phases: depends_on all in completed set
-  b. Reconciliation (non-root phases): `git diff --name-only` vs each completed dep; inject `## Reconciliation` into affected task .md files
+  b. Reconciliation (non-root phases): `git diff --name-only` vs each completed dep; detect file overlaps with this phase's tasks; inject `## Reconciliation: Impact from Phase {X}` into affected task .md files
   c. Dispatch ready phases IN PARALLEL (one Agent per phase)
   d. Process completions SERIALLY: review → triage → rebase → create-pr → poll checks → review-pr → merge → mark complete
   e. Repeat
@@ -86,8 +86,8 @@ For each phase being dispatched:
     ```
     Clean → run tests → continue. Conflicts → `git rebase --abort`, escalate. First to merge: no-op.
 14. Create phase PR: invoke create-pr with `--base integrate/<feature>`
-15. Poll checks: `gh pr checks <NUMBER> --json bucket --jq '[.[] | select(.bucket == "pending")] | length'` every 60s. Max wait: `jq -r '.review_wait_minutes // 10' plan.json` minutes. Timeout → warn and proceed.
-16. Review feedback: invoke review-pr with the phase PR number to read and address all reviewer comments
+15. External review gate (skip steps 15-16 if `review_wait_minutes` is 0): Poll `gh pr checks <NUMBER> --json bucket --jq '[.[] | select(.bucket == "pending")] | length'` every 60s. Max wait: `jq -r '.review_wait_minutes // 10' plan.json` minutes. Timeout → warn and proceed.
+16. Review feedback: invoke review-pr to read and address all reviewer comments
 17. Merge phase PR: `gh pr merge --squash`, then update integration worktree: `git pull` in `.claude/worktrees/<feature>/`
 18. Clean up phase worktree:
     ```bash
@@ -106,7 +106,7 @@ Skip the wave loop, phase worktrees, and integration branch entirely. The design
 5. `scripts/validate-plan --update-status plan.json --plan --status Complete`
 6. Route on workflow:
    - `"create-pr"`: invoke create-pr (targets main), stop
-   - `"merge-pr"`: invoke create-pr, poll checks, review-pr, then merge-pr with `--squash`
+   - `"merge-pr"`: invoke create-pr, poll checks + review-pr (skip if `review_wait_minutes` is 0), then merge-pr with `--squash`
 
 ## After All Phases (Multi-Phase Only)
 
