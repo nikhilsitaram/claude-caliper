@@ -19,11 +19,15 @@
           "status": "pending",
           "depends_on": [],
           "files": {
-            "create": [],
+            "create": [
+              "tests/validate-plan/test_check_review.sh"
+            ],
             "modify": [
               "scripts/validate-plan"
             ],
-            "test": []
+            "test": [
+              "tests/validate-plan/test_check_review.sh"
+            ]
           },
           "verification": "bash tests/validate-plan/test_check_review.sh",
           "done_when": "--check-review flag reads reviews.json from plan directory, finds latest record matching both --type and --scope, checks verdict == pass and remaining == 0. Exit 0 = passed, exit 1 = failed or missing. Usage line updated. All tests pass."
@@ -36,11 +40,15 @@
             "A1"
           ],
           "files": {
-            "create": [],
+            "create": [
+              "tests/validate-plan/test_review_gates.sh"
+            ],
             "modify": [
               "scripts/validate-plan"
             ],
-            "test": []
+            "test": [
+              "tests/validate-plan/test_review_gates.sh"
+            ]
           },
           "verification": "bash tests/validate-plan/test_review_gates.sh",
           "done_when": "Phase completion requires impl-review pass for that phase in reviews.json. Plan completion requires: all phases Complete, passing design-review, plan-review, impl-review for each phase, and impl-review scope:final if multi-phase. Errors describe which specific review is missing. All tests pass."
@@ -54,11 +62,15 @@
             "A2"
           ],
           "files": {
-            "create": [],
+            "create": [
+              "tests/validate-plan/test_check_workflow.sh"
+            ],
             "modify": [
               "scripts/validate-plan"
             ],
-            "test": []
+            "test": [
+              "tests/validate-plan/test_check_workflow.sh"
+            ]
           },
           "verification": "bash tests/validate-plan/test_check_workflow.sh",
           "done_when": "--check-workflow checks based on workflow field: plan-only (design-review + plan-review passed), create-pr (plan Complete + all reviews + PRs exist via gh pr list), merge-pr (everything above + final PR merged). Exit 0 = all gates satisfied, exit 1 = specific missing gates to stderr. Usage line updated. All tests pass."
