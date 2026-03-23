@@ -9,7 +9,7 @@
 A Claude Code plugin that turns your goal into a PR with as little friction as possible. Every step is reviewed with a fresh context subagent. You get a design-reviewed, plan-validated, test-driven PR — with three human decisions.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.10.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
+[![Version](https://img.shields.io/badge/version-1.13.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-6E40C9?logo=anthropic&logoColor=white)](https://claude.ai/code)
 [![Skills](https://img.shields.io/badge/11%20skills-included-2ea44f)](skills/)
 
@@ -154,7 +154,7 @@ These skills chain automatically. You trigger the first one by describing what t
 | **Design Gate** | [design-review](skills/design-review/) | 8-point validation: problem clarity, success criteria, architecture fit, scope alignment, handoff quality |
 | **Planning** | [draft-plan](skills/draft-plan/) | Structured plan: `plan.json` manifest + per-task `.md` files with TDD steps, exact file paths, verification commands |
 | **Plan Gate** | [plan-review](skills/plan-review/) | Catches vague steps, missing file paths, design-plan drift, the "Different Claude Test" |
-| **Execution** | [orchestrate](skills/orchestrate/) | Dispatches fresh subagent per task running RED-GREEN-REFACTOR TDD; parallel phases via git worktrees |
+| **Execution** | [orchestrate](skills/orchestrate/) | Dispatches phases in parallel via git worktrees with supervision loops that detect stuck agents and intervene |
 | **Review Gate** | [implementation-review](skills/implementation-review/) | Cross-task holistic review — catches inconsistencies invisible to per-task reviewers |
 | **Create PR** | [create-pr](skills/create-pr/) | Commits, rebases, tests, pushes, opens PR with structured summary |
 | **Review PR** | [review-pr](skills/review-pr/) | Fresh-eyes review before reading external feedback, addresses comments, posts assessment |
@@ -354,11 +354,13 @@ The litmus test for every task: *could a fresh Claude with zero codebase context
 <details>
 <summary><strong>Parallel Phase Execution</strong></summary>
 
-When a plan has independent phases, they don't wait in line. The orchestrator builds a dependency DAG from `plan.json` and dispatches independent phases concurrently:
+When a plan has independent phases, they don't wait in line. The orchestrator builds a dependency DAG from `plan.json` and dispatches independent phases concurrently with two-level supervision:
 
 - Each phase gets its own **git worktree** branched from the integration branch
-- Phase PRs **squash merge** into the integration branch as they complete
+- **L1 supervision (orchestrator):** Polls every 60s, outputs progress updates, detects stuck phase dispatchers, intervenes or escalates to user
+- **L2 supervision (phase dispatcher):** Polls every 30s per task implementer, detects permission blocks, repeated errors, and stalled progress, stops and re-dispatches stuck agents
 - Before dispatching dependent phases, the orchestrator runs **reconciliation** — analyzing diffs and injecting impact notes into downstream task files
+- Phase PRs **squash merge** into the integration branch as they complete
 - The final PR merges the integration branch into main
 
 Sequential plans execute one phase at a time. No special-casing needed — the DAG handles both cases.
@@ -409,7 +411,7 @@ Skills degrade silently. A prompt tweak that looks better might fail on edge cas
 
 **Lean skills.** Each skill is under 1,000 words. Skills teach Claude what it doesn't already know — workflow gates, project conventions, quality thresholds. Every excess word displaces working memory from the actual task.
 
-**Eval-driven.** Every skill change runs through `skill-eval` before shipping. Pass rate + blind comparison + variance. No guessing whether a rewrite helped.
+**Eval-driven.** Dedicated skill refactors and new skills run through `skill-eval` — pass rate + blind comparison + variance. Routine edits use manual review.
 
 **Quality gates, not suggestions.** The workflow stops at design review, plan review, and implementation review. These aren't optional checkpoints — they're where the most expensive rework gets prevented.
 
