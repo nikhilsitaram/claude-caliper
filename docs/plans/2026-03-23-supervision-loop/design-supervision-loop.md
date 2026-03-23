@@ -2,7 +2,12 @@
 
 ## Problem
 
-Phase dispatchers are 15+ minute black boxes. When they hit issues (permission prompts, repeated errors, wrong code patterns), nobody notices until completion or user intervention. The orchestrator has zero visibility into running phases, and phase dispatchers have zero visibility into running task implementers. Observed in practice: a phase dispatcher spent significant time debugging a `set -e` + command substitution interaction because the task prose used a broken pattern — the orchestrator had no visibility until the user noticed permission prompts.
+Phase dispatchers are 15+ minute black boxes. When they hit issues (permission prompts, repeated errors, wrong code patterns), nobody notices until completion or user intervention. This affects both levels of the hierarchy:
+
+- **L1 (Orchestrator → Phase Dispatchers):** The orchestrator has zero visibility into running phases. It blocks waiting for each phase to return, with no way to detect or intervene when a dispatcher is stuck.
+- **L2 (Phase Dispatcher → Task Implementers):** Phase dispatchers dispatch implementers synchronously and block until return. When an implementer gets stuck (e.g., permission prompt loop, repeated error pattern), the dispatcher wastes its entire remaining token budget waiting. The existing post-task review loop catches quality issues but not liveness issues — a stuck implementer never reaches the review stage.
+
+Observed in practice: a phase dispatcher spent significant time debugging a `set -e` + command substitution interaction because the task prose used a broken pattern — the orchestrator had no visibility until the user noticed permission prompts.
 
 Additionally, orchestrate's SKILL.md specifies "Dispatch ready phases IN PARALLEL (one Agent per phase)" but the current prompt templates dispatch synchronously — the orchestrator blocks waiting for each phase dispatcher to return. Supervision requires async dispatch because the supervisor must remain free to poll while workers execute; bundling both concerns is intentional.
 
@@ -16,11 +21,10 @@ Add a two-level supervision hierarchy to orchestrate:
 
 1. Independent phases in the same wave execute concurrently (dispatched with `run_in_background: true`).
 2. The user sees a progress update every 60s showing task completion counts and health status per active phase.
-3. A stuck task implementer is detected within 2 poll cycles and the supervisor initiates a stop-and-redispatch within the same cycle.
-4. A stuck phase dispatcher is detected within 2 poll cycles and the orchestrator either re-dispatches or alerts the user within the same cycle.
+3. A stuck task implementer is detected and intervention begins within 2 minutes of the implementer becoming stuck.
+4. A stuck phase dispatcher is detected and the user is notified within 3 minutes of the dispatcher becoming stuck.
 5. An unresolvable task (2 failed interventions) is escalated via `escalation.json`, surfaced to the user on next orchestrator poll, and the phase continues to the next task.
 6. Task implementers within a phase still execute sequentially (one at a time) to avoid git conflicts.
-7. Each supervision poll cycle (excluding sleep interval) completes in under 5 seconds of active processing time.
 
 ## Architecture
 
@@ -85,9 +89,18 @@ for each wave:
     OUTPUT PROGRESS UPDATE to user:
       "[2m] Phase A: 3/5 tasks, healthy | Phase B: 1/4 tasks, healthy"
 
-    process completed phases serially (review → merge)
+    PROCESS COMPLETED PHASES (serially, inline):
+      A phase is "complete" when TaskOutput(task_id, block: false)
+      returns a completed status (the phase dispatcher has returned).
+      For each completed phase, run post-phase processing inline
+      (review loop → rebase → create-pr → poll → review-pr → merge).
+      This blocks the supervision loop for that phase's processing,
+      but other active phases continue running in background —
+      they are checked on the next poll cycle after processing finishes.
     if all phases complete → break
 ```
+
+**Completion processing vs. polling:** Post-phase processing (steps 6-18 from current SKILL.md) runs inline within the supervision loop when a phase is detected as complete. This temporarily pauses polling for other active phases, but since post-phase processing (review, PR, merge) takes 5-10 minutes and phases run independently, the delay is acceptable. The alternative (spawning post-phase processing as another background agent) would add complexity without meaningful benefit — active phases don't need sub-minute polling precision.
 
 ### L2: Phase Dispatcher Supervision Loop
 
@@ -134,9 +147,9 @@ Each poll cycle checks (cheapest first):
 
 TaskOutput returns cumulative text. The supervisor stores the previous output length and reads only the new portion (characters after the stored offset) each cycle.
 
-**Permission blocks:** Case-insensitive substring match against the new output for: `permission`, `denied`, `blocked`, `approve`, `Do you want to proceed`. Any match → stuck.
+**Permission blocks:** Match the Claude Code interactive prompt structure, not bare keywords. Look for multiline patterns containing "Do you want to proceed" followed by numbered options (e.g., `1. Yes`, `2. Yes, and don't ask again`). Single keywords like "permission" or "denied" in isolation are not sufficient — they appear in legitimate output (documentation, test names, code comments). The pattern to match is the full permission prompt format.
 
-**Repeated errors:** Extract lines from new output matching common error patterns (`error:`, `Error:`, `failed`, `FAILED`, `traceback`, `panic`). Deduplicate by exact string match. If any single error line appears 3+ times across the current and previous cycle's output → stuck.
+**Repeated errors:** Extract lines from new output matching error patterns (`error:`, `Error:`, `failed:`, `FAILED`, `Traceback`, `panic:`). Note the trailing colon/capitalization to reduce false positives from grep results or documentation. Require the same error line to appear on 3+ consecutive lines (not just 3 occurrences scattered across the output window) — scattered matches likely indicate a search or test summary, while consecutive identical lines indicate a retry loop.
 
 **No progress:** Compare current `git log --format=%H -1` and TaskOutput length against values stored from the previous cycle. If both are unchanged → no progress. Two consecutive no-progress cycles → stuck.
 
@@ -167,7 +180,7 @@ L1 never auto-kills a phase dispatcher without user consent — always escalates
 
 ### Escalation File Format
 
-Written to phase worktree root (`escalation.json`):
+Written per-task to phase worktree root as `escalation-{task_id}.json` (e.g., `escalation-A3.json`). Unique filenames prevent overwrite if multiple tasks escalate before the next L1 poll cycle.
 
 ```json
 {
@@ -178,6 +191,8 @@ Written to phase worktree root (`escalation.json`):
   "timestamp": "ISO8601"
 }
 ```
+
+The orchestrator reads all `escalation-*.json` files from the phase worktree on each poll cycle and surfaces each to the user.
 
 ### Progress Update Format
 
@@ -221,14 +236,14 @@ All fields optional with defaults shown.
 
 - **Auto-recovery from all failure modes:** Some failures need human judgment. The system detects and escalates; it doesn't try to fix everything.
 - **Parallel task execution within a phase:** Git conflicts make this impractical. Sequential dispatch is intentional.
-- **Token optimization of the polling loop:** At ~500-1500 tokens per cycle and <5% overhead, optimization isn't warranted now.
+- **Token optimization of the polling loop:** Per-cycle cost estimate: ~500-1500 tokens (sleep command ~10, TaskOutput read ~500-1000, git log ~50, jq ~50, progress output ~30, reasoning ~200). For a 60-minute orchestration with 60s polls, that's ~60 cycles × ~1000 tokens = ~60K tokens of supervision overhead. Claude Code's context window (200K) and automatic compression mean this is manageable — older poll cycles get compressed as the context fills. If context pressure becomes an issue, the per-cycle monitor subagent fallback (Key Decision 1) naturally isolates each cycle's tokens.
 
 ## Implementation Approach
 
-Single phase — prompt-template modifications plus minor schema validation. Async dispatch and supervision are bundled intentionally: supervision without async dispatch is impossible (the supervisor must be free to poll), and async dispatch without supervision recreates the black-box problem at a higher concurrency level. Separating them would mean shipping unmonitored parallel execution as an intermediate state.
+Single phase — this is a fundamental control flow rewrite of both the orchestrator (SKILL.md) and phase dispatcher (phase-dispatcher-prompt.md) prompt templates, plus schema validation changes. Async dispatch and supervision are bundled intentionally: supervision without async dispatch is impossible (the supervisor must be free to poll), and async dispatch without supervision recreates the black-box problem at a higher concurrency level. Separating them would mean shipping unmonitored parallel execution as an intermediate state.
 
 0. **Validate polling pattern (prerequisite)** — Before modifying any prompt templates, prototype the sleep-based polling loop: dispatch a no-op background agent (`Agent(run_in_background: true)`), call `Bash("sleep 10")`, then `TaskOutput(task_id, block: false)`. If TaskOutput returns the agent's output and the supervisor can continue processing after sleep, the pattern is validated. If it fails, switch to the per-cycle monitor subagent fallback before proceeding.
 1. **Update `phase-dispatcher-prompt.md`** — Replace the existing synchronous "For each task" loop in `## Your Process` with a background-dispatch + polling pattern. Add sections: supervision loop (sleep 30s, check signals, evaluate health), intervention protocol (TaskStop + re-dispatch → escalation.json), and escalation file writing. The sequential task constraint remains — background dispatch is for supervision visibility, not parallelism.
-2. **Update `SKILL.md`** — Replace the "Per-Phase Execution (Wave Loop)" pseudocode (current steps a-e) with async dispatch + L1 supervision loop. Add: agent ID tracking per dispatched phase, supervision loop protocol (sleep 60s, read plan.json from phase worktrees, check escalation.json, evaluate health), progress update output format, and escalation handling (surface to user). Completion processing (review → merge) triggers when a phase is detected as complete during a poll cycle.
+2. **Update `SKILL.md`** — Replace the "Per-Phase Execution (Wave Loop)" pseudocode (current steps a-e) with async dispatch + L1 supervision loop. Steps a-c become: build DAG, dispatch all ready phases with `run_in_background: true`, capture task IDs. Steps d-e become the supervision loop: sleep, poll each active phase (TaskOutput + git log + plan.json + escalation files), evaluate health, output progress, intervene if needed. Existing per-phase post-processing (current steps 6-18: review loop, rebase, create-pr, poll, review-pr, merge, cleanup) remains unchanged but moves inside the supervision loop's completion handler — it runs inline when a phase is detected as complete via TaskOutput status.
 3. **Update `scripts/validate-plan`** — Add schema validation for the optional `supervision` object at plan.json root level (fields: `orchestrator_poll_seconds`, `dispatcher_poll_seconds`, `max_intervention_attempts`, all optional integers with defaults).
 4. **Update SKILL.md phase cleanup** — Add `escalation.json` removal to the Per-Phase Execution step 18 (worktree removal) so escalation files don't persist after merge.
