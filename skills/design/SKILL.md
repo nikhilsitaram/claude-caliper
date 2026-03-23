@@ -45,7 +45,7 @@ Complete in order:
 12. **Route workflow** — Map the step 7 choice to the schema enum value (`Create PR` → `create-pr`, `Merge PR` → `merge-pr`, `Plan only` → `plan-only`), then write: `jq --arg w "<mapped-value>" '.workflow = $w' plan.json > tmp && mv tmp plan.json`
 
     For **Create PR** or **Merge PR**: invoke orchestrate.
-    For **Plan only**: report the plan file path and stop.
+    For **Plan only**: run `scripts/validate-plan --check-workflow plan.json` to verify design-review and plan-review passed. Report the plan file path and stop.
 
 ```text
 Agent(
@@ -57,7 +57,7 @@ Agent(
 )
 ```
 
-If design-review finds issues, present them to the user, collaboratively fix the design doc, and re-dispatch design-review until clean. Only dispatch draft-plan after design-review passes.
+If design-review finds issues, present them to the user, collaboratively fix the design doc, and re-dispatch design-review until clean. Only dispatch draft-plan after design-review passes. After design-review passes, write a review record to `{PLAN_DIR}/reviews.json` (initialize with `[]` if it doesn't exist): `jq --argjson entry '{"type":"design-review","scope":"design","remaining":0,"verdict":"pass","timestamp":"<ISO8601>"}' '. += [$entry]' reviews.json > tmp && mv tmp reviews.json`
 
 ```text
 Agent(
@@ -68,6 +68,21 @@ Agent(
     Working directory: .claude/worktrees/<feature>"
 )
 ```
+
+After draft-plan returns, dispatch plan-review with the same review loop protocol:
+
+```text
+Agent(
+  subagent_type: "general-purpose",
+  model: "opus",
+  prompt: "Review the plan at docs/plans/<folder>/plan.json
+    using the plan-review skill.
+    Design doc: docs/plans/<folder>/design-<topic>.md
+    Working directory: .claude/worktrees/<feature>"
+)
+```
+
+Extract the `json review-summary` block from the response. Triage issues (fix plan files or dismiss with reasoning). If >5 actionable issues, fix and re-dispatch reviewer (max 3 iterations, then escalate to user). Write review record to `{PLAN_DIR}/reviews.json` with type:"plan-review", scope:"plan".
 
 **Approval gate format:**
 

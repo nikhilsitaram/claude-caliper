@@ -19,8 +19,7 @@ Write implementation plans assuming the executor has zero codebase context. Docu
 6. **Create completion.md stubs** — Empty files, one per phase
 7. **Run scripts/validate-plan --schema** — Fix any structural errors
 8. **Run scripts/validate-plan --render** — Generates plan.md deterministically
-9. **Run plan review** — Dispatch reviewer, fix issues until clean
-10. **Hand off to execution** — Report plan path to user
+9. **Hand off** — Report plan path to caller. Plan-review is dispatched by the design skill after draft-plan returns.
 
 ## Plan Structure
 
@@ -146,20 +145,3 @@ Write complete code in each step — not "add validation" or "implement the hand
 
 Vague paths ("the auth files") or done-when ("authentication complete") fail this test. Exact paths and measurable outcomes pass.
 
-## Plan Review Gate
-
-After creating all files, validate structure then dispatch LLM review:
-
-1. **Run `scripts/validate-plan --schema <plan-dir>/plan.json`** — structural checks (required fields, file existence, H1 headers, dependency ordering, no duplicate file paths). Exit 0 = pass, exit 1 = errors to stderr. Fix errors and re-run until clean.
-
-2. **Run `scripts/validate-plan --render <plan-dir>/plan.json`** — generates plan.md from plan.json. This is deterministic — same input produces same output.
-
-3. **Dispatch plan-review** — LLM reviewer checks prose quality and applies the Different Claude Test (could a fresh Claude execute without asking questions?).
-
-**See:** `skills/plan-review/reviewer-prompt.md` for dispatch details.
-
-Skipping validation or review risks plans with missing paths, ordering bugs, or vague done-when conditions reaching execution.
-
-## After Review Passes
-
-Report the plan file path to the user. Run orchestrate in the main context where it can interact with the user for Rule 4 escalations and PR decisions.
