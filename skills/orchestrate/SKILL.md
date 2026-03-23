@@ -20,9 +20,7 @@ Execute phases via worktrees. Multi-phase uses an integration branch with per-ph
 
 ## Progress Tracking
 
-1. **Read plan** — identify phases and task counts
-2. **Build task list** — TaskCreate per phase: "Execute tasks ({N})", "Implementation review", "Create PR". Final: "Mark plan complete". Set `addBlockedBy` so phases block the next.
-3. **Update as you go** — mark `in_progress` / `completed`. After subagents, output progress note.
+TaskCreate per phase: "Execute tasks ({N})", "Implementation review", "Create PR". Final: "Mark plan complete". Set `addBlockedBy`. Mark `in_progress` / `completed` as you go.
 
 ## Setup
 
@@ -31,6 +29,7 @@ Before first phase:
 - Count phases: `PHASE_COUNT=$(jq '.phases | length' plan.json)`
 - `scripts/validate-plan --update-status plan.json --plan --status "In Development"`
 - `PLAN_BASE_SHA=$(git rev-parse HEAD)`
+- `PLAN_DIR=$(dirname "$(realpath plan.json)")` and `[ -f "$PLAN_DIR/reviews.json" ] || echo '[]' > "$PLAN_DIR/reviews.json"`
 - Push branch: `git push -u origin HEAD`
 
 ## Phase DAG Construction
@@ -50,7 +49,7 @@ LOOP until all phases complete:
   a. Ready phases: depends_on all in completed set
   b. Reconciliation (non-root phases): `git diff --name-only` vs each completed dep; detect file overlaps with this phase's tasks; inject `## Reconciliation: Impact from Phase {X}` into affected task .md files
   c. Dispatch ready phases IN PARALLEL (one Agent per phase)
-  d. Process completions SERIALLY: review → triage → rebase → create-pr → poll checks → review-pr → merge → mark complete
+  d. Process completions SERIALLY: review loop → rebase → create-pr → poll → review-pr → merge → mark complete
   e. Repeat
 ```
 
@@ -71,10 +70,9 @@ For each phase being dispatched:
 5. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_LETTER`, `PHASE_NAME`, `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `REPO_PATH` (phase worktree path)
 6. After dispatcher returns:
    - Rule 4 violation → ask user, pause (see Rule 4 Handling)
-   - Otherwise → dispatch implementation-review with `PHASE_BASE_SHA`, `HEAD`, `PLAN_DIR`, `PHASE_DIR`
-     - DESIGN_DOC_PATH = `design-doc` from plan.json (or "None")
-7. Triage: dispatch implementer for Rule 1-3; Rule 4 → ask user and pause
-8. Re-Review Gate: >5 issues → re-review after fixes
+   - Otherwise → dispatch implementation-review with `PHASE_BASE_SHA`, `HEAD`, `PLAN_DIR`, `PHASE_DIR`, `DESIGN_DOC_PATH`
+7. Run Review Loop Protocol (scope: `phase-{letter_lower}`)
+8. `scripts/validate-plan --check-review plan.json --type impl-review --scope phase-{letter_lower}`
 9. Append review changes to `${PHASE_DIR}/completion.md`
 10. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`. If exit 1, pause and report failing criteria — do not advance.
 11. Emit phase summary: "Phase {LETTER} complete. [N tasks]. Review: X issues. [Status]."
@@ -95,28 +93,42 @@ For each phase being dispatched:
     git branch -D phase-{letter}
     ```
 
+## Review Loop Protocol
+
+After each impl-review dispatch:
+
+1. Extract last `json review-summary` fenced block from response. Missing/malformed → verdict:fail, re-dispatch.
+2. Triage issues: "fix" (dispatch implementer) or "dismiss" (with reasoning)
+3. actionable == 0 → write reviews.json record with verdict:pass, advance
+4. actionable 1-5 → fix all, verify, write record verdict:pass, advance
+5. actionable > 5 → fix all, write record verdict:fail, re-dispatch (max 3 iterations, then escalate via AskUserQuestion)
+
+Append record to `{PLAN_DIR}/reviews.json`:
+`{"type":"impl-review","scope":"{SCOPE}","iteration":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass|fail","timestamp":"ISO8601"}`
+
 ## Single-Phase Plans
 
 Skip the wave loop, phase worktrees, and integration branch entirely. The design skill already created a feature branch (not `integrate/`):
 
 1. Work directly in the feature worktree (`.claude/worktrees/<feature>`)
 2. Dispatch phase dispatcher with `REPO_PATH` = feature worktree
-3. Implementation review, triage, fix
-4. Run plan criteria: `scripts/validate-plan --criteria plan.json --plan`
-5. `scripts/validate-plan --update-status plan.json --plan --status Complete`
-6. Route on workflow:
-   - `"create-pr"`: invoke create-pr (targets main), stop
-   - `"merge-pr"`: invoke create-pr, poll checks + review-pr (skip if `review_wait_minutes` is 0), then merge-pr with `--squash`
+3. Dispatch implementation-review, run Review Loop Protocol (scope: `phase-a`)
+4. `scripts/validate-plan --check-review plan.json --type impl-review --scope phase-a`
+5. Run plan criteria: `scripts/validate-plan --criteria plan.json --plan`
+6. `scripts/validate-plan --update-status plan.json --plan --status Complete`
+7. Route on workflow:
+   - `"create-pr"`: invoke create-pr (targets main), `scripts/validate-plan --check-workflow plan.json`, stop
+   - `"merge-pr"`: invoke create-pr, poll checks + review-pr (skip if `review_wait_minutes` is 0), then merge-pr with `--squash`, `scripts/validate-plan --check-workflow plan.json`
 
 ## After All Phases (Multi-Phase Only)
 
 1. Run plan criteria: `scripts/validate-plan --criteria plan.json --plan`. If exit 1, do not mark complete.
-2. Final cross-phase review: dispatch implementation-review with `PLAN_BASE_SHA..HEAD`
-3. Triage findings, fix issues
+2. Final review: dispatch implementation-review with `PLAN_BASE_SHA..HEAD`, run Review Loop Protocol (scope: `final`)
+3. `scripts/validate-plan --check-review plan.json --type impl-review --scope final`
 4. `scripts/validate-plan --update-status plan.json --plan --status Complete`
 5. Route on workflow:
-   - `"merge-pr"`: `cd "$MAIN_REPO"` first, then create final PR (`integrate/<feature>` → main), poll checks, invoke review-pr, then merge-pr with `--rebase`, clean up integration worktree
-   - `"create-pr"`: create final PR but stop — user reviews and merges manually
+   - `"merge-pr"`: `cd "$MAIN_REPO"` first, create final PR, poll checks, review-pr, merge-pr with `--rebase`, `scripts/validate-plan --check-workflow plan.json`, clean up
+   - `"create-pr"`: create final PR, `scripts/validate-plan --check-workflow plan.json`, stop
 
 **Continuity:** Run continuously. Pause only for Rule 4 violations and merge confirmation in merge-pr.
 
@@ -126,7 +138,7 @@ When dispatcher reports Rule 4 violation, ask user. Present: what change, which 
 
 ## Permission Model
 
-Subagents run in `auto` mode. PreToolUse hook (`hooks/pretooluse-safe-commands.sh`) auto-approves Bash commands matching safe list prefixes. Phase dispatcher surfaces non-safe commands after each task for user to grow safe list.
+Subagents run in `auto` mode with safe-command auto-approval via PreToolUse hook. Phase dispatcher surfaces non-safe commands after each task.
 
 ## Key Constraints
 
@@ -134,11 +146,9 @@ Subagents run in `auto` mode. PreToolUse hook (`hooks/pretooluse-safe-commands.s
 |------------|-----|
 | Record PLAN_BASE_SHA before first phase | Final cross-phase review needs total diff |
 | Record PHASE_BASE_SHA per phase | Per-phase review needs exact phase start |
-| Reconciliation before dispatch | Planner may miss deps even without deviations |
 | Use validate-plan for all status updates | Keeps plan.json and plan.md in sync |
 
 ## Integration
 
-**Workflow:** design (creates feature or integration branch + worktree) → draft-plan → **this skill** → create-pr → review-pr → merge-pr
-
-**See:** `tdd.md` — TDD reference; content is embedded in implementer prompts
+**Workflow:** design → draft-plan → **this skill** → create-pr → review-pr → merge-pr
+**See:** `tdd.md` — TDD reference embedded in implementer prompts
