@@ -16,6 +16,7 @@ head
 jq
 ls
 mkdir
+mktemp
 mv
 node
 npm
