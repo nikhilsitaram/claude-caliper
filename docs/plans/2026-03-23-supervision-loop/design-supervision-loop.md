@@ -20,9 +20,9 @@ Add a two-level supervision hierarchy to orchestrate:
 ## Success Criteria
 
 1. Independent phases in the same wave execute concurrently rather than sequentially.
-2. The user sees a progress update every 60s showing task completion counts and health status per active phase.
-3. A stuck task implementer is detected and intervention begins within 3 minutes of the implementer becoming stuck. (Worst case: up to 29s before first observation + 2 cycles × 30s for two consecutive no-progress detections + intervention = ~89s typical, ~119s worst case.)
-4. A stuck phase dispatcher is detected and the user is notified within 4 minutes of the dispatcher becoming stuck. (Worst case: up to 59s before first observation + 2 cycles × 60s for two consecutive no-progress detections + intervention = ~179s typical, ~239s worst case.)
+2. The user receives periodic progress updates showing task completion counts and health status for each active phase.
+3. A stuck task implementer is detected and intervention begins within 3 minutes of becoming stuck.
+4. A stuck phase dispatcher is detected and the user is notified within 4 minutes of becoming stuck.
 5. An unresolvable task (2 failed interventions) is escalated via `escalation.json`, surfaced to the user on next orchestrator poll, and the phase continues to the next task.
 6. Task implementers within a phase still execute sequentially (one at a time) to avoid git conflicts.
 
@@ -110,7 +110,8 @@ Tasks remain sequential. The change is that each implementer is dispatched in th
 for each task in phase (sequential):
   dispatch implementer (run_in_background: true) → agent_id
 
-  SUPERVISION LOOP (every 30s):
+  SUPERVISION LOOP:
+    Bash("sleep 30")
     check TaskOutput(agent_id) → error patterns, progress
     git log in worktree → commit recency
 
@@ -152,6 +153,10 @@ TaskOutput returns cumulative text. The supervisor stores the previous output le
 **Repeated errors:** Extract lines from new output matching error patterns (`error:`, `Error:`, `failed:`, `FAILED`, `Traceback`, `panic:`). Note the trailing colon/capitalization to reduce false positives from grep results or documentation. Require the same error line to appear on 3+ consecutive lines (not just 3 occurrences scattered across the output window) — scattered matches likely indicate a search or test summary, while consecutive identical lines indicate a retry loop.
 
 **No progress:** Compare current `git log --format=%H -1` and TaskOutput length against values stored from the previous cycle. If both are unchanged → no progress. Two consecutive no-progress cycles → stuck.
+
+**Worst-case detection timing:** At L2 (30s polls): up to 29s before first observation + 2 × 30s for two consecutive no-progress cycles = ~89s. At L1 (60s polls): up to 59s before first observation + 2 × 60s = ~179s. Both within the 3-minute (L2) and 4-minute (L1) success criteria bounds.
+
+**Permission detection fragility:** The interactive prompt pattern depends on the current Claude Code permission prompt format. If the format changes, detection silently degrades to relying on the no-progress signal (2 consecutive polls with no commits and no output change), which catches the same stuck state with ~60s additional delay. This fallback is format-independent and sufficient — no additional hardening is warranted.
 
 **Completion:** `TaskOutput(task_id, block: false)` returns an object with `status` (e.g., `running`, `completed`) and `output` (cumulative text). Completion is detected by `status === 'completed'`. The supervisor then reads the final output for any error signals before proceeding to post-phase processing.
 
@@ -240,9 +245,19 @@ All fields optional with defaults shown.
 
 ## Implementation Approach
 
+## Files Changed
+
+| File | Change | Summary |
+|------|--------|---------|
+| `skills/orchestrate/SKILL.md` | Modify | Rewrite wave loop to async dispatch + L1 supervision; add completion processing, progress updates, escalation handling; add escalation file cleanup to step 18 |
+| `skills/orchestrate/phase-dispatcher-prompt.md` | Modify | Replace synchronous task loop with background dispatch + L2 supervision; add intervention protocol and escalation file writing |
+| `scripts/validate-plan` | Modify | Add schema validation for optional `supervision` object in plan.json |
+
+## Implementation Approach
+
 Single phase — this is a fundamental control flow rewrite of both the orchestrator (SKILL.md) and phase dispatcher (phase-dispatcher-prompt.md) prompt templates, plus schema validation changes. Async dispatch and supervision are bundled intentionally: supervision without async dispatch is impossible (the supervisor must be free to poll), and async dispatch without supervision recreates the black-box problem at a higher concurrency level. Separating them would mean shipping unmonitored parallel execution as an intermediate state.
 
-0. **Validate polling pattern (prerequisite)** — Before modifying any prompt templates, prototype the sleep-based polling loop: dispatch a no-op background agent (`Agent(run_in_background: true)`), call `Bash("sleep 10")`, then `TaskOutput(task_id, block: false)`. If TaskOutput returns the agent's output and the supervisor can continue processing after sleep, the pattern is validated. If it fails, switch to the per-cycle monitor subagent fallback before proceeding.
+0. **Validate polling pattern (prerequisite)** — Before modifying any prompt templates, prototype the sleep-based polling loop. Validation passes if ALL hold: (a) `Bash("sleep 10")` returns control to the agent (not blocked indefinitely), (b) after sleep, `TaskOutput(task_id, block: false)` returns the background agent's output and status, (c) the supervisor can execute a second sleep + TaskOutput cycle (proving the loop continues), (d) the background agent completes its work independently of the supervisor's sleep calls. If any criterion fails, this design is blocked — revisit the architecture.
 1. **Update `phase-dispatcher-prompt.md`** — Replace the existing synchronous "For each task" loop in `## Your Process` with a background-dispatch + polling pattern. Add sections: supervision loop (sleep 30s, check signals, evaluate health), intervention protocol (TaskStop + re-dispatch → escalation.json), and escalation file writing. The sequential task constraint remains — background dispatch is for supervision visibility, not parallelism.
 2. **Update `SKILL.md`** — Replace the "Per-Phase Execution (Wave Loop)" pseudocode (current steps a-e) with async dispatch + L1 supervision loop. Steps a-c become: build DAG, dispatch all ready phases with `run_in_background: true`, capture task IDs. Steps d-e become the supervision loop: sleep, poll each active phase (TaskOutput + git log + plan.json + escalation files), evaluate health, output progress, intervene if needed. Existing per-phase post-processing (current steps 6-18: review loop, rebase, create-pr, poll, review-pr, merge, cleanup) remains unchanged but moves inside the supervision loop's completion handler — it runs inline when a phase is detected as complete via TaskOutput status.
 3. **Update `scripts/validate-plan`** — Add schema validation for the optional `supervision` object at plan.json root level (fields: `orchestrator_poll_seconds`, `dispatcher_poll_seconds`, `max_intervention_attempts`, all optional integers with defaults).
