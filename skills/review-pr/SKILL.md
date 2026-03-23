@@ -58,7 +58,7 @@ Show the user a summary table with source, category, planned action, and counts 
 Use AskUserQuestion with options:
 - **Fix all** — actionable + suggestion items (excludes dismissed/false positives)
 - **Fix critical only** — actionable items (bugs, security, correctness)
-- **Skip fixes, proceed** — jump to Step 6
+- **Skip fixes, proceed** — jump to Step 6 (omit this option when `--automated` is passed — in automated workflows, all actionable findings must be fixed to maintain audit trail integrity)
 - **Other** — user provides custom instructions (e.g. "fix items 1, 3, 5")
 
 ### Step 5: Fix, Test, Push
@@ -83,6 +83,7 @@ If inside a worktree, tell the user: "When ready to merge: `cd` to the main repo
 | *(none)* | Detect from current branch |
 | `--skip-review` / `-R` | Skip subagent review (Step 2) — external feedback still processed |
 | `--skip-fixes` / `-S` | Skip fixing — just comment |
+| `--automated` / `-A` | Suppress "Skip fixes, proceed" option (used by merge-pr workflow) |
 
 ## Pitfalls
 
