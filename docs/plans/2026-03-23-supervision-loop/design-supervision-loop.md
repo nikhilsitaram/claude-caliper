@@ -16,24 +16,25 @@ Add a two-level supervision hierarchy to orchestrate:
 
 1. Independent phases in the same wave execute concurrently (dispatched with `run_in_background: true`).
 2. The user sees a progress update every 60s showing task completion counts and health status per active phase.
-3. A stuck task implementer (repeated errors, permission blocks) is detected within two L2 poll cycles (~60s) and receives intervention.
-4. A stuck phase dispatcher is detected within two L1 poll cycles (~120s) and the user is alerted via AskUserQuestion.
+3. A stuck task implementer (repeated errors, permission blocks) is detected and receives intervention within 90 seconds of becoming stuck.
+4. A stuck phase dispatcher is detected and the user is alerted via AskUserQuestion within 150 seconds of becoming stuck.
 5. An unresolvable task (2 failed interventions) is escalated via `escalation.json`, surfaced to the user on next orchestrator poll, and the phase continues to the next task.
 6. Task implementers within a phase still execute sequentially (one at a time) to avoid git conflicts.
-7. Each supervision poll cycle uses fewer than 5 tool calls (sleep + signal checks + progress output).
+7. Supervision overhead does not add more than 2 minutes wall-clock time to a plan with 2+ parallel phases compared to unsupervised execution.
 
 ## Architecture
 
 ### Tool Availability
 
-The supervision loop relies on these Claude Code built-in tools for background agent management:
+The supervision loop relies on these Claude Code built-in tools for background agent management (verified available):
 
-- **`Agent(run_in_background: true)`** — dispatches a subagent that runs independently; returns an agent ID immediately. The parent agent continues processing.
-- **`TaskOutput(agent_id)`** — reads output from a running or completed background agent. Used to check for error patterns and progress signals.
-- **`SendMessage(to: agent_id, message)`** — sends a message to a running background agent, resuming it with additional context. Used for mid-flight intervention.
-- **`TaskStop(agent_id)`** — terminates a running background agent. Used as last-resort intervention before escalation.
+- **`Agent(run_in_background: true)`** — dispatches a subagent that runs independently; returns a task ID immediately. The parent agent continues processing.
+- **`TaskOutput(task_id, block: false)`** — reads output from a running or completed background agent without blocking. Returns output text and status. Used to check for error patterns and progress signals each poll cycle.
+- **`TaskStop(task_id)`** — terminates a running background agent. Used as the primary intervention mechanism — stop the stuck agent, then re-dispatch with additional context.
 
-These tools are available to any agent in Claude Code when managing background tasks. The existing orchestrate skill already uses `Agent` (foreground); the change is adding `run_in_background: true` and using the companion tools for supervision.
+**Not available:** `SendMessage` (referenced in Agent tool documentation but not present as a callable tool). This means mid-flight guidance injection is not possible — intervention requires stopping and re-dispatching the agent. The intervention protocol reflects this constraint.
+
+The existing orchestrate skill already uses `Agent` (foreground); the change is adding `run_in_background: true` and using the companion tools for supervision. `TaskOutput` returns the agent's cumulative output text; the supervisor parses the last portion for error patterns using string matching.
 
 ### Two-Level Hierarchy
 
@@ -52,14 +53,14 @@ Orchestrator (L1 supervisor — polls every 60s, user progress updates)
 
 ```
 Implementer stuck
-  → Phase dispatcher intervenes (SendMessage with guidance)
-  → 2nd attempt: TaskStop + re-dispatch with additional context
-  → After 2 failed interventions: write escalation.json, skip to next task
+  → Phase dispatcher: TaskStop + re-dispatch with diagnosis and additional context
+  → 2nd attempt: TaskStop + re-dispatch with broader context (prior output summary)
+  → After 2 failed re-dispatches: write escalation.json, skip to next task
   → Orchestrator reads escalation.json on next poll → alerts user
 
 Phase dispatcher stuck
-  → Orchestrator intervenes (SendMessage)
-  → 2nd attempt: AskUserQuestion to user
+  → Orchestrator: TaskStop + re-dispatch with diagnosis
+  → 2nd attempt: AskUserQuestion to user (user decides: re-dispatch or abort)
 ```
 
 ### L1: Orchestrator Supervision Loop
@@ -78,7 +79,7 @@ for each wave:
       git log in phase worktree → commit recency
 
       healthy → log progress
-      degraded → SendMessage(phase_agent_id, guidance)
+      degraded → TaskStop + re-dispatch with diagnosis
       stuck → escalate to user via AskUserQuestion
 
     OUTPUT PROGRESS UPDATE to user:
@@ -116,7 +117,7 @@ Each poll cycle checks (cheapest first):
 |--------|-------------|-----------|
 | Escalation file | `cat escalation.json` | L2 escalated to L1 |
 | Commit recency | `git log --oneline -1 --format=%ct` | Forward progress |
-| TaskOutput patterns | `TaskOutput(agent_id)` tail | Error loops, permission blocks |
+| TaskOutput patterns | `TaskOutput(task_id, block: false)` — parse last 50 lines of output text | Error loops, permission blocks |
 | Task status | `jq` on plan.json in worktree | Completion count |
 
 **Stuck indicators** (any one triggers intervention):
@@ -131,12 +132,14 @@ Each poll cycle checks (cheapest first):
 
 ### Intervention Protocol
 
+Since `SendMessage` is not available, all intervention uses `TaskStop` + re-dispatch. The re-dispatched agent receives the diagnosis and prior output summary as additional context in its prompt, so it can avoid the same failure pattern.
+
 **Phase dispatcher → implementer (L2):**
 
 | Attempt | Action |
 |---------|--------|
-| 1st | `SendMessage(agent_id, "<diagnosis + guidance>")` |
-| 2nd | `TaskStop(agent_id)` + re-dispatch with extra context |
+| 1st | `TaskStop(task_id)` + re-dispatch with diagnosis and guidance in prompt |
+| 2nd | `TaskStop(task_id)` + re-dispatch with broader context (full prior output summary) |
 | Escalation | Write `escalation.json`, mark task blocked, move to next task |
 
 `max_intervention_attempts` (default 2) controls attempts 1-2. The escalation step is not an intervention — it's the fallback after all interventions are exhausted.
@@ -145,10 +148,10 @@ Each poll cycle checks (cheapest first):
 
 | Attempt | Action |
 |---------|--------|
-| 1st | `SendMessage(agent_id, "<diagnosis + guidance>")` |
-| 2nd | `AskUserQuestion` — user decides: kill + re-dispatch, or let continue |
+| 1st | `TaskStop(task_id)` + re-dispatch with diagnosis |
+| 2nd | `AskUserQuestion` — user decides: re-dispatch with guidance, or abort phase |
 
-L1 never auto-kills a phase dispatcher — always escalates to user on second attempt.
+L1 never auto-kills a phase dispatcher without user consent — always escalates on second attempt.
 
 ### Escalation File Format
 
@@ -172,7 +175,7 @@ Orchestrator outputs to user every 60s:
 [1m] Phase A: 1/5 tasks, healthy | Phase B: 0/4 tasks, starting
 [2m] Phase A: 3/5 tasks, healthy | Phase B: 1/4 tasks, healthy
 [3m] Phase A: 4/5 tasks, healthy | Phase B: 2/4 tasks, degraded (no commits)
-[3m] ⚠ Phase B task B2: intervening — sending guidance
+[3m] ⚠ Phase B task B2: intervening — TaskStop + re-dispatch
 [5m] Phase A: 5/5 tasks → review | Phase B: 4/4 tasks → review
 ```
 
@@ -194,13 +197,13 @@ All fields optional with defaults shown.
 
 ## Key Decisions
 
-1. **Inline polling loop over stop-hook pattern:** The ralph-loop (stop-hook) pattern is designed for iterative re-prompting, not periodic monitoring. Inline polling with `Bash("sleep N")` keeps the supervisor active in the same session with full tool access. Simpler and semantically correct. **Risk:** Sleep-based polling loops are a novel pattern in this codebase. If `Bash("sleep N")` blocks agent responsiveness or the agent fails to continue the loop reliably, a fallback is to dispatch a lightweight monitor subagent per poll cycle instead of sleeping inline.
+1. **Inline polling loop over stop-hook pattern:** The ralph-loop (stop-hook) pattern is designed for iterative re-prompting, not periodic monitoring. Inline polling with `Bash("sleep N")` keeps the supervisor active in the same session with full tool access. Simpler and semantically correct. **Risk:** Sleep-based polling loops are a novel pattern in this codebase. If `Bash("sleep N")` blocks agent responsiveness or the agent fails to continue the loop reliably, the fallback is: replace the sleep-based loop with a single-shot monitor subagent dispatched per poll cycle. Each monitor agent sleeps, checks signals, writes results to a status file, and exits. The supervisor reads the status file and decides whether to intervene. This trades one long-lived loop for N short-lived agents but preserves the same detection/intervention logic. **Validation:** The implementer should test the sleep-based loop with a simple prototype (dispatch a no-op background agent, sleep 10s, check TaskOutput) before building the full supervision logic.
 
 2. **L1 never auto-kills phases:** A phase timeout isn't meaningful because legitimate tasks can run 20+ minutes. The only signal is lack of progress, and even then, the user should decide whether to kill a phase dispatcher — the system can't distinguish "genuinely stuck" from "working on a hard problem slowly."
 
 3. **Sequential tasks with background dispatch:** Tasks within a phase stay sequential (git conflict avoidance). `run_in_background: true` is for supervision visibility, not parallelism. The phase dispatcher sends one task at a time but can poll and intervene while it runs.
 
-4. **escalation.json for L2→L1 communication:** Phase dispatchers can't SendMessage to the orchestrator (they don't know its agent ID). File-based signaling via a known path in the phase worktree is simple and the orchestrator already polls the worktree. **Alternatives considered:** (a) Pass orchestrator agent ID to phase dispatcher for direct SendMessage — rejected because agent IDs are runtime-generated and adding this parameter complicates the dispatch interface for marginal benefit. (b) Shared message queue file — rejected as over-engineered for the single-message escalation use case.
+4. **escalation.json for L2→L1 communication:** Phase dispatchers can't signal the orchestrator directly (no inter-agent messaging available). File-based signaling via a known path in the phase worktree is simple and the orchestrator already polls the worktree. **Alternatives considered:** (a) Shared message queue file — rejected as over-engineered for the single-message escalation use case. (b) Phase dispatcher returns early with escalation info — rejected because it terminates the dispatcher, losing progress on remaining tasks.
 
 ## Non-Goals
 
@@ -212,7 +215,7 @@ All fields optional with defaults shown.
 
 Single phase — prompt-template modifications plus minor schema validation:
 
-1. **Update `phase-dispatcher-prompt.md`** — Replace the existing synchronous "For each task" loop in `## Your Process` with a background-dispatch + polling pattern. Add sections: supervision loop (sleep 30s, check signals, evaluate health), intervention protocol (SendMessage → TaskStop → escalation.json), and escalation file writing. The sequential task constraint remains — background dispatch is for supervision visibility, not parallelism.
+1. **Update `phase-dispatcher-prompt.md`** — Replace the existing synchronous "For each task" loop in `## Your Process` with a background-dispatch + polling pattern. Add sections: supervision loop (sleep 30s, check signals, evaluate health), intervention protocol (TaskStop + re-dispatch → escalation.json), and escalation file writing. The sequential task constraint remains — background dispatch is for supervision visibility, not parallelism.
 2. **Update `SKILL.md`** — Replace the "Per-Phase Execution (Wave Loop)" pseudocode (current steps a-e) with async dispatch + L1 supervision loop. Add: agent ID tracking per dispatched phase, supervision loop protocol (sleep 60s, read plan.json from phase worktrees, check escalation.json, evaluate health), progress update output format, and escalation handling (surface to user). Completion processing (review → merge) triggers when a phase is detected as complete during a poll cycle.
 3. **Update `scripts/validate-plan`** — Add schema validation for the optional `supervision` object at plan.json root level (fields: `orchestrator_poll_seconds`, `dispatcher_poll_seconds`, `max_intervention_attempts`, all optional integers with defaults).
-4. **Update SKILL.md phase cleanup** — Add `escalation.json` removal to the phase worktree cleanup step (current step 18) so escalation files don't persist after merge.
+4. **Update SKILL.md phase cleanup** — Add `escalation.json` removal to the Per-Phase Execution step 18 (worktree removal) so escalation files don't persist after merge.
