@@ -15,10 +15,10 @@ After creating each phase PR, wait for external reviewers to finish, address the
 
 ## Success Criteria
 
-1. External AI reviewers (CodeRabbit, Gemini) have posted their feedback on each phase PR before the orchestrator merges it.
-2. The wait has a configurable cap (default 10 minutes) — if checks haven't completed by then, the orchestrator proceeds with a warning.
+1. Each phase PR waits for external review checks to complete before merging. If checks do not complete within the configured timeout, the orchestrator proceeds with a logged warning.
+2. The wait timeout is configurable via `review_wait_minutes` in plan.json (default 10 minutes).
 3. After checks complete, the orchestrator invokes review-pr to read and address all reviewer comments before merging.
-4. The same poll + review-pr gate applies to the final PR (integrate/<feature> → main).
+4. The poll + review-pr gate applies to the final PR in the `merge-pr` workflow. In the `create-pr` workflow, the final PR is created and external review is left to the user.
 5. The final PR uses `--rebase` merge for multi-phase plans (preserving per-phase commit history on main) and `--squash` for single-phase plans.
 
 ## Architecture
@@ -67,6 +67,8 @@ Replaces current orchestrate SKILL.md steps 14-16 with expanded steps 14-19:
 
 ### Final PR Flow
 
+For the `merge-pr` workflow:
+
 ```text
 1. Create final PR: integrate/<feature> → main
 2. Poll checks: same mechanism as phase PRs
@@ -75,6 +77,8 @@ Replaces current orchestrate SKILL.md steps 14-16 with expanded steps 14-19:
    - Multi-phase: gh pr merge --rebase (preserves per-phase commits on main)
    - Single-phase: gh pr merge --squash (one phase = one commit)
 ```
+
+For the `create-pr` workflow: create the final PR and stop. External review is left to the user.
 
 ### Parallel Phase Timing
 
@@ -124,6 +128,8 @@ LOOP until all phases complete:
 
 Single phase — the changes are confined to orchestrate SKILL.md and merge-pr SKILL.md:
 
-1. **orchestrate SKILL.md**: Insert after current step 14 (create phase PR, line 96). New step 15: poll checks using `review_wait_minutes` from plan.json (read via `jq -r '.review_wait_minutes // 10' plan.json`). New step 16: invoke review-pr with the phase PR number. Renumber current step 15 (merge) to step 17, current step 16 (cleanup) to steps 18-19. Update wave loop summary line 61 and continuity note line 116.
-2. **merge-pr SKILL.md**: Add conditional merge strategy — `--rebase` when plan.json has >1 phase, `--squash` otherwise — for the final PR (integrate/<feature> → main). Phase PRs remain `--squash`.
+Line references below are against the current (pre-edit) SKILL.md.
+
+1. **orchestrate SKILL.md** — Per-phase loop: Insert after current step 14 (create phase PR). New step 15: poll checks using `review_wait_minutes` from plan.json (read via `jq -r '.review_wait_minutes // 10' plan.json`). New step 16: invoke review-pr with the phase PR number. Current step 15 (merge + update integration worktree) splits into step 17 (merge) and step 18 (update integration worktree). Current step 16 (cleanup) becomes step 19. Update the wave loop summary in "Per-Phase Execution (Wave Loop)" section. Update the continuity note at the end of the section. Also update the "After All Phases" section: for `merge-pr` workflow, insert poll-checks + review-pr before the existing merge-pr invocation for the final PR.
+2. **merge-pr SKILL.md**: Add conditional merge strategy for the final PR (`integrate/<feature>` → main) — `--rebase` when plan.json has >1 phase, `--squash` otherwise. Phase-level merges in orchestrate remain unchanged (`gh pr merge --squash` inline).
 3. **draft-plan SKILL.md**: Add `review_wait_minutes` as optional field in plan.json schema (integer, default 10).
