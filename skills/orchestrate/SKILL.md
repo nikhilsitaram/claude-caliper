@@ -85,7 +85,7 @@ For each phase being dispatched:
     Clean → run tests → continue. Conflicts → `git rebase --abort`, escalate. First to merge: no-op.
 14. Create phase PR: invoke create-pr with `--base integrate/<feature>`
 15. External review gate (skip steps 15-16 if `review_wait_minutes` is 0): Poll `gh pr checks <NUMBER> --json bucket --jq '[.[] | select(.bucket == "pending")] | length'` every 60s. Max wait: `jq -r '.review_wait_minutes // 10' plan.json` minutes. Timeout → warn and proceed.
-16. Review feedback: invoke review-pr to read and address all reviewer comments
+16. Review feedback: invoke review-pr --automated to read and address all reviewer comments (--automated suppresses "Skip fixes" option)
 17. Merge phase PR: `gh pr merge --squash`, then update integration worktree: `git pull` in `.claude/worktrees/<feature>/`
 18. Clean up phase worktree:
     ```bash
@@ -118,7 +118,7 @@ Skip the wave loop, phase worktrees, and integration branch entirely. The design
 6. `scripts/validate-plan --update-status plan.json --plan --status Complete`
 7. Route on workflow:
    - `"create-pr"`: invoke create-pr (targets main), `scripts/validate-plan --check-workflow plan.json`, stop
-   - `"merge-pr"`: invoke create-pr, poll checks + review-pr (skip if `review_wait_minutes` is 0), then merge-pr with `--squash`, `scripts/validate-plan --check-workflow plan.json`
+   - `"merge-pr"`: invoke create-pr, poll checks + review-pr --automated (skip if `review_wait_minutes` is 0), then merge-pr with `--squash`, `scripts/validate-plan --check-workflow plan.json`
 
 ## After All Phases (Multi-Phase Only)
 
@@ -127,7 +127,7 @@ Skip the wave loop, phase worktrees, and integration branch entirely. The design
 3. `scripts/validate-plan --check-review plan.json --type impl-review --scope final`
 4. `scripts/validate-plan --update-status plan.json --plan --status Complete`
 5. Route on workflow:
-   - `"merge-pr"`: `cd "$MAIN_REPO"` first, create final PR, poll checks, review-pr, merge-pr with `--rebase`, `scripts/validate-plan --check-workflow plan.json`, clean up
+   - `"merge-pr"`: `cd "$MAIN_REPO"` first, create final PR, poll checks, review-pr --automated, merge-pr with `--rebase`, `scripts/validate-plan --check-workflow plan.json`, clean up
    - `"create-pr"`: create final PR, `scripts/validate-plan --check-workflow plan.json`, stop
 
 **Continuity:** Run continuously. Pause only for Rule 4 violations and merge confirmation in merge-pr.

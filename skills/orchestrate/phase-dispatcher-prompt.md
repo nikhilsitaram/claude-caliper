@@ -85,7 +85,7 @@ Task tool (general-purpose):
          config, calls an API created earlier), write a boundary integration test using
          real components — not mocks
 
-    5. **After implementer returns: run task review loop**
+    6. **After implementer returns: run task review loop**
        a. Dispatch task reviewer (`./task-reviewer-prompt.md`) with TASK_BASE_SHA..HEAD
        b. Extract the last `json review-summary` fenced block from the reviewer response
           - If the block is missing or malformed JSON → treat as verdict:fail, dispatch a fresh reviewer (this prevents silent skipping — a missing summary means re-review, not pass)
@@ -93,25 +93,25 @@ Task tool (general-purpose):
           - "fix" → dispatch implementer to fix
           - "dismiss" → document reasoning (will be included in report to orchestrate)
        d. Count actionable (non-dismissed) issues:
-          - 0 actionable → proceed to step 6
-          - 1-5 actionable → fix all, verify fixes, proceed to step 6
-          - >5 actionable → fix all, dispatch fresh reviewer (back to 5a)
+          - 0 actionable → proceed to step 7
+          - 1-5 actionable → fix all, verify fixes, proceed to step 7
+          - >5 actionable → fix all, dispatch fresh reviewer (back to 6a)
           - Max 3 iterations. After 3rd iteration with >5 issues → stop and report to orchestrate context for user escalation
        e. Report review results to orchestrate: issues_found, severity counts, dismissed (with reasons), fixed count, verdict
 
-    6. **Mark task complete:**
+    7. **Mark task complete:**
        ```bash
        bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status complete
        ```
 
-    7. **Run task criteria:**
+    8. **Run task criteria:**
        ```bash
        bash scripts/validate-plan --criteria {PLAN_DIR}/plan.json --task {TASK_ID}
        ```
        If exit 1: criteria failed. Report failure to orchestrate context with the failing criteria output. Do not proceed to the next task.
        If exit 0: criteria passed (or no criteria defined). Continue.
 
-    8. **Safe commands learning loop:**
+    9. **Safe commands learning loop:**
        - Read `$TMPDIR/claude-safe-cmds-nonmatch.log` (may not exist if all commands were safe)
        - If the file exists and is non-empty:
          a. Read and deduplicate the command names (one per line in the log)

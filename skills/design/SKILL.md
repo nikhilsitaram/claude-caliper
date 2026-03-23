@@ -57,7 +57,7 @@ Agent(
 )
 ```
 
-If design-review finds issues, present them to the user, collaboratively fix the design doc, and re-dispatch design-review until clean. Only dispatch draft-plan after design-review passes. After design-review passes, write a review record to `{PLAN_DIR}/reviews.json` (initialize with `[]` if it doesn't exist): `jq --argjson entry '{"type":"design-review","scope":"design","remaining":0,"verdict":"pass","timestamp":"<ISO8601>"}' '. += [$entry]' reviews.json > tmp && mv tmp reviews.json`
+If design-review finds issues, present them to the user, collaboratively fix the design doc, and re-dispatch design-review until clean. Only dispatch draft-plan after design-review passes. After design-review passes, extract the `json review-summary` block from the final passing review and write a record to `{PLAN_DIR}/reviews.json` (initialize with `[]` if it doesn't exist): `jq --argjson entry '{"type":"design-review","scope":"design","iteration":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass","timestamp":"<ISO8601>"}' '. += [$entry]' reviews.json > tmp && mv tmp reviews.json`
 
 ```text
 Agent(
@@ -82,7 +82,7 @@ Agent(
 )
 ```
 
-Extract the `json review-summary` block from the response. Triage issues (fix plan files or dismiss with reasoning). If >5 actionable issues, fix and re-dispatch reviewer (max 3 iterations, then escalate to user). Write review record to `{PLAN_DIR}/reviews.json` with type:"plan-review", scope:"plan".
+Extract the `json review-summary` block from the response. Triage issues (fix plan files or dismiss with reasoning). If >5 actionable issues, fix and re-dispatch reviewer (max 3 iterations, then escalate to user). Write review record to `{PLAN_DIR}/reviews.json`: `{"type":"plan-review","scope":"plan","iteration":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass","timestamp":"ISO8601"}`
 
 **Approval gate format:**
 
