@@ -165,6 +165,35 @@ Agent tool (general-purpose):
     **Severity:** Critical (blocks execution) / High (likely causes failure) / Medium (may cause confusion) / Low (cosmetic)
     **Ready for execution?** Yes / Yes after fixes / No, needs rework
 
+    ### Review Summary (Machine-Readable)
+
+    After the human-readable output above, emit a fenced code block with the info string `json review-summary`. This block is parsed by the controlling agent to enforce review gates — if it is missing or malformed, the review is treated as failed and a fresh reviewer is dispatched.
+
+    Severity mapping for plan-review:
+    - "Critical (blocks execution)" → critical
+    - "High (likely causes failure)" → high
+    - "Medium (may cause confusion)" → medium
+    - "Low (cosmetic)" → low
+
+    ```json review-summary
+    {
+      "issues_found": 3,
+      "severity": { "critical": 0, "high": 1, "medium": 2, "low": 0 },
+      "verdict": "fail",
+      "issues": [
+        { "id": 1, "severity": "high", "category": "Artifact consistency", "file": "phase-a/a1.md", "problem": "File path 'utils.ts' in task prose differs from 'helpers.ts' in plan.json", "fix": "Align all references to use 'src/utils.ts'" }
+      ]
+    }
+    ```
+
+    Rules for the summary block:
+    - `verdict`: "pass" when zero issues remain actionable, "fail" otherwise
+    - `issues_found`: total count (including low/informational)
+    - `severity`: counts per level (critical, high, medium, low)
+    - `issues[]`: one entry per issue with id (sequential integer), severity, category (from checklist section name), file (path:line or "N/A"), problem, fix
+    - If zero issues: `{"issues_found": 0, "severity": {"critical": 0, "high": 0, "medium": 0, "low": 0}, "verdict": "pass", "issues": []}`
+    - This block must be the LAST fenced code block in your response — the controller uses the last `json review-summary` block if multiple appear
+
     ## Rules
 
     - This is a CONSISTENCY check, not a code style review

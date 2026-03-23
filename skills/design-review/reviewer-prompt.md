@@ -141,6 +141,35 @@ Agent tool (general-purpose):
     **Severity:** Critical (blocks planning) / High (likely causes plan failure) / Medium (may cause confusion) / Low (cosmetic)
     **Ready for planning?** Yes / Yes after fixes / No, needs rework
 
+    ### Review Summary (Machine-Readable)
+
+    After the human-readable output above, emit a fenced code block with the info string `json review-summary`. This block is parsed by the controlling agent to enforce review gates — if it is missing or malformed, the review is treated as failed and a fresh reviewer is dispatched.
+
+    Severity mapping for design-review:
+    - "Critical (blocks planning)" → critical
+    - "High (likely causes plan failure)" → high
+    - "Medium (may cause confusion)" → medium
+    - "Low (cosmetic)" → low
+
+    ```json review-summary
+    {
+      "issues_found": 7,
+      "severity": { "critical": 1, "high": 2, "medium": 3, "low": 1 },
+      "verdict": "fail",
+      "issues": [
+        { "id": 1, "severity": "critical", "category": "Problem clarity", "file": "N/A", "problem": "Problem statement describes solution not problem", "fix": "Rewrite problem statement to focus on user impact" }
+      ]
+    }
+    ```
+
+    Rules for the summary block:
+    - `verdict`: "pass" when zero issues remain actionable, "fail" otherwise
+    - `issues_found`: total count (including low/informational)
+    - `severity`: counts per level (critical, high, medium, low)
+    - `issues[]`: one entry per issue with id (sequential integer), severity, category (from checklist section name), file (path:line or "N/A"), problem, fix
+    - If zero issues: `{"issues_found": 0, "severity": {"critical": 0, "high": 0, "medium": 0, "low": 0}, "verdict": "pass", "issues": []}`
+    - This block must be the LAST fenced code block in your response — the controller uses the last `json review-summary` block if multiple appear
+
     ## Rules
 
     - This is a DESIGN QUALITY check, not a code review or style review

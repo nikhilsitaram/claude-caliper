@@ -130,6 +130,34 @@ Agent tool (general-purpose):
 
     If nothing: "No handoff notes needed."
 
+    ### Review Summary (Machine-Readable)
+
+    After the human-readable output above, emit a fenced code block with the info string `json review-summary`. This block is parsed by the controlling agent to enforce review gates — if it is missing or malformed, the review is treated as failed and a fresh reviewer is dispatched.
+
+    Severity mapping for implementation-review (3 levels):
+    - "Critical" → critical
+    - "Important" → high (medium stays 0)
+    - "Minor" → low
+
+    ```json review-summary
+    {
+      "issues_found": 2,
+      "severity": { "critical": 0, "high": 1, "medium": 0, "low": 1 },
+      "verdict": "fail",
+      "issues": [
+        { "id": 1, "severity": "high", "category": "Cross-task inconsistencies", "file": "src/api.ts:42", "problem": "Port 8080 used here but 3000 in config.ts:7", "fix": "Read port from config in all files" }
+      ]
+    }
+    ```
+
+    Rules for the summary block:
+    - `verdict`: "pass" when zero issues remain actionable, "fail" otherwise
+    - `issues_found`: total count (including low/informational)
+    - `severity`: counts per level (critical, high, medium, low)
+    - `issues[]`: one entry per issue with id (sequential integer), severity, category (from cross-task category list), file (path:line or "N/A"), problem, fix
+    - If zero issues: `{"issues_found": 0, "severity": {"critical": 0, "high": 0, "medium": 0, "low": 0}, "verdict": "pass", "issues": []}`
+    - This block must be the LAST fenced code block in your response — the controller uses the last `json review-summary` block if multiple appear
+
     ## Rules
 
     - Focus exclusively on cross-task and integration issues
