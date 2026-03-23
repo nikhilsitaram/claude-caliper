@@ -85,6 +85,43 @@ do_schema() {
     [[ -z "$expect_exit" && -z "$expect_output" ]] && err "ERROR: missing_expect: plan success_criteria[$i] has neither expect_exit nor expect_output"
   done
 
+  local has_supervision
+  has_supervision=$(echo "$json" | jq 'has("supervision")')
+  if [[ "$has_supervision" == "true" ]]; then
+    local supervision_type
+    supervision_type=$(echo "$json" | jq -r '.supervision | type')
+    if [[ "$supervision_type" != "object" ]]; then
+      err "ERROR: invalid_supervision_type: supervision must be an object, got $supervision_type"
+    else
+      local valid_supervision_keys="orchestrator_poll_seconds dispatcher_poll_seconds max_intervention_attempts"
+      local supervision_keys
+      supervision_keys=$(echo "$json" | jq -r '.supervision | keys[]')
+      for key in $supervision_keys; do
+        if [[ " $valid_supervision_keys " != *" $key "* ]]; then
+          err "ERROR: unknown_supervision_field: '$key'"
+        fi
+      done
+
+      for field in orchestrator_poll_seconds dispatcher_poll_seconds max_intervention_attempts; do
+        local field_val
+        field_val=$(echo "$json" | jq ".supervision.$field // null")
+        if [[ "$field_val" != "null" ]]; then
+          local field_type
+          field_type=$(echo "$json" | jq -r ".supervision.$field | type")
+          if [[ "$field_type" != "number" ]]; then
+            err "ERROR: invalid_supervision_field: supervision.$field must be a positive integer, got $field_type"
+          else
+            local is_positive_int
+            is_positive_int=$(echo "$json" | jq ".supervision.$field | (. > 0 and . == (. | floor))")
+            if [[ "$is_positive_int" != "true" ]]; then
+              err "ERROR: invalid_supervision_field: supervision.$field must be a positive integer, got $field_val"
+            fi
+          fi
+        fi
+      done
+    fi
+  fi
+
   local phase_count
   phase_count=$(echo "$json" | jq '(.phases // []) | length')
   [[ "$phase_count" -eq 0 ]] && err "ERROR: empty_phases: plan must have at least one phase"
