@@ -20,11 +20,11 @@
           "depends_on": [],
           "files": {
             "create": [],
-            "modify": ["hooks/safe-commands.txt"],
+            "modify": ["hooks/safe-commands.txt", ".claude-plugin/marketplace.json"],
             "test": []
           },
           "verification": "bash tests/hooks/test_safe_commands.sh",
-          "done_when": "safe-commands.txt contains ln, dirname, basename, [, command; all 21 existing tests pass"
+          "done_when": "safe-commands.txt contains ln, dirname, basename, [, command (64 entries total); marketplace.json version bumped to 1.15.0; all existing tests pass"
         },
         {
           "id": "A2",
@@ -37,7 +37,7 @@
             "test": []
           },
           "verification": "bash tests/hooks/test_safe_commands.sh",
-          "done_when": "'bash scripts/validate-plan' resolves to 'validate-plan' (safe); 'bash -e scripts/validate-plan' resolves to 'validate-plan'; 'bash \"$f\"' emits deny with feedback; bare 'bash' falls through; $VAR/\"$VAR\"/${VAR} as command word produces deny with permissionDecisionReason; all 21 existing tests still pass"
+          "done_when": "'bash scripts/validate-plan' resolves to 'validate-plan' (safe); 'bash -e scripts/validate-plan' resolves to 'validate-plan'; 'bash \"$f\"' emits deny with feedback; bare 'bash' falls through; $VAR/\"$VAR\"/${VAR} as command word produces deny with permissionDecisionReason; all existing tests still pass"
         },
         {
           "id": "A3",
