@@ -163,6 +163,38 @@ extract_command_words_from_segment() {
   else
     local word="${seg%% *}"
     outer_cmd="${word##*/}"
+    # Shell interpreter resolution: bash/sh/zsh script.sh -> script.sh
+    if [[ "$outer_cmd" == "bash" || "$outer_cmd" == "sh" || "$outer_cmd" == "zsh" ]]; then
+      local rest="${seg#"${seg%% *}" }"
+      rest="${rest#"${rest%%[![:space:]]*}"}"
+      local script_token=""
+      while [[ -n "$rest" ]]; do
+        local token="${rest%% *}"
+        if [[ "$token" == "--" ]]; then
+          rest="${rest#"$token"}"
+          rest="${rest#"${rest%%[![:space:]]*}"}"
+          if [[ -n "$rest" ]]; then
+            script_token="${rest%% *}"
+          fi
+          break
+        elif [[ "$token" == -* ]]; then
+          rest="${rest#"$token"}"
+          rest="${rest#"${rest%%[![:space:]]*}"}"
+          continue
+        else
+          script_token="$token"
+          break
+        fi
+      done
+
+      if [[ -n "$script_token" ]]; then
+        script_token="${script_token#\"}"
+        script_token="${script_token%\"}"
+        script_token="${script_token#\'}"
+        script_token="${script_token%\'}"
+        outer_cmd="${script_token##*/}"
+      fi
+    fi
   fi
 
   [[ -n "$outer_cmd" ]] && cmds+=("$outer_cmd")
@@ -202,6 +234,7 @@ segments=("${SEGMENTS[@]+"${SEGMENTS[@]}"}")
 
 count=0
 all_safe=1
+variable_as_command=0
 declare -a non_matching=()
 
 for seg in "${segments[@]+"${segments[@]}"}"; do
@@ -210,6 +243,17 @@ for seg in "${segments[@]+"${segments[@]}"}"; do
   for word in "${seg_cmds[@]+"${seg_cmds[@]}"}"; do
     [[ $count -ge 20 ]] && break
     [[ -z "$word" ]] && continue
+    stripped="$word"
+    stripped="${stripped#\"}"
+    stripped="${stripped%\"}"
+    stripped="${stripped#\'}"
+    stripped="${stripped%\'}"
+    if [[ "$stripped" == \$* ]]; then
+      variable_as_command=1
+      all_safe=0
+      non_matching+=("$word")
+      continue
+    fi
     count=$((count+1))
     if ! is_safe "$word"; then
       all_safe=0
@@ -220,6 +264,11 @@ done
 
 if [[ $all_safe -eq 1 ]]; then
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}\n'
+elif [[ $variable_as_command -eq 1 ]]; then
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Command word is a shell variable — the safe commands hook cannot verify safety. Use the literal command/path instead of variable indirection."}}\n'
+  for nm in "${non_matching[@]}"; do
+    printf '%s\n' "$nm" >> "$LOG_FILE"
+  done
 else
   for nm in "${non_matching[@]}"; do
     printf '%s\n' "$nm" >> "$LOG_FILE"

@@ -16,7 +16,7 @@
         {
           "id": "A1",
           "name": "Add missing commands to safe-commands.txt",
-          "status": "in_progress",
+          "status": "complete",
           "depends_on": [],
           "files": {
             "create": [],
@@ -47,7 +47,7 @@
         {
           "id": "A3",
           "name": "Tests for all new behaviors",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [],
           "files": {
             "create": [],
