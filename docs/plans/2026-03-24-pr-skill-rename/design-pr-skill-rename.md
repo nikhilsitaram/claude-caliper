@@ -19,12 +19,11 @@ Rename all three PR skills to a `pr-*` namespace and fix the review-to-merge pip
 1. `/pr-review` triggers the review skill; `/review-pr` does not
 2. `/pr-create` triggers the create skill; `/create-pr` does not
 3. `/pr-merge` triggers the merge skill; `/merge-pr` does not
-4. `scripts/validate-plan` accepts `pr-create`/`pr-merge`/`plan-only` and rejects old names
-5. All existing tests pass with updated enum values
-6. pr-review rebases onto default branch before dispatching the fresh-eyes reviewer when the branch is behind
-7. pr-review offers "Merge PR" / "Not yet" after posting its assessment comment
-8. pr-merge merges immediately after setup with no confirmation AskUserQuestion
-9. Cross-references in all skill SKILL.md files, CLAUDE.md, and README.md use the new names
+4. Plan workflows using old enum names (`create-pr`, `merge-pr`) are rejected with an error indicating valid values
+5. pr-review rebases onto default branch before dispatching the fresh-eyes reviewer when the branch is behind
+6. pr-review offers "Merge PR" / "Not yet" after posting its assessment comment
+7. pr-merge merges immediately after setup with no confirmation AskUserQuestion
+8. Cross-references in all skill SKILL.md files, CLAUDE.md, and README.md use the new names
 
 ## Architecture
 
@@ -39,7 +38,7 @@ Rename all three PR skills to a `pr-*` namespace and fix the review-to-merge pip
 
 **Workflow enum rename:** plan.json `workflow` field changes from `create-pr`/`merge-pr`/`plan-only` to `pr-create`/`pr-merge`/`plan-only`.
 
-**Cross-reference updates (blast radius):**
+**Cross-reference updates (blast radius).** All skill paths below reflect post-rename state:
 - `marketplace.json` — skill paths in all 3 plugin bundles
 - `skills/design/SKILL.md` — workflow options, enum mapping
 - `skills/orchestrate/SKILL.md` — workflow routing, integration section
@@ -75,10 +74,10 @@ merge-pr's existing rebase check (Step 3) stays as a safety net for standalone i
 ### Review → Merge Continuation (#120)
 
 **pr-review Step 6:** After posting the PR comment, add AskUserQuestion:
-- **Merge PR** — invoke pr-merge via Skill tool (worktree guard in pr-merge handles cd)
+- **Merge PR** — invoke pr-merge via Skill tool. pr-merge's Step 1 worktree guard detects and `cd`s out of worktrees, so no additional handling is needed in the Skill tool call.
 - **Not yet** — stop as today
 
-**pr-merge Step 2:** Remove AskUserQuestion confirmation. The user has either explicitly typed `/pr-merge` or selected "Merge PR" from pr-review. Branch protection check remains as the real gate.
+**pr-merge Step 2:** Remove AskUserQuestion confirmation. Three invocation paths all represent confirmed intent: (1) user explicitly types `/pr-merge`, (2) user selects "Merge PR" from pr-review's prompt, (3) orchestrate auto-invokes in `pr-merge` workflow mode. Branch protection check remains as the real gate for PRs that require human approval.
 
 ## Key Decisions
 
@@ -86,9 +85,25 @@ merge-pr's existing rebase check (Step 3) stays as a safety net for standalone i
 |----------|--------|-----------|
 | Rename scope | All three skills | Consistent `pr-*` namespace, no partial migration |
 | Workflow enum | Rename to match | `pr-create`/`pr-merge` keeps enum aligned with skill names |
-| Merge confirmation | Remove entirely | Explicit invocation = sufficient intent; branch protection is the real gate |
+| Merge confirmation | Remove entirely | All three invocation paths (explicit `/pr-merge`, review continuation, orchestrate auto-invoke) represent confirmed intent; branch protection is the real gate |
 | Rebase notification | Log message, not prompt | Keeps pipeline flowing; conflicts still stop for user |
 | Backward compat | None | plan.json files are transient per-session, not persisted across versions |
+
+## Alternatives Considered
+
+### Three-dot diff instead of rebase (#122)
+
+Using `$DEFAULT_BRANCH...HEAD` (three-dot) computes `git diff $(git merge-base $DEFAULT_BRANCH HEAD) HEAD`, showing only the PR's changes without rebasing. This avoids the force-push side effects (re-triggers CI, invalidates GitHub review comments).
+
+**Why rebase is still the right choice:** Three-dot diff only fixes the *review's view* — the branch remains behind the default branch. This means: (a) the reviewed code may not compile or pass tests against the latest base, (b) merge-pr would still need to rebase before merging, changing the code *after* review. Rebasing in pr-review ensures the reviewer evaluates code that actually integrates with the current state of the default branch, and eliminates the need for a post-review rebase in merge-pr.
+
+### Rename only `review-pr` (#112)
+
+Only the colliding skill would be renamed, minimizing churn. Rejected because a mixed namespace (`create-pr` + `pr-review` + `merge-pr`) is confusing — consistent naming is worth the one-time migration cost.
+
+### `--no-confirm` flag instead of removing confirmation (#120)
+
+pr-review would pass `--no-confirm` to pr-merge; standalone invocations keep the gate. Rejected because the explicit act of typing `/pr-merge` is sufficient intent — an extra confirmation adds friction without safety value. Branch protection is the real gate for PRs requiring human approval.
 
 ## Non-Goals
 
