@@ -53,9 +53,9 @@ Rename all three PR skills to a `pr-*` namespace and fix the review-to-merge pip
 
 ### Rebase Before Review (#122)
 
-Insert between pr-review Step 1 (Setup) and Step 2 (PR Review):
+pr-create already rebases in Step 6, so bots (CodeRabbit, Greptile) see a clean diff from the start. The problem is drift: other PRs merge to the default branch between PR creation and review. The fix adds a second rebase in pr-review to catch this drift.
 
-**Step 1.5: Rebase onto default branch**
+**pr-review Step 1.5: Rebase onto default branch** (insert between Setup and PR Review):
 
 ```bash
 git fetch origin $DEFAULT_BRANCH
@@ -68,6 +68,8 @@ fi
 If rebased, log: "Branch was behind `$DEFAULT_BRANCH` — rebased and force-pushed to ensure the review covers only this PR's changes."
 
 If rebase has conflicts, stop and ask the user to resolve.
+
+**Bot comment freshness:** Force-pushing after rebase invalidates existing bot review comments (GitHub marks them "outdated"). pr-review Step 3 (Collect & Assess All Feedback) should only process comments posted *after* the rebase push. Record the push timestamp and filter `gh pr` comment results accordingly, or wait for fresh bot comments if the PR was just rebased.
 
 merge-pr's existing rebase check (Step 3) stays as a safety net for standalone invocations.
 
