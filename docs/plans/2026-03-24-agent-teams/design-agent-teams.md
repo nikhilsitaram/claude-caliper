@@ -90,11 +90,31 @@ Implementer teammates are autonomous. Each teammate:
 
 This is a change from the current model where the phase dispatcher handles steps 1, 2, 7, and writes a single phase-level completion.md. With the dispatcher eliminated, teammates self-manage their lifecycle.
 
+### Teammate Lifecycle
+
+Each implementer teammate follows a strict lifecycle. The lead manages transitions:
+
+```
+Spawn → Implement → Idle (notify lead) → [Review Loop] → Validate → Kill
+```
+
+1. **Spawn**: Lead spawns teammate for a task. Teammate gets auto-worktree.
+2. **Implement**: Teammate implements the task via TDD, commits, self-reviews, writes completion notes, marks task complete.
+3. **Idle**: Teammate goes idle → lead receives notification. Teammate stays alive (not killed). The implementer's context still has all files loaded.
+4. **Review loop**: Lead dispatches a reviewer teammate for the task. Reviewer produces review-summary JSON. If issues found, lead sends the review feedback to the *original implementer teammate* via messaging. Implementer fixes issues and goes idle again. Repeat until review passes.
+5. **Validate**: Lead runs `validate-plan --criteria` for the task. If checks fail, lead sends feedback to implementer. Once all checks pass, lead proceeds.
+6. **Kill**: Lead terminates the teammate. Worktree is preserved (has commits).
+
+**Phase completion gate**: The lead cannot mark a phase complete until ALL teammates for that phase (implementers and reviewers) are terminated. This prevents the lead from advancing while teammates are still running or have unresolved work.
+
+The review fix loop via messaging is a key optimization — the implementer already has all files in context, so sending it review feedback costs far fewer tokens than spawning a fresh agent to apply fixes.
+
 ### Review Stack
 
-1. **Per-task reviewer teammate** — dispatched by lead when an implementer teammate finishes. Runs the 6-point checklist (spec fidelity, TDD discipline, test quality, correctness, security, simplicity). Produces structured review-summary JSON. Runs concurrently with other active teammates.
-2. **Implementation review** — after all tasks + reviews in a phase complete, a fresh-eyes Opus subagent reviews the full phase diff for cross-task issues (duplication, inconsistency, dead code).
-3. **No per-task review blocking** — reviewer teammates don't block implementer teammates in the same phase.
+1. **Per-task reviewer teammate** — dispatched by lead when an implementer teammate goes idle. Runs the 6-point checklist (spec fidelity, TDD discipline, test quality, correctness, security, simplicity). Produces structured review-summary JSON. Runs concurrently with other active implementers.
+2. **Review feedback loop** — if reviewer finds issues, lead sends feedback to the original implementer teammate (not a new agent). Implementer fixes and goes idle. Lead re-dispatches reviewer. Loop until clean.
+3. **Implementation review** — after all tasks pass per-task review and all teammates are killed, a fresh-eyes Opus subagent reviews the full phase diff for cross-task issues (duplication, inconsistency, dead code).
+4. **No per-task review blocking** — reviewer teammates don't block implementer teammates working on other tasks in the same phase.
 
 ### Agent Teams API Contract
 
