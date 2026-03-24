@@ -31,7 +31,7 @@ docs/plans/YYYY-MM-DD-topic/
 ├── plan.json             # Structured manifest (source of truth)
 ├── plan.md               # Generated outline (DO NOT edit)
 ├── phase-a/
-│   ├── completion.md     # Empty stub (dispatcher fills)
+│   ├── completion.md     # Empty stub (lead aggregates per-task completions)
 │   ├── a1.md             # Task prose
 │   └── a2.md
 └── phase-b/
@@ -94,7 +94,7 @@ Optional: `success_criteria` array at plan, phase, and task levels for automated
 (Full TDD cycle with code)
 ```
 
-H1 header must match `# {id}: {name}` from plan.json. When a task consumes output from a prior phase, the source phase's dispatcher appends a handoff section after the H1.
+H1 header must match `# {id}: {name}` from plan.json. When a task consumes output from a prior phase, the lead appends a handoff section after the H1.
 
 ## Phasing
 
@@ -108,7 +108,7 @@ H1 header must match `# {id}: {name}` from plan.json. When a task consumes outpu
 
 **Phase boundaries** fall where "run full suite and verify" is meaningful. Each phase gets its own directory (`phase-a/`, `phase-b/`) with a `completion.md` stub and task `.md` files. The phase's `rationale` field in plan.json explains why the phase exists.
 
-Each phase declares `depends_on` — phase letters required to complete first. Independent phases (empty or non-overlapping) execute concurrently.
+Each phase declares `depends_on` — phase letters required to complete first. Phases execute sequentially. Tasks within a phase execute in parallel, so each task's file set (create + modify + test) must be disjoint from every other task in the same phase. `validate-plan --schema` rejects overlapping file sets.
 
 **Design doc inheritance:** If the design doc has approved phases, use those. Don't contradict without flagging.
 
@@ -123,7 +123,7 @@ Every task splits metadata (plan.json) and prose (task .md file).
 | **files** | Exact paths (create/modify/test) | "the auth files" | `{"create": ["src/auth/login.ts"], "test": ["tests/auth/login.test.ts"]}` |
 | **verification** | Runnable command, <60s | "check that it works" | `pytest tests/auth/ -v` |
 | **done_when** | Measurable end state | "authentication complete" | `login returns JWT, 4/4 tests pass` |
-| **depends_on** | Task IDs this consumes | `["A3", "B1"]` (invalid — wrong phase) | `["A1", "A2"]` (same/prior phase only) |
+| **depends_on** | Task IDs this consumes | `["A3", "B1"]` (invalid — wrong phase) | `["A1", "A2"]` (same phase for semantic ordering, prior phase for cross-phase deps) |
 
 **Task .md file content:**
 
@@ -138,7 +138,7 @@ Write complete code in each step — not "add validation" or "implement the hand
 
 **First task as integration tests:** When cross-task data flow exists, the first task (A1) can be broad integration tests — the outer loop of double-loop TDD. Write end-to-end tests with stub imports that stay RED until the last piece lands.
 
-**Handoff notes:** The dispatcher appends handoff sections to cross-phase task files. Draft-plan doesn't write these.
+**Handoff notes:** The lead writes handoff sections to cross-phase task files between phases. Draft-plan doesn't write these.
 
 ### The Fresh Claude Test
 
