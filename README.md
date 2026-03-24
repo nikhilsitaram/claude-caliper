@@ -9,7 +9,7 @@
 A Claude Code plugin that turns your goal into a PR with as little friction as possible. Every step is reviewed with a fresh context subagent. You get a design-reviewed, plan-validated, test-driven PR — with three human decisions.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.13.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
+[![Version](https://img.shields.io/badge/version-1.14.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-6E40C9?logo=anthropic&logoColor=white)](https://claude.ai/code)
 [![Skills](https://img.shields.io/badge/11%20skills-included-2ea44f)](skills/)
 
@@ -44,8 +44,8 @@ Then the pipeline runs:
 | 3 | Design review validates the doc against an 8-point checklist | Fresh subagent |
 | 4 | Draft plan writes tasks with exact file paths, TDD steps, verification commands | Fresh subagent |
 | 5 | Plan review catches vague steps, missing paths, design-plan drift | Fresh subagent |
-| 6 | Orchestrator dispatches one fresh subagent per task, each running RED-GREEN-REFACTOR | Fresh subagents |
-| 7 | Per-task reviewer checks each task (never the implementer) | Fresh subagents |
+| 6 | Orchestrator spawns one agent team teammate per task (parallel within phase), each running RED-GREEN-REFACTOR | Agent team teammates |
+| 7 | Per-task reviewer checks each task; fixes sent back to the original implementer via messaging | Fresh subagents |
 | 8 | Implementation review does a cross-task holistic pass | Fresh subagent |
 | 9 | Create PR opens a PR | Automated |
 | 10 | You review the PR and run `/review-pr` | **You** |
@@ -154,7 +154,7 @@ These skills chain automatically. You trigger the first one by describing what t
 | **Design Gate** | [design-review](skills/design-review/) | 8-point validation: problem clarity, success criteria, architecture fit, scope alignment, handoff quality |
 | **Planning** | [draft-plan](skills/draft-plan/) | Structured plan: `plan.json` manifest + per-task `.md` files with TDD steps, exact file paths, verification commands |
 | **Plan Gate** | [plan-review](skills/plan-review/) | Catches vague steps, missing file paths, design-plan drift, the "Different Claude Test" |
-| **Execution** | [orchestrate](skills/orchestrate/) | Dispatches phases in parallel via git worktrees with supervision loops that detect stuck agents and intervene |
+| **Execution** | [orchestrate](skills/orchestrate/) | Spawns agent team teammates per task (parallel within phase, sequential phases), push-based completion via idle notifications |
 | **Review Gate** | [implementation-review](skills/implementation-review/) | Cross-task holistic review — catches inconsistencies invisible to per-task reviewers |
 | **Create PR** | [create-pr](skills/create-pr/) | Commits, rebases, tests, pushes, opens PR with structured summary |
 | **Review PR** | [review-pr](skills/review-pr/) | Fresh-eyes review before reading external feedback, addresses comments, posts assessment |
@@ -275,12 +275,16 @@ docs/plans/2026-03-21-rate-limiter/
 ├── design-rate-limiter.md  # Design doc with success criteria
 ├── plan.json               # Machine-readable manifest (source of truth)
 ├── plan.md                 # Auto-rendered from plan.json (never hand-edited)
+├── reviews.json            # Review records (design-review, plan-review, impl-review)
 ├── phase-a/
 │   ├── a1.md               # Full TDD steps, pitfalls + why, exact file paths
+│   ├── a1-completion.md    # Written by implementer teammate after task completes
 │   ├── a2.md
-│   └── completion.md       # Filled by dispatcher after phase execution
+│   ├── a2-completion.md
+│   └── completion.md       # Lead aggregates per-task completions after phase
 └── phase-b/
     ├── b1.md
+    ├── b1-completion.md
     └── completion.md
 ```
 
@@ -332,6 +336,16 @@ Before an LLM reviewer ever sees the plan, `scripts/validate-plan --schema` runs
 - No duplicate task IDs or file paths across the entire plan
 - Every task `.md` file exists and its H1 header matches `# {id}: {name}` exactly
 - Every phase has a `completion.md` stub
+- **File-set isolation** — no two tasks in the same phase share any file path across `create`/`modify`/`test`
+- **Task ID prefix matches phase** — task A1 must be in Phase A
+- **Phase letters are alphabetically ordered** — A before B before C
+- **Status consistency** — phase can't be "Complete" if any task is still pending
+- **Task completion files** — `{task_id}-completion.md` must exist when task is marked complete
+- **No orphaned files** — `.md` files in phase directories must correspond to a task in `plan.json`
+
+Additional runtime gates:
+- `--check-deps` verifies all `depends_on` tasks are complete before spawning dependent teammates
+- `--criteria` runs machine-executable success criteria at task, phase, and plan levels
 
 This catches structural errors deterministically — no tokens spent on an LLM noticing a missing field.
 
@@ -352,18 +366,51 @@ The litmus test for every task: *could a fresh Claude with zero codebase context
 </details>
 
 <details>
-<summary><strong>Parallel Phase Execution</strong></summary>
+<summary><strong>Agent Teams Execution</strong></summary>
 
-When a plan has independent phases, they don't wait in line. The orchestrator builds a dependency DAG from `plan.json` and dispatches independent phases concurrently with two-level supervision:
+Orchestrate uses **Claude Code agent teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) for push-based parallel execution with zero polling overhead.
 
-- Each phase gets its own **git worktree** branched from the integration branch
-- **L1 supervision (orchestrator):** Polls every 60s, outputs progress updates, detects stuck phase dispatchers, intervenes or escalates to user
-- **L2 supervision (phase dispatcher):** Polls every 30s per task implementer, detects permission blocks, repeated errors, and stalled progress, stops and re-dispatches stuck agents
-- Before dispatching dependent phases, the orchestrator runs **reconciliation** — analyzing diffs and injecting impact notes into downstream task files
-- Phase PRs **squash merge** into the integration branch as they complete
-- The final PR merges the integration branch into main
+### Architecture
 
-Sequential plans execute one phase at a time. No special-casing needed — the DAG handles both cases.
+```text
+Lead (orchestrator) ──push notifications──▶ Implementer Teammates (1 per task, parallel)
+                     ──push notifications──▶ Reviewer Teammates (1 per completed task)
+```
+
+- **Phases execute sequentially.** Phase B waits until Phase A is fully merged.
+- **Tasks within a phase execute in parallel.** Each task gets its own teammate with an auto-provisioned git worktree. File-set isolation (no two tasks in the same phase touch the same files) eliminates merge conflicts.
+- **Push-based completion.** When a teammate finishes, the lead receives an idle notification — no polling loops, no sleep timers, no token overhead for supervision.
+
+### Teammate Lifecycle
+
+```text
+Spawn → Implement (TDD) → Idle → [Review Fix Loop] → Validate → Kill → Merge
+```
+
+1. Teammate implements the task, writes completion notes, marks task complete
+2. Lead receives idle notification, dispatches a reviewer teammate
+3. If review finds issues, lead sends feedback to the **original implementer** via mailbox messaging (context still loaded — no fresh agent needed)
+4. Loop until review passes and `validate-plan --criteria` succeeds
+5. Lead kills the teammate, merges its branch into the feature branch
+
+### Dependency Gate
+
+Tasks with `depends_on` don't spawn until all prerequisites are complete. The lead runs `validate-plan --check-deps` before spawning any dependent teammate — and since branches merge incrementally, the new worktree always sees prerequisite code.
+
+### File-Set Isolation
+
+Each task declares its file set in `plan.json` (`files.create`, `files.modify`, `files.test`). No two tasks in the same phase may share any file path. This is enforced at three levels:
+
+- **draft-plan** decomposes work with disjoint file sets
+- **plan-review** flags tasks that logically need to share files (bad decomposition)
+- **validate-plan --schema** deterministically rejects overlapping file sets within a phase
+
+### Single vs Multi-Phase
+
+| Plan type | Branch strategy | Teammate model |
+|-----------|----------------|---------------|
+| Single-phase | Feature branch directly | Teammates → merge → PR to main |
+| Multi-phase | `integrate/<feature>` branch | Per-phase teammates → merge → phase PR → final PR to main |
 
 </details>
 
@@ -433,6 +480,9 @@ The design skill waits for explicit approval. Say "needs changes" and iterate. N
 **What about simple changes?**
 The design can be a few sentences. "Single phase, two tasks, no dependency layers." The process scales down — but it still validates before executing, because "simple" changes are where unexamined assumptions cause the most wasted work.
 
+**What are agent teams? Why does the plugin require them?**
+Agent teams are a Claude Code feature that lets multiple Claude instances (teammates) work in parallel, each in its own git worktree, with push-based completion notifications. The orchestrate skill uses this to run all tasks in a phase concurrently — one teammate per task — instead of sequentially. Enable with `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+
 **Does it modify my git workflow?**
 It uses feature branches, worktrees for isolation, and squash merges. It never commits directly to main. All changes go through PRs.
 
@@ -446,8 +496,9 @@ Re-run `/plugin install claude-caliper@claude-caliper`. Claude Code compares you
 
 ## Requirements
 
-- [Claude Code](https://claude.ai/code) with plugin support
+- [Claude Code](https://claude.ai/code) v2.1.32+ with plugin support
 - Git (for worktree-based parallel execution)
+- **Agent teams enabled** — set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in your environment or Claude Code settings. The orchestrate skill requires this for push-based parallel task execution. Without it, orchestrate will not run.
 
 ## License
 
