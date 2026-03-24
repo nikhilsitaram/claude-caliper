@@ -40,6 +40,11 @@ validate-plan
 wc
 which
 xargs
+ln
+dirname
+basename
+[
+command
 case
 declare
 do

@@ -1,5 +1,5 @@
 ---
-status: Not Yet Started
+status: In Development
 ---
 
 # Eliminate 7 observed permission prompt interruptions by adding missing safe commands, resolving shell interpreter script arguments, and denying variable-as-command with actionable feedback. Implementation Plan
@@ -15,7 +15,7 @@ status: Not Yet Started
 ## Phase A — Safe commands, interpreter resolution, and variable deny
 **Status:** Not Started | **Rationale:** All changes form a single logical unit with no dependency layers. Tasks are split by file ownership to enable parallel execution: safe list, hook logic, tests, and a read-only verification.
 
-- [ ] A1: Add missing commands to safe-commands.txt — *safe-commands.txt contains ln, dirname, basename, [, command; all 21 existing tests pass*
-- [ ] A2: Shell interpreter resolution and variable-as-command deny — *'bash scripts/validate-plan' resolves to 'validate-plan' (safe); 'bash -e scripts/validate-plan' resolves to 'validate-plan'; 'bash "$f"' emits deny with feedback; bare 'bash' falls through; $VAR/"$VAR"/${VAR} as command word produces deny with permissionDecisionReason; all 21 existing tests still pass*
+- [ ] A1: Add missing commands to safe-commands.txt — *safe-commands.txt contains ln, dirname, basename, [, command (64 entries total); marketplace.json version bumped to 1.15.0; all existing tests pass*
+- [ ] A2: Shell interpreter resolution and variable-as-command deny — *'bash scripts/validate-plan' resolves to 'validate-plan' (safe); 'bash -e scripts/validate-plan' resolves to 'validate-plan'; 'bash "$f"' emits deny with feedback; bare 'bash' falls through; $VAR/"$VAR"/${VAR} as command word produces deny with permissionDecisionReason; all existing tests still pass*
 - [ ] A3: Tests for all new behaviors — *16+ new tests cover: 5 new safe commands, 7 interpreter resolution cases, 4 variable-as-command deny cases; all tests green*
 - [ ] A4: Verify no dead permission-forwarding code — *Grep confirms no orphaned permission-prompt-forwarding code from the pre-agent-teams supervision loop in hooks/ or skills/orchestrate/*

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Not Yet Started",
+  "status": "In Development",
   "workflow": "create-pr",
   "goal": "Eliminate 7 observed permission prompt interruptions by adding missing safe commands, resolving shell interpreter script arguments, and denying variable-as-command with actionable feedback.",
   "architecture": "Three targeted changes to the existing pretooluse-safe-commands.sh hook: (1) expand safe-commands.txt with 5 standard Unix commands, (2) add shell interpreter resolution in extract_command_words_from_segment to resolve 'bash script.sh' to the script basename, (3) add variable-as-command detection that emits a deny with a feedback message. All changes propagate to PermissionRequest via the existing permission-request-safe-bash.sh delegation pattern.",
@@ -16,7 +16,7 @@
         {
           "id": "A1",
           "name": "Add missing commands to safe-commands.txt",
-          "status": "pending",
+          "status": "in_progress",
           "depends_on": [],
           "files": {
             "create": [],
@@ -32,7 +32,7 @@
         {
           "id": "A2",
           "name": "Shell interpreter resolution and variable-as-command deny",
-          "status": "pending",
+          "status": "in_progress",
           "depends_on": [],
           "files": {
             "create": [],
