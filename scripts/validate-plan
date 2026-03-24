@@ -85,43 +85,6 @@ do_schema() {
     [[ -z "$expect_exit" && -z "$expect_output" ]] && err "ERROR: missing_expect: plan success_criteria[$i] has neither expect_exit nor expect_output"
   done
 
-  local has_supervision
-  has_supervision=$(echo "$json" | jq 'has("supervision")')
-  if [[ "$has_supervision" == "true" ]]; then
-    local supervision_type
-    supervision_type=$(echo "$json" | jq -r '.supervision | type')
-    if [[ "$supervision_type" != "object" ]]; then
-      err "ERROR: invalid_supervision_type: supervision must be an object, got $supervision_type"
-    else
-      local valid_supervision_keys="orchestrator_poll_seconds dispatcher_poll_seconds max_intervention_attempts"
-      local supervision_keys
-      supervision_keys=$(echo "$json" | jq -r '.supervision | keys[]')
-      for key in $supervision_keys; do
-        if [[ " $valid_supervision_keys " != *" $key "* ]]; then
-          err "ERROR: unknown_supervision_field: '$key'"
-        fi
-      done
-
-      for field in orchestrator_poll_seconds dispatcher_poll_seconds max_intervention_attempts; do
-        local field_val
-        field_val=$(echo "$json" | jq ".supervision.$field // null")
-        if [[ "$field_val" != "null" ]]; then
-          local field_type
-          field_type=$(echo "$json" | jq -r ".supervision.$field | type")
-          if [[ "$field_type" != "number" ]]; then
-            err "ERROR: invalid_supervision_field: supervision.$field must be a positive integer, got $field_type"
-          else
-            local is_positive_int
-            is_positive_int=$(echo "$json" | jq ".supervision.$field | (. > 0 and . == (. | floor))")
-            if [[ "$is_positive_int" != "true" ]]; then
-              err "ERROR: invalid_supervision_field: supervision.$field must be a positive integer, got $field_val"
-            fi
-          fi
-        fi
-      done
-    fi
-  fi
-
   local phase_count
   phase_count=$(echo "$json" | jq '(.phases // []) | length')
   [[ "$phase_count" -eq 0 ]] && err "ERROR: empty_phases: plan must have at least one phase"
@@ -129,6 +92,7 @@ do_schema() {
   local all_task_ids=()
   local all_create_paths=()
   local seen_phase_letters=""
+  local prev_phase_letter=""
 
   for ((p=0; p<phase_count; p++)); do
     local letter name phase_status rationale
@@ -165,6 +129,13 @@ do_schema() {
           fi
         done
       fi
+
+      if [[ -n "$prev_phase_letter" ]]; then
+        if [[ "$letter" < "$prev_phase_letter" || "$letter" == "$prev_phase_letter" ]]; then
+          err "ERROR: phase_order: phase $letter must come after $prev_phase_letter (alphabetical order required)"
+        fi
+      fi
+      prev_phase_letter="$letter"
 
       seen_phase_letters="$seen_phase_letters $letter"
     fi
@@ -221,6 +192,12 @@ do_schema() {
               break
             fi
           done
+        fi
+        if [[ -n "$letter" ]]; then
+          local id_prefix="${id:0:1}"
+          if [[ "$id_prefix" != "$letter" ]]; then
+            err "ERROR: task_id_phase_mismatch: task $id has prefix '$id_prefix' but belongs to phase $letter"
+          fi
         fi
       fi
 
@@ -311,9 +288,92 @@ do_schema() {
         fi
       fi
 
+      if [[ "$task_status" == "complete" ]]; then
+        local completion_file="$plan_dir/$phase_dir/${id_lower}-completion.md"
+        if [[ ! -f "$completion_file" ]]; then
+          err "ERROR: missing_task_completion_file: $phase_dir/${id_lower}-completion.md"
+        fi
+
+        local repo_root
+        repo_root=$(git -C "$plan_dir" rev-parse --show-toplevel 2>/dev/null || echo "")
+        if [[ -n "$repo_root" ]]; then
+          local fc_count
+          fc_count=$(echo "$json" | jq "(.phases[$p].tasks[$t].files.create // []) | length")
+          for ((fc=0; fc<fc_count; fc++)); do
+            local fc_path
+            fc_path=$(echo "$json" | jq -r ".phases[$p].tasks[$t].files.create[$fc]")
+            if [[ ! -f "$repo_root/$fc_path" ]]; then
+              err "ERROR: missing_created_file: task $id declares files.create '$fc_path' but file not found"
+            fi
+          done
+        fi
+      fi
+
       all_task_ids+=("$id")
     done
+
+    local -A phase_file_owners=()
+    for ((t=0; t<task_count; t++)); do
+      local tid
+      tid=$(echo "$json" | jq -r ".phases[$p].tasks[$t].id // empty")
+      for arr in create modify test; do
+        local arr_count
+        arr_count=$(echo "$json" | jq "(.phases[$p].tasks[$t].files.$arr // []) | length")
+        for ((f=0; f<arr_count; f++)); do
+          local fpath
+          fpath=$(echo "$json" | jq -r ".phases[$p].tasks[$t].files.$arr[$f]")
+          if [[ -n "${phase_file_owners[$fpath]+x}" ]]; then
+            err "ERROR: fileset_overlap: file '$fpath' claimed by tasks ${phase_file_owners[$fpath]} and $tid in phase $letter"
+          else
+            phase_file_owners[$fpath]="$tid"
+          fi
+        done
+      done
+    done
+
+    local phase_full_dir="$plan_dir/$phase_dir"
+    if [[ -d "$phase_full_dir" ]]; then
+      for md_file in "$phase_full_dir"/*.md; do
+        [[ ! -f "$md_file" ]] && continue
+        local base_name
+        base_name=$(basename "$md_file" .md)
+        [[ "$base_name" == "completion" ]] && continue
+        [[ "$base_name" =~ -completion$ ]] && continue
+        local found_task=0
+        for ((t=0; t<task_count; t++)); do
+          local tid_lower
+          tid_lower=$(echo "$json" | jq -r ".phases[$p].tasks[$t].id // empty" | tr '[:upper:]' '[:lower:]')
+          if [[ "$base_name" == "$tid_lower" ]]; then
+            found_task=1
+            break
+          fi
+        done
+        if [[ $found_task -eq 0 ]]; then
+          err "ERROR: orphaned_task_file: $phase_dir/$base_name.md has no matching task in plan.json"
+        fi
+      done
+    fi
+
+    if [[ "$phase_status" =~ ^Complete ]]; then
+      for ((t=0; t<task_count; t++)); do
+        local ts
+        ts=$(echo "$json" | jq -r ".phases[$p].tasks[$t].status // empty")
+        if [[ "$ts" != "complete" && "$ts" != "skipped" ]]; then
+          err "ERROR: status_inconsistency: phase $letter is '$phase_status' but task $(echo "$json" | jq -r ".phases[$p].tasks[$t].id") is '$ts'"
+        fi
+      done
+    fi
   done
+
+  if [[ "$status" == "Complete" ]]; then
+    for ((p=0; p<phase_count; p++)); do
+      local ps
+      ps=$(echo "$json" | jq -r ".phases[$p].status // empty")
+      if [[ ! "$ps" =~ ^Complete ]]; then
+        err "ERROR: status_inconsistency: plan is Complete but phase $(echo "$json" | jq -r ".phases[$p].letter") is '$ps'"
+      fi
+    done
+  fi
 
   # Defense-in-depth: BFS cycle check across phase depends_on edges.
   # The backward-reference check above already guarantees acyclicity:
