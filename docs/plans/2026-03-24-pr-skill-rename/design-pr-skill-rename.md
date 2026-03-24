@@ -46,6 +46,7 @@ Rename all three PR skills to a `pr-*` namespace and fix the review-to-merge pip
 - `skills/pr-create/SKILL.md` — cross-refs to pr-review, pr-merge
 - `skills/pr-review/SKILL.md` — cross-refs to pr-create, pr-merge
 - `skills/pr-merge/SKILL.md` — cross-refs to pr-review
+- `skills/implementation-review/SKILL.md` — cross-ref to create-pr in Integration section
 - `CLAUDE.md` — workflow description
 - `README.md` — mermaid diagram, skill table
 - `scripts/validate-plan` — workflow enum case statements
@@ -71,7 +72,7 @@ If rebase has conflicts, stop and ask the user to resolve.
 
 **Bot comment freshness:** Force-pushing after rebase invalidates existing bot review comments (GitHub marks them "outdated"). pr-review Step 3 (Collect & Assess All Feedback) should only process comments posted *after* the rebase push. Record the push timestamp and filter `gh pr` comment results accordingly, or wait for fresh bot comments if the PR was just rebased.
 
-merge-pr's existing rebase check (Step 3) stays as a safety net for standalone invocations.
+pr-merge's existing rebase check (Step 3) stays as-is — it catches drift between review and merge, not just standalone invocations. All three rebase points serve distinct windows: pr-create (bots see clean code), pr-review (review sees clean diff), pr-merge (merge is against latest base).
 
 ### Review → Merge Continuation (#120)
 
