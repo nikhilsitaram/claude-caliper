@@ -7,22 +7,22 @@ description: Use when a reviewed PR is ready to merge, or when triggered by "/me
 
 Confirm, merge (squash or rebase), and clean up branches and worktrees.
 
-**Prerequisite:** A PR that has been reviewed (via `/review-pr` or manually). Run this from the main repo, not from inside a worktree.
+**Prerequisite:** A PR that has been reviewed (via `/review-pr` or manually).
 
 ## Workflow
 
 ### Step 1: Setup
 
-**Worktree guard:** Check if the session started inside a worktree:
+**Worktree guard:** Check if CWD is inside a worktree:
 
 ```bash
 if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
   MAIN_REPO=$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/.git$||')
-  echo "STOP: You are inside a worktree. Run: cd $MAIN_REPO && /merge-pr"
+  cd "$MAIN_REPO"
 fi
 ```
 
-If inside a worktree, tell the user to `cd` to the main repo and re-run `/merge-pr` from there. Merging from inside a worktree bricks the shell when the remote branch is deleted. Do not proceed.
+If inside a worktree, `cd` to the main repo before proceeding. All git operations (merge, branch delete, worktree remove) must run from the main repo — deleting a branch while CWD is its worktree bricks the shell.
 
 Identify the PR from argument, current branch (`gh pr view`), or `gh pr list --author @me --state open`. If multiple candidates and you're not on a branch with an associated PR, ask the user to pick. Store PR number, branch name, and URL.
 
