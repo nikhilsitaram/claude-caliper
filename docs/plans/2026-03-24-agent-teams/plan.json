@@ -135,7 +135,7 @@
         {
           "id": "A8",
           "name": "Bump version in marketplace.json",
-          "status": "in_progress",
+          "status": "complete",
           "depends_on": [
             "A1",
             "A2",
