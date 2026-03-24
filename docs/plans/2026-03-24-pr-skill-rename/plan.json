@@ -84,7 +84,7 @@
         {
           "id": "A5",
           "name": "Update test fixtures and test scripts",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [
             "A4"
           ],
