@@ -1,13 +1,13 @@
 ---
-name: review-pr
-description: Use when a PR has review feedback to address, needs fresh-eyes review, or when triggered by "/review-pr", "address review feedback", "review feedback ready".
+name: pr-review
+description: Use when a PR has review feedback to address, needs fresh-eyes review, or when triggered by "/pr-review", "address review feedback", "review feedback ready".
 ---
 
 # Review PR
 
 Dispatch fresh-eyes review, address feedback, and comment on the PR.
 
-**Prerequisite:** A PR created by `/create-pr`.
+**Prerequisite:** A PR created by `/pr-create`.
 
 **Review principle:** Verify each suggestion against the codebase before implementing. Push back on incorrect ones with technical reasoning — no performative agreement.
 
@@ -25,7 +25,25 @@ Detect environment:
 
 If not on the PR branch: look up `WORKTREE_PATH` first — if the branch is in a worktree, `cd` into it (`gh pr checkout` fails when a worktree holds the branch). Otherwise `gh pr checkout $PR_NUMBER`.
 
-### Step 2: PR Review
+### Step 2: Rebase onto Default Branch
+
+Ensure the PR branch is up-to-date with the default branch so the review covers only this PR's changes:
+
+```bash
+git fetch origin $DEFAULT_BRANCH
+if ! git merge-base --is-ancestor origin/$DEFAULT_BRANCH HEAD; then
+  git rebase origin/$DEFAULT_BRANCH
+  git push -u origin HEAD --force-with-lease
+fi
+```
+
+If rebased, log: "Branch was behind `$DEFAULT_BRANCH` — rebased and force-pushed to ensure the review covers only this PR's changes."
+
+If rebase has conflicts, stop and ask the user to resolve.
+
+After a force-push, existing bot review comments become outdated. Step 4 (Collect & Assess All Feedback) should only process comments posted *after* the rebase push timestamp, or wait for fresh bot comments if the PR was just rebased.
+
+### Step 3: PR Review
 
 Skip if `--skip-review` was passed.
 
@@ -34,13 +52,13 @@ Read `reviewer-prompt.md` (same directory as SKILL.md) and dispatch a fresh-eyes
 - `{REPO_PATH}` = repository root path
 - `{PR_NUMBER}` = PR number from Step 1
 
-The subagent posts its findings as a `gh pr comment` on the PR (visible audit trail), then returns findings for use in Step 3.
+The subagent posts its findings as a `gh pr comment` on the PR (visible audit trail), then returns findings for use in Step 4.
 
-### Step 3: Collect & Assess All Feedback
+### Step 4: Collect & Assess All Feedback
 
 Fetch PR conversation comments, inline review comments, and review status via `gh`.
 
-Merge subagent findings (Step 2) with external comments. If Step 2 was skipped, process external only. Evaluate each on merit.
+Merge subagent findings (Step 3) with external comments. If Step 3 was skipped, process external only. Evaluate each on merit.
 
 Categorize each item:
 
@@ -51,40 +69,44 @@ Categorize each item:
 | **Informational** — explanation, praise | Acknowledge, no change |
 | **False positive** — incorrect analysis | Dismiss with technical reasoning |
 
-### Step 4: Present & Confirm
+### Step 5: Present & Confirm
 
 Show the user a summary table with source, category, planned action, and counts per category.
 
 Use AskUserQuestion with options:
 - **Fix all** — actionable + suggestion items (excludes dismissed/false positives)
 - **Fix critical only** — actionable items (bugs, security, correctness)
-- **Skip fixes, proceed** — jump to Step 6 (omit this option when `--automated` is passed — in automated workflows, all actionable findings must be fixed to maintain audit trail integrity)
+- **Skip fixes, proceed** — jump to Step 7 (omit this option when `--automated` is passed — in automated workflows, all actionable findings must be fixed to maintain audit trail integrity)
 - **Other** — user provides custom instructions (e.g. "fix items 1, 3, 5")
 
-### Step 5: Fix, Test, Push
+### Step 6: Fix, Test, Push
 
 If `--automated` is passed, always run fixes — `--skip-fixes` is invalid with `--automated` (fail fast if both are passed).
 If `--skip-fixes` was passed (without `--automated`), skip this entire step.
 
 For each actionable item: make the fix. Run project tests — do not proceed with failing tests. Commit and push with `git push -u origin HEAD`.
 
-### Step 6: Comment on PR
+### Step 7: Comment on PR
 
 Post a `gh pr comment` with unified assessment: what was fixed, dismissed (with reasons), and no-action. Omit empty sections.
 
 Report: PR URL, review items (fixed/dismissed/informational).
 
-If inside a worktree, tell the user: "When ready to merge: `cd` to the main repo, then run `/merge-pr`." Otherwise: "Run `/merge-pr` when ready to merge."
+If inside a worktree, tell the user: "When ready to merge: `cd` to the main repo, then run `/pr-merge`." Otherwise: "Run `/pr-merge` when ready to merge."
+
+Use AskUserQuestion with options:
+- **Merge PR** — invoke pr-merge via Skill tool (pr-merge's worktree guard handles CWD automatically)
+- **Not yet** — stop here
 
 ## Arguments
 
 | Arg | Effect |
 |-----|--------|
-| `<PR number>` | Target specific PR (`/review-pr 42`) |
+| `<PR number>` | Target specific PR (`/pr-review 42`) |
 | *(none)* | Detect from current branch |
-| `--skip-review` / `-R` | Skip subagent review (Step 2) — external feedback still processed |
+| `--skip-review` / `-R` | Skip subagent review (Step 3) — external feedback still processed |
 | `--skip-fixes` / `-S` | Skip fixing — just comment (invalid with `--automated`) |
-| `--automated` / `-A` | Force fixes for all actionable items, suppress "Skip fixes" option (used by merge-pr workflow) |
+| `--automated` / `-A` | Force fixes for all actionable items, suppress "Skip fixes" option (used by pr-merge workflow) |
 
 ## Pitfalls
 
@@ -95,6 +117,6 @@ If inside a worktree, tell the user: "When ready to merge: `cd` to the main repo
 
 ## Integration
 
-**Preceded by:** create-pr — after CodeRabbit reviews
+**Preceded by:** pr-create — after CodeRabbit reviews
 
-**Followed by:** merge-pr — when ready to merge
+**Followed by:** pr-merge — when ready to merge

@@ -1,13 +1,13 @@
 ---
-name: merge-pr
-description: Use when a reviewed PR is ready to merge, or when triggered by "/merge-pr", "merge the PR", "merge it".
+name: pr-merge
+description: Use when a reviewed PR is ready to merge, or when triggered by "/pr-merge", "merge the PR", "merge it".
 ---
 
 # Merge PR
 
-Confirm, merge (squash or rebase), and clean up branches and worktrees.
+Merge (squash or rebase) and clean up branches and worktrees.
 
-**Prerequisite:** A PR that has been reviewed (via `/review-pr` or manually).
+**Prerequisite:** A PR that has been reviewed (via `/pr-review` or manually).
 
 ## Workflow
 
@@ -31,17 +31,9 @@ Detect environment:
 - `WORKTREE_PATH` — look up from `git worktree list` by matching `$BRANCH_NAME` (needed for cleanup even though we're in the main repo)
 - `IS_INTEGRATION` — true when `$BRANCH_NAME` matches `integrate/*`; extract `FEATURE=${BRANCH_NAME#integrate/}`
 
-### Step 2: Confirm Merge
-
-Show: PR URL, title, files changed count, any pending review status.
+### Step 2: Merge
 
 If branch protection requires human approval and the PR lacks it, tell the user and stop with the PR URL.
-
-Use AskUserQuestion with options:
-- **Merge** — proceed with merge (squash or rebase per strategy)
-- **Abort** — stop without merging
-
-### Step 3: Merge
 
 **Pre-merge rebase check:** Verify the PR branch is up-to-date with the base branch:
 
@@ -58,9 +50,9 @@ If behind (non-zero exit): rebase onto default branch, resolve conflicts, run te
 
 Multi-phase plans produce one squash commit per phase on the integration branch. Rebase preserves this per-phase history on main. Single-phase plans use squash (one phase = one commit). Phase PRs (base is `integrate/*`) always use `--squash`.
 
-Never use `--delete-branch` — branch cleanup is handled in Step 4.
+Never use `--delete-branch` — branch cleanup is handled in Step 3.
 
-### Step 4: Clean Up
+### Step 3: Clean Up
 
 **Integration branch** (`IS_INTEGRATION=true`):
 1. For each phase worktree `.claude/worktrees/$FEATURE-phase-*`: `git worktree remove <path>`
@@ -76,7 +68,7 @@ Never use `--delete-branch` — branch cleanup is handled in Step 4.
 
 **No worktree:** `git checkout $DEFAULT_BRANCH && git branch -D $BRANCH_NAME && git pull --rebase && git remote prune origin`
 
-### Step 5: Summary
+### Step 4: Summary
 
 Report: PR number/URL, merge status, cleanup status.
 
@@ -84,7 +76,7 @@ Report: PR number/URL, merge status, cleanup status.
 
 | Arg | Effect |
 |-----|--------|
-| `<PR number>` | Target specific PR (`/merge-pr 42`) |
+| `<PR number>` | Target specific PR (`/pr-merge 42`) |
 | *(none)* | Detect from current branch |
 | `--rebase` | Use rebase merge instead of squash (for multi-phase final PRs) |
 
@@ -98,6 +90,6 @@ Report: PR number/URL, merge status, cleanup status.
 
 ## Integration
 
-**Preceded by:** review-pr (or manual review)
+**Preceded by:** pr-review (or manual review)
 
-**Auto-invoked by:** orchestrate — in `merge-pr` workflow mode
+**Auto-invoked by:** orchestrate — in `pr-merge` workflow mode

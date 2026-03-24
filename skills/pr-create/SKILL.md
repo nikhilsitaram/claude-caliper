@@ -1,6 +1,6 @@
 ---
-name: create-pr
-description: Use when work is complete and ready to create a PR for review. Triggers include "/create-pr", "create a PR", "commit and push", "open a PR".
+name: pr-create
+description: Use when work is complete and ready to create a PR for review. Triggers include "/pr-create", "create a PR", "commit and push", "open a PR".
 ---
 
 # Create PR
@@ -9,7 +9,7 @@ Commit, push, and create PR — ready for CodeRabbit review.
 
 **Core principle:** Never commit directly to main. All changes go through feature branches and PRs.
 
-**Workflow stops at PR creation.** After CodeRabbit reviews, use `/review-pr` to address feedback, then `/merge-pr` to merge and clean up.
+**Workflow stops at PR creation.** After CodeRabbit reviews, use `/pr-review` to address feedback, then `/pr-merge` to merge and clean up.
 
 ## Workflow
 
@@ -113,7 +113,7 @@ Report: branch name, test results, files changed, commit hash, PR URL.
 
 If running inside a worktree, tell the user:
 
-> PR is open for review. When ready to address feedback: `/exit` this session, `cd` to the main repo, then run `/review-pr`. Starting fresh from the main repo avoids worktree CWD issues during cleanup.
+> PR is open for review. When ready to address feedback: `/exit` this session, `cd` to the main repo, then run `/pr-review`. Starting fresh from the main repo avoids worktree CWD issues during cleanup.
 
 ## Arguments
 
@@ -135,10 +135,10 @@ If running inside a worktree, tell the user:
 | Using `pwd` for worktree detection | Fails in subdirectories — compare `--git-dir` vs `--git-common-dir` |
 | Pushing unknown commits on local main | May push unintended WIP/experimental work |
 | Using `--force` instead of `--force-with-lease` | Can overwrite others' work |
-| Merging in /create-pr | Always stop at PR creation for CodeRabbit review |
+| Merging in /pr-create | Always stop at PR creation for CodeRabbit review |
 
 ## Integration
 
 **Auto-invoked by:** orchestrate — after implementation-review passes
 
-**Followed by:** review-pr — after CodeRabbit reviews
+**Followed by:** pr-review — after CodeRabbit reviews
