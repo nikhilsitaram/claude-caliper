@@ -376,6 +376,20 @@ cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE37"
 OUT37=$(run_hook 'git status && $DEPLOY' "$SAFE37" "$LOG37")
 assert_output_contains_deny_with_reason "safe + \$VAR compound denied" "$OUT37" "shell variable"
 
+echo "Test 38: bash -c 'command string' denies (not treated as script path)"
+SAFE38="$TMPDIR_TEST/safe38.txt"
+LOG38="$TMPDIR_TEST/log38.txt"
+cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE38"
+OUT38=$(run_hook "bash -c 'command -v foo'" "$SAFE38" "$LOG38")
+assert_output_empty "bash -c correctly denied" "$OUT38"
+
+echo "Test 39: bash -- scripts/validate-plan resolves after end-of-flags"
+SAFE39="$TMPDIR_TEST/safe39.txt"
+LOG39="$TMPDIR_TEST/log39.txt"
+cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE39"
+OUT39=$(run_hook "bash -- scripts/validate-plan --schema plan.json" "$SAFE39" "$LOG39")
+assert_output_contains "bash -- + safe script resolves and allows" "$OUT39" "allow"
+
 echo ""
 echo "$PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

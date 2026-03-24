@@ -177,6 +177,8 @@ extract_command_words_from_segment() {
             script_token="${rest%% *}"
           fi
           break
+        elif [[ "$token" == "-c" ]]; then
+          break
         elif [[ "$token" == -* ]]; then
           rest="${rest#"$token"}"
           rest="${rest#"${rest%%[![:space:]]*}"}"
