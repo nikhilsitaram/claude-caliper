@@ -1,11 +1,19 @@
 # Task Reviewer Prompt Template
 
-Dispatch an Opus reviewer subagent to evaluate a single task's implementation. Dispatched by the phase dispatcher after each implementer completes.
+Dispatch a reviewer teammate to evaluate a single task's implementation. Spawned by the lead when an implementer teammate finishes.
 
 **Only dispatch after the implementer reports back.**
 
+**Variables:**
+- `{TASK_ID}` — the task ID
+- `{TASK_SPEC}` — task metadata + prose combined
+- `{TASK_COMPLETION_FILE}` — path to implementer's completion notes (`{PHASE_DIR}/{task_id_lower}-completion.md`)
+- `{REPO_PATH}` — implementer teammate's worktree path
+- `{BASE_SHA}` — SHA before task started
+- `{HEAD_SHA}` — SHA after task completed
+
 ```yaml
-Agent tool (general-purpose):
+Teammate spawn:
   model: "opus"
   mode: "auto"
   description: "Review Task {TASK_ID}"
@@ -17,12 +25,13 @@ Agent tool (general-purpose):
 
     {TASK_SPEC}
 
-    ## Implementer Report
+    ## Implementer Completion Notes
 
-    {IMPLEMENTER_REPORT}
+    Read {TASK_COMPLETION_FILE} for the implementer's self-reported summary,
+    deviations, files changed, and test results.
 
-    Do not trust the report at face value. Verify every claim by reading
-    actual code. The report is a starting point, not evidence.
+    Do not trust the notes at face value. Verify every claim by reading
+    actual code. The notes are a starting point, not evidence.
 
     ## Git Range
 
