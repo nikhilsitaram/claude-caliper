@@ -20,7 +20,10 @@
           "depends_on": [],
           "files": {
             "create": [],
-            "modify": ["hooks/safe-commands.txt", ".claude-plugin/marketplace.json"],
+            "modify": [
+              "hooks/safe-commands.txt",
+              ".claude-plugin/marketplace.json"
+            ],
             "test": []
           },
           "verification": "bash tests/hooks/test_safe_commands.sh",
@@ -33,7 +36,9 @@
           "depends_on": [],
           "files": {
             "create": [],
-            "modify": ["hooks/pretooluse-safe-commands.sh"],
+            "modify": [
+              "hooks/pretooluse-safe-commands.sh"
+            ],
             "test": []
           },
           "verification": "bash tests/hooks/test_safe_commands.sh",
@@ -46,8 +51,12 @@
           "depends_on": [],
           "files": {
             "create": [],
-            "modify": ["tests/hooks/test_safe_commands.sh"],
-            "test": ["tests/hooks/test_safe_commands.sh"]
+            "modify": [
+              "tests/hooks/test_safe_commands.sh"
+            ],
+            "test": [
+              "tests/hooks/test_safe_commands.sh"
+            ]
           },
           "verification": "bash tests/hooks/test_safe_commands.sh",
           "done_when": "16+ new tests cover: 5 new safe commands, 7 interpreter resolution cases, 4 variable-as-command deny cases; all tests green"
