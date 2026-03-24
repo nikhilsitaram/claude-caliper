@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "In Development",
+  "status": "Complete",
   "workflow": "create-pr",
   "goal": "Replace polling-based orchestration with agent teams for push-based parallel task execution",
   "architecture": "Rewrite orchestrate SKILL.md to use Claude Code agent teams (experimental). Lead spawns implementer teammates per task (parallel within phase), receives idle notifications (no polling), dispatches reviewer teammates as implementers finish. Phases execute sequentially. Delete phase-dispatcher-prompt.md — teammates self-manage lifecycle. Update validate-plan with file-set overlap detection and status consistency checks. Update draft-plan and plan-review to enforce file-set isolation.",
@@ -9,7 +9,7 @@
     {
       "letter": "A",
       "name": "Agent teams migration",
-      "status": "Not Started",
+      "status": "Complete (2026-03-24)",
       "depends_on": [],
       "rationale": "Single phase per design doc. The orchestrator rewrite depends on the updated implementer/reviewer prompts, which depend on the validate-plan file-set checks. Splitting would create intermediate broken states where the skill references features that don't exist yet.",
       "tasks": [

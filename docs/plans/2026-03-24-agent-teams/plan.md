@@ -1,5 +1,5 @@
 ---
-status: In Development
+status: Complete
 ---
 
 # Replace polling-based orchestration with agent teams for push-based parallel task execution Implementation Plan
@@ -13,7 +13,7 @@ status: In Development
 ---
 
 ## Phase A — Agent teams migration
-**Status:** Not Started | **Rationale:** Single phase per design doc. The orchestrator rewrite depends on the updated implementer/reviewer prompts, which depend on the validate-plan file-set checks. Splitting would create intermediate broken states where the skill references features that don't exist yet.
+**Status:** Complete (2026-03-24) | **Rationale:** Single phase per design doc. The orchestrator rewrite depends on the updated implementer/reviewer prompts, which depend on the validate-plan file-set checks. Splitting would create intermediate broken states where the skill references features that don't exist yet.
 
 - [x] A1: Update validate-plan: remove supervision, add file-set overlap and status checks — *Seven changes to validate-plan: (1) supervision config validation removed — plans with or without supervision field pass (field ignored), (2) file-set overlap within a phase detected — rejects plans where two tasks in same phase share any path across create/modify/test, cross-phase overlap allowed, (3) task ID prefix matches phase letter and phase letters are alphabetically ordered, (4) status consistency — phase marked complete requires all tasks complete/skipped, plan marked complete requires all phases complete, (5) task completion file ({task_id_lower}-completion.md) must exist when task status is complete, orphaned .md files in phase directories flagged, (6) files.create paths must exist on disk when task is complete, (7) new --check-deps flag: validate-plan --check-deps plan.json --task {TASK_ID} verifies all tasks in depends_on have status complete, exits 1 if any are not — used as a gate before spawning dependent task teammates. All new test files pass. Existing schema tests still pass.*
 - [x] A2: Update draft-plan skill for file-set isolation — *draft-plan SKILL.md includes: (1) file-set isolation requirement — no two tasks in the same phase share any file path across create/modify/test, (2) updated phase execution model description — phases sequential, tasks parallel within phase, (3) removal of 'Independent phases execute concurrently' from Phasing section, (4) update completion.md stub note to reflect per-task completion files. Word count under 2,000.*

@@ -41,5 +41,29 @@
     "remaining": 0,
     "verdict": "pass",
     "timestamp": "2026-03-24T15:15:00Z"
+  },
+  {
+    "type": "impl-review",
+    "scope": "phase-a",
+    "iteration": 1,
+    "issues_found": 4,
+    "severity": {
+      "critical": 0,
+      "high": 2,
+      "medium": 0,
+      "low": 2
+    },
+    "actionable": 3,
+    "dismissed": 1,
+    "dismissals": [
+      {
+        "issue": "bare completion file headers",
+        "reason": "plan-execution artifacts, not user-facing code"
+      }
+    ],
+    "fixed": 3,
+    "remaining": 0,
+    "verdict": "pass",
+    "timestamp": "2026-03-24T17:00:00Z"
   }
 ]
