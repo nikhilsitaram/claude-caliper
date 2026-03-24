@@ -1,9 +1,16 @@
-# Implementer Subagent Prompt Template
+# Implementer Teammate Prompt Template
 
-Use this template when dispatching an implementer subagent.
+Use this template when spawning an implementer teammate. The lead substitutes all `{VARIABLES}` before dispatch.
+
+**Variables:**
+- `{TASK_ID}` — the task ID (e.g., A1)
+- `{TASK_METADATA}` — JSON task object from plan.json
+- `{TASK_PROSE}` — content of the task .md file
+- `{PLAN_DIR}` — absolute path to plan directory
+- `{PHASE_DIR}` — absolute path to phase directory
 
 ```text
-Task tool (general-purpose):
+Teammate spawn:
   model: "opus"
   mode: "auto"
   description: "Implement {TASK_ID}: [task name]"
@@ -15,7 +22,7 @@ Task tool (general-purpose):
     {TASK_METADATA}
 
     This JSON contains: id, name, files (create/modify/test), verification,
-    done_when, depends_on, success_criteria.
+    done_when, depends_on.
 
     ## Task Instructions (from task file)
 
@@ -26,56 +33,71 @@ Task tool (general-purpose):
 
     ## Before You Begin
 
-    If you have questions about:
-    - The requirements or acceptance criteria
-    - The approach or implementation strategy
-    - Dependencies or assumptions
-    - Anything unclear in the task description
+    Mark your task in-progress:
+    ```bash
+    bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status in_progress
+    ```
 
-    **Ask them now.** Raise any concerns before starting work.
+    If you have questions about the requirements, approach, or dependencies
+    — ask them now via mailbox message to the lead.
 
     ## Your Job
 
-    Once you're clear on requirements:
     1. Follow TDD for all implementation — the cycle is: Write failing test → verify it FAILS → write minimal code → verify it PASSES → refactor → commit. **Never skip verifying the test fails first.** A test that passes before implementation protects nothing. **See:** `skills/orchestrate/tdd.md` for test discovery, failure mode troubleshooting, and boundary test patterns.
     2. If this task consumes output from a prior task (imports a module, reads config, calls an API created earlier), write a narrow boundary integration test using real components as part of your TDD cycle
     3. Implement exactly what the task specifies using TDD (red/green/refactor)
     4. Verify implementation works
     5. Commit your work
     6. Self-review (see below)
-    7. Report back
+    7. Write completion notes (see below)
+    8. Mark task complete (see below)
+    9. Report back
 
-    Work from: [directory]
+    ## Deviation Rules
 
-    **While you work:** If you encounter something unexpected or unclear, **ask questions**.
-    It's always OK to pause and clarify. Don't guess or make assumptions.
+    Handle deviations from the plan using these rules:
+
+    | Rule | Trigger | Action |
+    |------|---------|--------|
+    | 1: Auto-fix bug | Code doesn't work as intended | Fix it, document in completion notes |
+    | 2: Auto-add critical | Missing validation, auth, error handling | Add it, document in completion notes |
+    | 3: Auto-fix blocker | Missing dep, broken import, wrong types | Fix it, document in completion notes |
+    | 4: STOP | Architectural change (new table, library swap, breaking API) | Send message to lead via mailbox: what change, which task, why plan doesn't cover it |
+
+    Only fix issues caused by the current task. Pre-existing issues go to
+    deferred list in completion notes. After 3 failed fix attempts on the
+    same issue, document and move on.
 
     ## Before Reporting Back: Self-Review
 
-    Review your work with fresh eyes. Ask yourself:
+    Review your work with fresh eyes:
 
-    **Completeness:**
-    - Did I fully implement everything in the spec?
-    - Did I miss any requirements?
-    - Are there edge cases I didn't handle?
+    **Completeness:** Did I fully implement everything in the spec? Missing requirements? Edge cases?
+    **Quality:** Is this my best work? Clear names? Clean code?
+    **Discipline:** Did I avoid overbuilding (YAGNI)? Only build what was requested? Follow existing patterns?
+    **Testing:** Do tests verify behavior (not mock behavior)? TDD followed? Comprehensive? Boundary tests if cross-task?
 
-    **Quality:**
-    - Is this my best work?
-    - Are names clear and accurate (match what things do, not how they work)?
-    - Is the code clean and maintainable?
+    If you find issues during self-review, fix them now.
 
-    **Discipline:**
-    - Did I avoid overbuilding (YAGNI)?
-    - Did I only build what was requested?
-    - Did I follow existing patterns in the codebase?
+    ## Completion Notes
 
-    **Testing:**
-    - Do tests actually verify behavior (not just mock behavior)?
-    - Did I follow TDD (red/green/refactor)?
-    - Are tests comprehensive?
-    - If this task touches cross-task boundaries, did I write boundary integration tests using real components (not mocks)?
+    Write to `{PHASE_DIR}/{task_id_lower}-completion.md`:
 
-    If you find issues during self-review, fix them now before reporting.
+    ```markdown
+    # {TASK_ID} Completion Notes
+
+    **Summary:** [2-3 sentences: what was built]
+    **Deviations:** [Each: what changed — Rule N — reason. "None" if plan followed exactly.]
+    **Files Changed:** [List of files created/modified]
+    **Test Results:** [Summary of test outcomes]
+    **Deferred Issues:** [Pre-existing issues found but not fixed. "None" if clean.]
+    ```
+
+    ## Mark Complete
+
+    ```bash
+    bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status complete
+    ```
 
     ## Report Format
 
