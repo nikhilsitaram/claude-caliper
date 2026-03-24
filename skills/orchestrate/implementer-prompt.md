@@ -4,7 +4,7 @@ Use this template when dispatching an implementer subagent.
 
 ```text
 Task tool (general-purpose):
-  model: "sonnet"
+  model: "opus"
   mode: "auto"
   description: "Implement {TASK_ID}: [task name]"
   prompt: |

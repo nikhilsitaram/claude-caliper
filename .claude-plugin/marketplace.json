@@ -8,7 +8,7 @@
     {
       "name": "claude-caliper",
       "description": "claude-caliper bundle",
-      "version": "1.12.0",
+      "version": "1.13.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
@@ -32,7 +32,7 @@
     {
       "name": "claude-caliper-workflow",
       "description": "End-to-end development workflow: design → draft-plan → orchestrate → review → create-pr → review-pr → merge-pr",
-      "version": "1.12.0",
+      "version": "1.13.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
@@ -54,7 +54,7 @@
     {
       "name": "claude-caliper-tooling",
       "description": "Standalone tools: codebase audit and skill evaluation",
-      "version": "1.12.0",
+      "version": "1.13.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",

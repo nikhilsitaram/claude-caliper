@@ -31,6 +31,8 @@ Before first phase:
 - `PLAN_BASE_SHA=$(git rev-parse HEAD)`
 - `PLAN_DIR=$(dirname "$(realpath plan.json)")` and `[ -f "$PLAN_DIR/reviews.json" ] || echo '[]' > "$PLAN_DIR/reviews.json"`
 - Push branch: `git push -u origin HEAD`
+- Read supervision config: `orchestrator_poll_seconds=$(jq -r '.supervision.orchestrator_poll_seconds // 60' plan.json)`, `dispatcher_poll_seconds=$(jq -r '.supervision.dispatcher_poll_seconds // 30' plan.json)`, `max_intervention_attempts=$(jq -r '.supervision.max_intervention_attempts // 2' plan.json)`
+- Pass `dispatcher_poll_seconds` as `{DISPATCHER_POLL_SECONDS}` and `max_intervention_attempts` as `{MAX_INTERVENTION_ATTEMPTS}` to phase dispatcher prompt
 
 ## Phase DAG Construction
 
@@ -47,11 +49,40 @@ Initial wave: phases with empty `depends_on`. Sequential plans: waves of size 1.
 ```text
 LOOP until all phases complete:
   a. Ready phases: depends_on all in completed set
-  b. Reconciliation (non-root phases): `git diff --name-only` vs each completed dep; detect file overlaps with this phase's tasks; inject `## Reconciliation: Impact from Phase {X}` into affected task .md files
-  c. Dispatch ready phases IN PARALLEL (one Agent per phase)
-  d. Process completions SERIALLY: review loop → rebase → create-pr → poll → review-pr → merge → mark complete
-  e. Repeat
+  b. Reconciliation (non-root phases): detect file overlaps, inject impact notes into task .md files
+  c. Dispatch ready phases with Agent run_in_background: true
+     - For each phase: create worktree (step 1), bootstrap deps (step 3),
+       extract context (step 4), dispatch (step 5) with {DISPATCHER_POLL_SECONDS} and
+       {MAX_INTERVENTION_ATTEMPTS} — capture agent_id
+     - Init per-phase: prev_output_len=0, prev_head_sha, no_progress_count=0, intervention_count=0
+
+  SUPERVISION LOOP (every orchestrator_poll_seconds, default 60):
+    Bash("sleep $orchestrator_poll_seconds")
+    For each active phase:
+      - Read plan.json in PLAN_DIR -> task completion counts
+      - Check ls escalation-*.json in phase worktree -> surface any to user
+      - TaskOutput(agent_id, block: false, timeout: 1000) -> health signals
+      - git log --format=%H -1 in phase worktree -> commit recency
+      - Evaluate: healthy / stuck (same criteria as L2)
+      - If stuck: L1 intervention (see below)
+
+    OUTPUT PROGRESS UPDATE:
+      "[{elapsed}m] Phase A: 3/5 tasks, healthy | Phase B: 1/4 tasks, healthy"
+
+    PROCESS COMPLETED PHASES (serially, inline):
+      TaskOutput status == completed -> run steps 6-18 (review loop -> rebase -> create-pr -> merge)
+
+    If all phases complete -> break
 ```
+
+## L1 Intervention Protocol
+
+| Attempt | Action |
+|---------|--------|
+| 1st | TaskStop(agent_id) + re-dispatch phase dispatcher with diagnosis |
+| 2nd | AskUserQuestion — user decides: re-dispatch with guidance, or abort phase |
+
+L1 never auto-kills a phase dispatcher without user consent on 2nd attempt.
 
 For each phase being dispatched:
 
@@ -67,7 +98,7 @@ For each phase being dispatched:
    - `PHASE_DIR=${PLAN_DIR}/phase-{letter_lower}`
    - `PRIOR_COMPLETIONS` — concatenate `completion.md` from transitive `depends_on` closure (Phase D with deps B,C receives A+B+C). Empty if none.
    - `CROSS_PHASE_HANDOFF_TARGETS` — JSON mapping source task to target paths (scan transitive dependents — later-indexed phases may be DAG siblings).
-5. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_LETTER`, `PHASE_NAME`, `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `REPO_PATH` (phase worktree path)
+5. Dispatch phase dispatcher (`./phase-dispatcher-prompt.md`) with: `PHASE_LETTER`, `PHASE_NAME`, `PHASE_TASKS_JSON`, `PLAN_DIR`, `PHASE_DIR`, `PRIOR_COMPLETIONS`, `CROSS_PHASE_HANDOFF_TARGETS`, `REPO_PATH` (phase worktree path), `DISPATCHER_POLL_SECONDS`, `MAX_INTERVENTION_ATTEMPTS`
 6. After dispatcher returns:
    - Rule 4 violation → ask user, pause (see Rule 4 Handling)
    - Otherwise → dispatch implementation-review with `PHASE_BASE_SHA`, `HEAD`, `PLAN_DIR`, `PHASE_DIR`, `DESIGN_DOC_PATH`

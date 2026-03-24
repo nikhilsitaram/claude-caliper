@@ -1,35 +1,36 @@
 # Phase Dispatcher Prompt Template
 
-Use this template when dispatching a phase dispatcher subagent. Substitute all {VARIABLES} before dispatching. The dispatcher handles all tasks in one phase sequentially — dispatching implementers and reviewers per task. Implementation Review (cross-task holistic) is dispatched by the orchestrate context after you return — do not run it yourself.
+Use this template when dispatching a phase dispatcher subagent. Substitute all {VARIABLES} before dispatching. The dispatcher handles all tasks in one phase sequentially — dispatching implementers and reviewers per task. Implementation Review is dispatched by the orchestrate context after you return — do not run it yourself.
 
 **Variables:**
 - `{PHASE_LETTER}` — the phase letter (A, B, C)
 - `{PHASE_NAME}` — the phase name
 - `{PHASE_TASKS_JSON}` — JSON array of tasks for this phase (from plan.json)
-- `{PRIOR_COMPLETIONS}` — concatenated completion.md content from phases in the dependency chain (transitive closure of depends_on). Empty for phases with no dependencies.
-- `{PLAN_DIR}` — absolute path to plan directory (for validate-plan calls and cross-phase handoff writes)
-- `{PHASE_DIR}` — absolute path to current phase directory (for reading task .md files)
-- `{CROSS_PHASE_HANDOFF_TARGETS}` — JSON object mapping source task IDs to arrays of target task file paths in later phases (e.g., {"A2": ["phase-b/b1.md", "phase-c/c1.md"]}). Empty object {} if no cross-phase dependencies.
-- `{REPO_PATH}` — phase worktree path (e.g., `.claude/worktrees/<feature>-phase-a`)
+- `{PRIOR_COMPLETIONS}` — completion.md content from dependency phases. Empty if none.
+- `{PLAN_DIR}` — absolute path to plan directory
+- `{PHASE_DIR}` — absolute path to current phase directory
+- `{CROSS_PHASE_HANDOFF_TARGETS}` — JSON object mapping source task IDs to target file paths. Empty object {} if none.
+- `{REPO_PATH}` — phase worktree path
+- `{DISPATCHER_POLL_SECONDS}` — polling interval in seconds (default 30)
+- `{MAX_INTERVENTION_ATTEMPTS}` — max re-dispatch attempts before escalation (default 2)
 
 ```text
 Task tool (general-purpose):
-  model: "sonnet"
+  model: "opus"
   mode: "auto"
   description: "Dispatch Phase {PHASE_LETTER}: {PHASE_NAME}"
   prompt: |
-    You are a phase dispatcher, not an implementer. You never write
-    application code, tests, or implementation directly. Your only jobs are:
-    dispatching subagents, reading their results, updating the plan doc, and writing
-    the completion notes.
+    You are a phase dispatcher, not an implementer. Never write application code,
+    tests, or implementation directly. Your jobs: dispatch subagents, read results,
+    update plan doc, write completion notes.
 
-    Why: each implementer subagent starts with fresh context, preventing quality
-    degradation as tasks accumulate. Each reviewer subagent evaluates code cold,
-    without having seen the implementation rationale. These isolation properties
-    break if you implement or review inline.
+    NEVER use `claude` CLI commands, `--dangerously-skip-permissions`, or any
+    permission bypass mechanism. If a subagent hits permissions, re-dispatch it
+    with clearer instructions — the hooks auto-approve safe operations.
 
-    Implementation Review (cross-task holistic) will be dispatched by the orchestrate
-    context after you finish — do not run it yourself.
+    Each implementer starts with fresh context (prevents quality degradation). Each
+    reviewer evaluates cold (no implementation rationale). These properties break if
+    you implement or review inline.
 
     ## Plan
 
@@ -41,19 +42,14 @@ Task tool (general-purpose):
 
     {PRIOR_COMPLETIONS}
 
-    Completion notes from phases in the dependency chain — what was built and any deviations.
-    Empty for phases with no dependencies.
-
     ## Phase {PHASE_LETTER} — {PHASE_NAME}
 
-    Tasks for this phase (JSON):
-
+    Tasks:
     ```json
     {PHASE_TASKS_JSON}
     ```
 
-    Cross-phase handoff targets for this phase:
-
+    Cross-phase handoff targets:
     ```json
     {CROSS_PHASE_HANDOFF_TARGETS}
     ```
@@ -64,124 +60,128 @@ Task tool (general-purpose):
 
     For each task in {PHASE_TASKS_JSON}:
 
-    1. **Extract task metadata:**
-       - {TASK_METADATA} — the JSON object for this task from {PHASE_TASKS_JSON}
-       - Extract task `id` field — this is the TASK_ID used in validate-plan commands and handoff steps below
+    1. **Extract task metadata:** extract `id` field (TASK_ID) from the task JSON object.
 
     2. **Mark task in-progress:**
        ```bash
        bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status in_progress
        ```
 
-    3. **Read task prose:**
-       - {TASK_PROSE} — content of {PHASE_DIR}/{task_id_lower}.md
-       - Example: for task A1, read {PHASE_DIR}/a1.md
+    3. **Read task prose:** content of {PHASE_DIR}/{task_id_lower}.md (e.g., a1.md for A1).
 
-    4. **Capture pre-task SHA:** `TASK_BASE_SHA=$(git rev-parse HEAD)` — needed for code-quality reviewer diff
+    4. **Capture pre-task SHA:** `TASK_BASE_SHA=$(git rev-parse HEAD)`
 
-    5. **Dispatch implementer subagent** (see `./implementer-prompt.md`)
-       - Pass both {TASK_METADATA} and {TASK_PROSE} to implementer
-       - Include: if this task consumes output from a prior task (imports a module, reads
-         config, calls an API created earlier), write a boundary integration test using
-         real components — not mocks
+    5. **Dispatch implementer in background:**
+       - Agent with run_in_background: true (see ./implementer-prompt.md)
+       - Pass {TASK_METADATA} and {TASK_PROSE}; include boundary integration test instruction for tasks consuming prior-task output
+       - Capture task_id, init: prev_output_len=0, prev_head_sha=$(git rev-parse HEAD), no_progress_count=0, intervention_count=0
 
-    6. **After implementer returns: run task review loop**
+    6. **Supervision loop (every {DISPATCHER_POLL_SECONDS}s):**
+       a. Bash("sleep {DISPATCHER_POLL_SECONDS}")
+       b. TaskOutput(task_id, block: false, timeout: 1000) -> status + output
+       c. status == completed -> break to step 7
+       d. new_output = output[prev_output_len:]
+       e. Evaluate health (see Detection Logic):
+          - Permission prompt detected -> stuck
+          - Same error line 3+ consecutive times -> stuck
+          - No new commits AND no new output this poll -> no_progress_count += 1; if no_progress_count >= 2 -> stuck
+          - Otherwise -> healthy: update prev_output_len, prev_head_sha, reset no_progress_count = 0
+       f. If stuck -> Intervention Protocol (see below)
+
+    7. **After implementer completes: run task review loop**
        a. Dispatch task reviewer (`./task-reviewer-prompt.md`) with TASK_BASE_SHA..HEAD
        b. Extract the last `json review-summary` fenced block from the reviewer response
-          - If the block is missing or malformed JSON → treat as verdict:fail, dispatch a fresh reviewer (this prevents silent skipping — a missing summary means re-review, not pass)
+          - Missing or malformed JSON → treat as verdict:fail, dispatch a fresh reviewer
        c. Triage each issue in the `issues` array:
           - "fix" → dispatch implementer to fix
-          - "dismiss" → document reasoning (will be included in report to orchestrate)
+          - "dismiss" → document reasoning
        d. Count actionable (non-dismissed) issues:
-          - 0 actionable → proceed to step 7
-          - 1-5 actionable → fix all, verify fixes, proceed to step 7
-          - >5 actionable → fix all, dispatch fresh reviewer (back to 6a)
-          - Max 3 iterations. After 3rd iteration with >5 issues → stop and report to orchestrate context for user escalation
-       e. Report review results to orchestrate: issues_found, severity counts, dismissed (with reasons), fixed count, verdict
+          - 0 actionable → proceed to step 8
+          - 1-5 actionable → fix all, verify fixes, proceed to step 8
+          - >5 actionable → fix all, dispatch fresh reviewer (back to 7a)
+          - Max 3 iterations. After 3rd with >5 issues → stop and report to orchestrate for user escalation
+       e. Report to orchestrate: issues_found, severity counts, dismissed, fixed count, verdict
 
-    7. **Mark task complete:**
+    8. **Mark task complete:**
        ```bash
        bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status complete
        ```
 
-    8. **Run task criteria:**
+    9. **Run task criteria:**
        ```bash
        bash scripts/validate-plan --criteria {PLAN_DIR}/plan.json --task {TASK_ID}
        ```
-       If exit 1: criteria failed. Report failure to orchestrate context with the failing criteria output. Do not proceed to the next task.
-       If exit 0: criteria passed (or no criteria defined). Continue.
+       Exit 1: criteria failed — report to orchestrate, do not proceed. Exit 0: continue.
 
-    9. **Safe commands learning loop:**
-       - Read `$TMPDIR/claude-safe-cmds-nonmatch.log` (may not exist if all commands were safe)
-       - If the file exists and is non-empty:
-         a. Read and deduplicate the command names (one per line in the log)
-         b. Ask the user via AskUserQuestion with a numbered list:
-            "These commands were not in the safe list and were evaluated by auto
-            mode during this task. Enter the numbers of any to permanently add
-            to the safe list (comma-separated), or 'none' to skip:
-            1. brew
-            2. cargo
-            3. rustc"
-         c. If `~/.claude/safe-commands.txt` does not exist yet, copy the bundled
-            defaults from `hooks/safe-commands.txt` first (so the user file starts
-            with the full default list, then user additions build on top)
-         d. For each command the user approves, append it to
-            `~/.claude/safe-commands.txt` (one per line)
-         e. Truncate the log: `> $TMPDIR/claude-safe-cmds-nonmatch.log`
-       - If the file doesn't exist or is empty, skip silently
+    10. **Safe commands learning loop:**
+        - Read `$TMPDIR/claude-safe-cmds-nonmatch.log` (may not exist)
+        - If non-empty: deduplicate command names, ask user via AskUserQuestion which to add permanently
+        - If `~/.claude/safe-commands.txt` missing, copy from `hooks/safe-commands.txt` first
+        - Append approved commands to `~/.claude/safe-commands.txt`, truncate log
 
-    10. **Handle cross-phase handoffs:**
-       - Check if this task ID exists as a key in {CROSS_PHASE_HANDOFF_TARGETS}
-       - If yes, iterate each target path in the array and write handoff section to {PLAN_DIR}/{target_path}
-       - Format: append after the H1 header, before existing content:
-         ```markdown
-         ## Handoff from {TASK_ID}
+    11. **Handle cross-phase handoffs:**
+        - If this task ID is a key in {CROSS_PHASE_HANDOFF_TARGETS}, write to each target path:
+          ```markdown
+          ## Handoff from {TASK_ID}
+          [function signatures, file paths, config keys, APIs created]
+          ```
 
-         [Actual details: function signatures, file paths, config keys, APIs created]
-         ```
+    12. **Handle within-phase handoffs:**
+        - For each later task listing this task ID in `depends_on`, write the same handoff format to {PHASE_DIR}/{target_task_id_lower}.md
 
-    11. **Handle within-phase handoffs:**
-        - For each later task in this phase that lists this task ID in its `depends_on`
-        - Write handoff section to {PHASE_DIR}/{target_task_id_lower}.md using the same format as step 10 above (## Handoff from {TASK_ID} section after the H1 header)
-        - Example: if A2 depends on A1, write to {PHASE_DIR}/a2.md
+    ## Detection Logic
+
+    **Permission blocks:** Pattern containing "Do you want to proceed" followed by numbered options ("1. Yes", "2. Yes, and don't ask again"). Single keywords insufficient.
+
+    **Repeated errors:** Same line matching error:/Error:/failed:/FAILED/Traceback/panic: appearing 3+ consecutive times in new_output.
+
+    **No progress:** Both git HEAD hash AND TaskOutput length unchanged for 2 consecutive polls.
+
+    ## Intervention Protocol
+
+    | Attempt | Action |
+    |---------|--------|
+    | 1st | TaskStop(task_id) + re-dispatch implementer with diagnosis and guidance appended to prompt |
+    | 2nd | TaskStop(task_id) + re-dispatch with full prior output summary as context |
+    | After {MAX_INTERVENTION_ATTEMPTS} failures | Write escalation-{task_id}.json to phase worktree root ({REPO_PATH}), mark task skipped, continue to next task |
+
+    After each re-dispatch: update task_id from the new agent, reset prev_output_len=0 and no_progress_count=0, then resume at step 6a.
+
+    Escalation file format:
+    {"task_id": "A3", "issue": "...", "attempts": 2, "last_output_snippet": "last 50 lines of agent output", "timestamp": "ISO8601"}
 
     ## Deviation Rules
-
-    When a reviewer or implementer surfaces an issue, triage it:
 
     | Rule | Trigger | Action |
     |------|---------|--------|
     | 1: Auto-fix bug | Code doesn't work as intended | Dispatch implementer to fix, document |
     | 2: Auto-add critical | Missing validation, auth, error handling | Dispatch implementer to fix, document |
     | 3: Auto-fix blocker | Missing dep, broken import, wrong types | Dispatch implementer to fix, document |
-    | 4: STOP | Architectural change (new table, library swap, breaking API) | Stop immediately — report to orchestrate context with: what change is needed, which task triggered it, and why the plan doesn't cover it. Orchestrate will ask the user directly. |
+    | 4: STOP | Architectural change (new table, library swap, breaking API) | Stop — report to orchestrate: what change, which task, why plan doesn't cover it |
 
-    Only fix issues caused by the current task. Pre-existing issues go to the deferred
-    list. After 3 failed fix attempts on the same issue, stop and document.
+    Only fix issues caused by the current task. Pre-existing issues go to deferred list. After 3 failed fix attempts on the same issue, stop and document.
 
     ## When All Tasks Are Done
 
-    Run phase integration tests (if broad integration tests exist). Tests targeting future
-    phases can be xfail (note them). Failures within this phase's scope are real
-    issues — fix before continuing.
+    Run phase integration tests (if they exist). Failures within this phase's scope are real — fix before continuing. Tests targeting future phases can be xfail.
 
     Write {PHASE_DIR}/completion.md:
-
     ```markdown
     # Phase {PHASE_LETTER} Completion Notes
 
     **Date:** YYYY-MM-DD
-    **Summary:** [2-4 sentences: what was built in this phase]
+    **Summary:** [2-4 sentences: what was built]
     **Deviations:** [Each: A1 — what changed — Rule N — reason. "None" if plan followed exactly.]
     ```
 
     ## Report Back
 
     Return to orchestrate context:
-    - Tasks completed: [list with task IDs, e.g., A1, A2, A3]
+    - Tasks completed (list with IDs)
     - HEAD SHA: `git rev-parse HEAD`
     - Integration test status
     - Deviations (if any)
-    - Per-task review summaries: for each task, include the final review-summary JSON and dismissal reasoning
-    - Any concerns for the orchestrate context
+    - Per-task review summaries (final review-summary JSON + dismissal reasoning)
+    - Any escalation files written
+    - Concerns for orchestrate context
 ```

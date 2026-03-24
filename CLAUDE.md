@@ -6,11 +6,9 @@ A Claude Code plugin containing composable agent skills for software development
 
 ## Skill Conventions
 
-### Iron Law of Skill Testing
+### Skill Testing
 
-Never skip testing when creating or editing skills, even if the user asks. Untested skills silently teach wrong behavior — a skill that triggers on the wrong prompt or skips a critical workflow step will corrupt every session it fires in, with no error signal.
-
-Use the skill-eval skill for eval-driven skill development.
+Use skill-eval for dedicated skill refactors or new skill creation where triggering accuracy and workflow correctness need validation. For routine skill edits (wording changes, model upgrades, adding a section), eval is overkill — manual review is sufficient.
 
 ### Token Efficiency
 
@@ -49,7 +47,7 @@ docs/reviews/     — Codebase review reports
 
 ## Testing
 
-Use the skill-eval skill for eval-driven skill testing.
+Bash test scripts live in `tests/`. Run with `bash tests/<dir>/<script>.sh`. Skill-eval is available for dedicated skill refactors — see Skill Testing above.
 
 ## Development Workflow
 

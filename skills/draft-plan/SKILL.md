@@ -19,7 +19,8 @@ Write implementation plans assuming the executor has zero codebase context. Docu
 6. **Create completion.md stubs** — Empty files, one per phase
 7. **Run scripts/validate-plan --schema** — Fix any structural errors
 8. **Run scripts/validate-plan --render** — Generates plan.md deterministically
-9. **Hand off** — Report plan path to caller. Plan-review is dispatched by the design skill after draft-plan returns.
+9. **Commit plan artifacts** — `git add docs/plans/<dir>/ && git commit -m "docs: add implementation plan for <topic>"`
+10. **Hand off** — Report plan path to caller. Plan-review is dispatched by the design skill after draft-plan returns.
 
 ## Plan Structure
 
