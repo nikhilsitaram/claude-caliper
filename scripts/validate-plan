@@ -13,6 +13,7 @@ Usage:
   validate-plan --criteria <plan.json> --phase <LETTER>
   validate-plan --criteria <plan.json> --plan
   validate-plan --check-review <plan.json> --type <TYPE> --scope <SCOPE>
+  validate-plan --check-deps <plan.json> --task <ID>
   validate-plan --check-workflow <plan.json>
 
   Valid types:  design-review, plan-review, task-review, impl-review
@@ -915,6 +916,66 @@ do_check_workflow() {
   exit 0
 }
 
+do_check_deps() {
+  local plan_json="$1"
+  local task_id="$2"
+
+  local json
+  json=$(cat "$plan_json")
+
+  local phase_count
+  phase_count=$(echo "$json" | jq '.phases | length')
+
+  local deps_json=""
+  for ((p=0; p<phase_count; p++)); do
+    local task_count
+    task_count=$(echo "$json" | jq ".phases[$p].tasks | length")
+    for ((t=0; t<task_count; t++)); do
+      local tid
+      tid=$(echo "$json" | jq -r ".phases[$p].tasks[$t].id")
+      if [[ "$tid" == "$task_id" ]]; then
+        deps_json=$(echo "$json" | jq -c ".phases[$p].tasks[$t].depends_on // []")
+        break 2
+      fi
+    done
+  done
+
+  if [[ -z "$deps_json" ]]; then
+    echo "ERROR: task '$task_id' not found in plan" >&2
+    exit 1
+  fi
+
+  local dep_count
+  dep_count=$(echo "$deps_json" | jq 'length')
+  if [[ "$dep_count" -eq 0 ]]; then
+    exit 0
+  fi
+
+  for ((d=0; d<dep_count; d++)); do
+    local dep_id
+    dep_id=$(echo "$deps_json" | jq -r ".[$d]")
+    local dep_status=""
+    for ((p2=0; p2<phase_count; p2++)); do
+      local tc2
+      tc2=$(echo "$json" | jq ".phases[$p2].tasks | length")
+      for ((t2=0; t2<tc2; t2++)); do
+        local tid2
+        tid2=$(echo "$json" | jq -r ".phases[$p2].tasks[$t2].id")
+        if [[ "$tid2" == "$dep_id" ]]; then
+          dep_status=$(echo "$json" | jq -r ".phases[$p2].tasks[$t2].status")
+          break 2
+        fi
+      done
+    done
+    if [[ "$dep_status" != "complete" ]]; then
+      echo "ERROR: dependency_not_complete: task $task_id depends on $dep_id which has status '$dep_status' (expected: complete)" >&2
+      exit 1
+    fi
+  done
+
+  exit 0
+}
+
 MODE=""
 PLAN_JSON=""
 UPDATE_TARGET=""
@@ -1000,6 +1061,14 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
+    --check-deps)
+      MODE="check-deps"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
     --type)
       shift
       if [[ $# -gt 0 ]]; then
@@ -1050,5 +1119,12 @@ case "$MODE" in
     do_check_review "$PLAN_JSON" "$CHECK_REVIEW_TYPE" "$CHECK_REVIEW_SCOPE"
     ;;
   check-workflow) do_check_workflow "$PLAN_JSON" ;;
+  check-deps)
+    if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" ]]; then
+      echo "ERROR: --check-deps requires --task <ID>" >&2
+      exit 2
+    fi
+    do_check_deps "$PLAN_JSON" "$UPDATE_ID"
+    ;;
   *) usage ;;
 esac

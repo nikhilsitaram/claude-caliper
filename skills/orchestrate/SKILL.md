@@ -54,7 +54,7 @@ Process phases in order (A, B, C...). For each phase:
 
 ### Spawn Implementer Teammates
 
-Spawn one implementer teammate per task in the phase (parallel). Each teammate:
+Spawn implementer teammates for tasks with no unmet dependencies (verified via `scripts/validate-plan --check-deps`). Each teammate:
 - Receives task metadata + prose from `./implementer-prompt.md`
 - Gets its own auto-provisioned worktree
 - Manages its own lifecycle (marks in-progress, writes completion notes, marks complete)
@@ -64,12 +64,14 @@ Spawn one implementer teammate per task in the phase (parallel). Each teammate:
 When an implementer teammate goes idle (push notification — no polling):
 
 1. Read the teammate's completion notes (`{PHASE_DIR}/{task_id_lower}-completion.md`)
-2. Dispatch a reviewer teammate (`./task-reviewer-prompt.md`) with `PHASE_BASE_SHA..HEAD`
+2. Dispatch a reviewer teammate (`./task-reviewer-prompt.md`) with the task's branch-specific diff range (task worktree `BASE..HEAD`, not the phase-wide range)
 3. When reviewer goes idle, extract the last `json review-summary` block
 4. Triage issues: "fix" (send to implementer via mailbox) or "dismiss" (document reasoning)
 5. If fixes needed: send review feedback to the *original implementer* via mailbox messaging — the implementer still has context and files. Implementer fixes and goes idle again. Repeat until review passes.
 6. Validate with `scripts/validate-plan --criteria plan.json --task {TASK_ID}`
 7. Kill teammate only after review passes and criteria met
+8. **Incremental merge:** Immediately merge this task's branch into the feature/integration branch. This ensures dependent tasks see prerequisite code when their worktrees are created.
+9. **Dependency gate:** Check if any blocked tasks are now unblocked. For each candidate, run `scripts/validate-plan --check-deps plan.json --task {TASK_ID}`. If all dependencies are complete, spawn a new implementer teammate for that task (worktree created from the now-updated feature branch).
 
 **Phase completion gate:** Lead cannot advance until ALL teammates for this phase (implementers and reviewers) are terminated.
 
@@ -79,14 +81,13 @@ Teammates send Rule 4 violations (architectural changes) to lead via mailbox. Le
 
 ### Phase Wrap-Up
 
-After all teammates killed:
-1. Merge task branches into feature/integration branch
-2. Dispatch implementation-review with `PHASE_BASE_SHA..HEAD`, run Review Loop Protocol (scope: `phase-{letter_lower}`)
-3. `scripts/validate-plan --check-review plan.json --type impl-review --scope phase-{letter_lower}`
-4. Append review changes to `${PHASE_DIR}/completion.md`
-5. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`
-6. Update status: `scripts/validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
-7. (Multi-phase) Create phase PR, external review gate, merge, clean up worktree
+After all teammates killed (branches already merged incrementally):
+1. Dispatch implementation-review with `PHASE_BASE_SHA..HEAD`, run Review Loop Protocol (scope: `phase-{letter_lower}`)
+2. `scripts/validate-plan --check-review plan.json --type impl-review --scope phase-{letter_lower}`
+3. Append review changes to `${PHASE_DIR}/completion.md`
+4. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`
+5. Update status: `scripts/validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
+6. (Multi-phase) Create phase PR, external review gate, merge, clean up worktree
 
 ## Review Loop Protocol
 
