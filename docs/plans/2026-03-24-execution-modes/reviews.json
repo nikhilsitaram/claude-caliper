@@ -1,0 +1,30 @@
+[
+  {
+    "type": "design-review",
+    "scope": "design",
+    "iteration": 1,
+    "issues_found": 8,
+    "severity": {
+      "critical": 1,
+      "high": 3,
+      "medium": 3,
+      "low": 1
+    },
+    "actionable": 6,
+    "dismissed": 2,
+    "dismissals": [
+      {
+        "id": 1,
+        "reason": "isolation:worktree is a real Agent tool parameter defined in Claude Code built-in tool schema"
+      },
+      {
+        "id": 3,
+        "reason": "Combined decision point was explicitly requested by the user"
+      }
+    ],
+    "fixed": 6,
+    "remaining": 0,
+    "verdict": "pass",
+    "timestamp": "2026-03-24T21:45:00-05:00"
+  }
+]

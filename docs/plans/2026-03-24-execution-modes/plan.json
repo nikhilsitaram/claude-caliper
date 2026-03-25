@@ -25,7 +25,7 @@
             "test": ["tests/validate-plan/test_execution_mode.sh"]
           },
           "verification": "bash tests/validate-plan/test_execution_mode.sh",
-          "done_when": "validate-plan --schema rejects plan.json missing execution_mode or with invalid values, accepts valid enum values (main, subagents, agent-teams); existing test_schema.sh still passes"
+          "done_when": "validate-plan --schema rejects plan.json missing execution_mode or with invalid values, accepts valid enum values (main, subagents, agent-teams); test_execution_mode.sh passes (note: existing test_schema.sh will fail until A8 updates the fixture)"
         },
         {
           "id": "A2",
@@ -77,7 +77,7 @@
             "test": []
           },
           "verification": "test -f skills/orchestrate/dispatch-main.md && grep -q 'sequential' skills/orchestrate/dispatch-main.md",
-          "done_when": "dispatch-main.md documents sequential execution where the lead implements each task directly (no subagents, no teammates), processes review feedback inline, and uses the same completion/review loop structure"
+          "done_when": "dispatch-main.md documents sequential execution where the lead implements each task directly (no subagent dispatch for implementation, no teammates). Review is still dispatched as a synchronous subagent (fresh-eyes review requires a separate agent). Uses the same completion/review loop structure."
         },
         {
           "id": "A6",
@@ -86,11 +86,11 @@
           "depends_on": ["A3", "A4", "A5"],
           "files": {
             "create": [],
-            "modify": ["skills/orchestrate/SKILL.md"],
+            "modify": ["skills/orchestrate/SKILL.md", ".claude-plugin/marketplace.json"],
             "test": []
           },
           "verification": "wc -w skills/orchestrate/SKILL.md | awk '{if ($1 <= 2000) exit 0; else exit 1}'",
-          "done_when": "Orchestrate SKILL.md reads execution_mode from plan.json at setup. Inline dispatch logic replaced with conditional See-reference to the matching dispatch file. Agent teams env var check moved to dispatch-agent-teams.md only. Word count under 2000."
+          "done_when": "Orchestrate SKILL.md reads execution_mode from plan.json at setup. Inline dispatch logic replaced with conditional See-reference to the matching dispatch file. Agent teams env var check moved to dispatch-agent-teams.md only. Word count under 2000. marketplace.json version bumped."
         },
         {
           "id": "A7",
@@ -103,7 +103,7 @@
             "test": []
           },
           "verification": "grep -q 'execution_mode' skills/draft-plan/SKILL.md",
-          "done_when": "draft-plan SKILL.md plan.json template includes execution_mode field. Word count under 2000."
+          "done_when": "draft-plan SKILL.md plan.json template includes execution_mode field as a placeholder (design skill overwrites it after draft-plan returns with the user's actual choice). Word count under 2000."
         },
         {
           "id": "A8",
@@ -115,8 +115,8 @@
             "modify": ["tests/validate-plan/fixtures/valid-plan/plan.json"],
             "test": []
           },
-          "verification": "bash tests/validate-plan/test_schema.sh && bash tests/validate-plan/test_execution_mode.sh",
-          "done_when": "Valid-plan fixture includes execution_mode field. All existing test_schema.sh tests pass. New test_execution_mode.sh tests pass."
+          "verification": "for f in tests/validate-plan/*.sh tests/hooks/*.sh; do bash \"$f\" || exit 1; done",
+          "done_when": "Valid-plan fixture includes execution_mode field. Full regression suite passes (all test scripts in tests/validate-plan/ and tests/hooks/). New test_execution_mode.sh tests pass."
         }
       ]
     }
