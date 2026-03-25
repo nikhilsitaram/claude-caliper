@@ -1,0 +1,54 @@
+# Agent Teams Dispatch Protocol
+
+Dispatch protocol for executing plan tasks via agent team teammates. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` environment variable — the design skill checks and enables this flag.
+
+## Spawn Implementer Teammates
+
+Spawn implementer teammates for tasks with no unmet dependencies (verified via `scripts/validate-plan --check-deps`). Each teammate:
+- Receives task metadata + prose from `./implementer-prompt.md`
+- Gets its own auto-provisioned worktree
+- Manages its own lifecycle (marks in-progress, writes completion notes, marks complete)
+
+## Process Completions (Push-Based)
+
+When an implementer teammate goes idle (push notification — no polling):
+
+1. Read the teammate's completion notes (`{PHASE_DIR}/{TASK_ID_LOWER}-completion.md`)
+2. Dispatch a reviewer teammate (`./task-reviewer-prompt.md`) with the task's branch-specific diff range (task worktree `BASE..HEAD`, not the phase-wide range)
+3. When reviewer goes idle, extract the last `json review-summary` block
+4. Triage issues: "fix" (send to implementer via mailbox) or "dismiss" (document reasoning)
+5. If fixes needed: send review feedback to the *original implementer* via mailbox messaging — the implementer still has context and files. Implementer fixes and goes idle again. Repeat until review passes.
+6. Validate with `scripts/validate-plan --criteria plan.json --task {TASK_ID}`
+7. Kill teammate only after review passes and criteria met
+8. **Incremental merge:** Immediately merge this task's branch into the feature/integration branch. This ensures dependent tasks see prerequisite code when their worktrees are created.
+9. **Dependency gate:** Check if any blocked tasks are now unblocked. For each candidate, run `scripts/validate-plan --check-deps plan.json --task {TASK_ID}`. If all dependencies are complete, spawn a new implementer teammate for that task (worktree created from the now-updated feature branch).
+
+**Phase completion gate:** Lead cannot advance until ALL teammates for this phase (implementers and reviewers) are terminated.
+
+## Handle Escalations
+
+Teammates send Rule 4 violations (architectural changes) to lead via mailbox. Lead presents to user: what change, which task, why plan doesn't cover it. Wait for user decision.
+
+## Teammate Spawn Format
+
+Implementer teammates use the template in `./implementer-prompt.md`. Key spawn parameters:
+
+```text
+Teammate spawn:
+  model: "opus"
+  mode: "auto"
+  description: "Implement {TASK_ID}: [task name]"
+  prompt: <filled from implementer-prompt.md template>
+```
+
+Task reviewer teammates use the template in `./task-reviewer-prompt.md`. Key spawn parameters:
+
+```yaml
+Teammate spawn:
+  model: "opus"
+  mode: "auto"
+  description: "Review Task {TASK_ID}"
+  prompt: <filled from task-reviewer-prompt.md template>
+```
+
+Both templates document their required variables and full prompt content.
