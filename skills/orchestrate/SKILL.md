@@ -5,17 +5,20 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Orchestrate
 
-Execute plans via agent teams. Phases run sequentially; tasks within each phase run in parallel as teammates. Push-based idle notifications replace polling.
+Execute plans via the configured execution mode. Phases run sequentially; task dispatch within each phase depends on the mode.
 
-**Core principle:** The lead dispatches teammates — only implementer teammates touch code.
+**Core principle:** The lead coordinates — only dispatched implementers touch code.
 
 ## Prompt Templates
 
 | Template | Purpose |
 |----------|---------|
-| `./implementer-prompt.md` | Task implementer teammate |
-| `./task-reviewer-prompt.md` | Per-task reviewer teammate |
+| `./implementer-prompt.md` | Task implementer |
+| `./task-reviewer-prompt.md` | Per-task reviewer |
 | `skills/implementation-review/reviewer-prompt.md` | Cross-task reviewer (lead dispatches) |
+| `./dispatch-main.md` | Main context dispatch protocol |
+| `./dispatch-subagents.md` | Subagents dispatch protocol |
+| `./dispatch-agent-teams.md` | Agent teams dispatch protocol |
 
 ## Progress Tracking
 
@@ -25,12 +28,14 @@ TaskCreate per phase: "Execute tasks ({N})", "Implementation review", "Create PR
 
 Before first phase:
 - Read workflow: `WORKFLOW=$(jq -r '.workflow' plan.json)`
+- Read execution mode: `EXEC_MODE=$(jq -r '.execution_mode' plan.json)`
 - Count phases: `PHASE_COUNT=$(jq '.phases | length' plan.json)`
 - Validate schema: `scripts/validate-plan --schema plan.json`
 - `scripts/validate-plan --update-status plan.json --plan --status "In Development"`
 - `PLAN_BASE_SHA=$(git rev-parse HEAD)`
 - `PLAN_DIR=$(dirname "$(realpath plan.json)")` and `[ -f "$PLAN_DIR/reviews.json" ] || echo '[]' > "$PLAN_DIR/reviews.json"`
 - Push branch: `git push -u origin HEAD`
+- Read the dispatch protocol for `EXEC_MODE`: **See:** `./dispatch-main.md` (main), `./dispatch-subagents.md` (subagents), or `./dispatch-agent-teams.md` (agent-teams) — read only the file matching `EXEC_MODE`
 
 ## Per-Phase Execution (Sequential)
 
@@ -44,36 +49,18 @@ Process phases in order (A, B, C...). For each phase:
 4. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure)
 5. Cross-phase handoff notes: lead writes handoff sections to task .md files for tasks consuming prior-phase output
 
-### Spawn Implementer Teammates
+### Dispatch, Complete, and Review Tasks
 
-Spawn implementer teammates for tasks with no unmet dependencies (verified via `scripts/validate-plan --check-deps`). Each teammate:
-- Receives task metadata + prose from `./implementer-prompt.md`
-- Gets its own auto-provisioned worktree
-- Manages its own lifecycle (marks in-progress, writes completion notes, marks complete)
+Follow the dispatch protocol from the mode-specific file read during setup. All three modes share these invariants:
+- Only dispatch tasks whose dependencies are met (`scripts/validate-plan --check-deps`)
+- Each task gets reviewed after implementation (reviewer always uses `./task-reviewer-prompt.md`)
+- After review passes: validate criteria (`scripts/validate-plan --criteria plan.json --task {TASK_ID}`), merge task branch, check for newly unblocked tasks
 
-### Process Completions (Push-Based)
-
-When an implementer teammate goes idle (push notification — no polling):
-
-1. Read the teammate's completion notes (`{PHASE_DIR}/{TASK_ID_LOWER}-completion.md`)
-2. Dispatch a reviewer teammate (`./task-reviewer-prompt.md`) with the task's branch-specific diff range (task worktree `BASE..HEAD`, not the phase-wide range)
-3. When reviewer goes idle, extract the last `json review-summary` block
-4. Triage issues: "fix" (send to implementer via mailbox) or "dismiss" (document reasoning)
-5. If fixes needed: send review feedback to the *original implementer* via mailbox messaging — the implementer still has context and files. Implementer fixes and goes idle again. Repeat until review passes.
-6. Validate with `scripts/validate-plan --criteria plan.json --task {TASK_ID}`
-7. Kill teammate only after review passes and criteria met
-8. **Incremental merge:** Immediately merge this task's branch into the feature/integration branch. This ensures dependent tasks see prerequisite code when their worktrees are created.
-9. **Dependency gate:** Check if any blocked tasks are now unblocked. For each candidate, run `scripts/validate-plan --check-deps plan.json --task {TASK_ID}`. If all dependencies are complete, spawn a new implementer teammate for that task (worktree created from the now-updated feature branch).
-
-**Phase completion gate:** Lead cannot advance until ALL teammates for this phase (implementers and reviewers) are terminated.
-
-### Handle Escalations
-
-Teammates send Rule 4 violations (architectural changes) to lead via mailbox. Lead presents to user: what change, which task, why plan doesn't cover it. Wait for user decision.
+The dispatch file specifies how tasks are dispatched (teammates vs subagents vs lead), how completions are detected (push vs background notification vs synchronous), and how review fixes are communicated (mailbox vs fresh agent vs direct fix).
 
 ### Phase Wrap-Up
 
-After all teammates killed (branches already merged incrementally):
+After all tasks complete and branches merged:
 1. Dispatch implementation-review with `PHASE_BASE_SHA..HEAD`, run Review Loop Protocol (scope: `phase-{letter_lower}`)
 2. `scripts/validate-plan --check-review plan.json --type impl-review --scope phase-{letter_lower}`
 3. Append review changes to `${PHASE_DIR}/completion.md`
@@ -98,7 +85,7 @@ Append record to `{PLAN_DIR}/reviews.json`:
 
 Skip integration branch and phase worktrees. Work directly in the feature worktree:
 
-1. Spawn implementer teammates, process completions, wrap up (same protocol as above)
+1. Dispatch tasks, process completions, wrap up (same dispatch protocol as above)
 2. Dispatch implementation-review, run Review Loop Protocol (scope: `phase-a`)
 3. `scripts/validate-plan --check-review plan.json --type impl-review --scope phase-a`
 4. Run plan criteria: `scripts/validate-plan --criteria plan.json --plan`
@@ -123,12 +110,12 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 
 | Constraint | Why |
 |------------|-----|
-| Verify `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` | Feature flag required for teammate API (checked in design skill) |
+| Read `execution_mode` from plan.json at setup | Determines which dispatch protocol to follow |
 | Validate schema before execution | Catches file-set overlap and structural issues early |
 | Record PLAN_BASE_SHA before first phase | Final cross-phase review needs total diff |
 | Record PHASE_BASE_SHA per phase | Per-phase review needs exact phase start |
 | Use validate-plan for all status updates | Keeps plan.json and plan.md in sync |
-| Kill all teammates before advancing phase | Phase completion gate prevents unresolved work |
+| All tasks complete before advancing phase | Phase completion gate prevents unresolved work |
 
 ## Integration
 
