@@ -13,6 +13,8 @@ Spawn implementer teammates for tasks with no unmet dependencies (verified via `
 - Gets its own auto-provisioned worktree
 - Manages its own lifecycle (marks in-progress, writes completion notes, marks complete)
 
+**Note:** `--check-base` runs at orchestrate startup and before each phase dispatch (multi-phase). No separate dispatch-level base check is needed.
+
 ## Process Completions (Push-Based)
 
 When an implementer teammate goes idle (push notification — no polling):

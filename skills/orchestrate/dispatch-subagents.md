@@ -18,6 +18,8 @@ Agent(
 
 The `isolation: "worktree"` parameter gives each subagent its own git worktree automatically. Track each agent's ID mapped to its task ID.
 
+**Note:** `--check-base` runs at orchestrate startup and before each phase dispatch (multi-phase). No separate dispatch-level base check is needed.
+
 ## Process Completions
 
 When a background agent completes (push notification — do not poll):

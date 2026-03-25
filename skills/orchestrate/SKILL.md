@@ -30,6 +30,9 @@ Before first phase:
 - Read execution mode: `EXEC_MODE=$(jq -r '.execution_mode' plan.json)`
 - Count phases: `PHASE_COUNT=$(jq '.phases | length' plan.json)`
 - Validate schema: `scripts/validate-plan --schema plan.json`
+- Validate entry gate: `scripts/validate-plan --check-entry plan.json --stage execution`
+- Validate base branch: `scripts/validate-plan --check-base plan.json`
+- Validate consistency: `scripts/validate-plan --consistency plan.json`
 - `scripts/validate-plan --update-status plan.json --plan --status "In Development"`
 - `PLAN_BASE_SHA=$(git rev-parse HEAD)`
 - `PLAN_DIR=$(dirname "$(realpath plan.json)")` and `[ -f "$PLAN_DIR/reviews.json" ] || echo '[]' > "$PLAN_DIR/reviews.json"`
@@ -43,10 +46,11 @@ Process phases in order (A, B, C...). For each phase:
 ### Prepare Phase
 
 1. Create phase worktree from integration branch (multi-phase) or use feature worktree (single-phase)
-2. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in worktree
-3. **Bootstrap dependencies** in the worktree. **See:** skills/design/dependency-bootstrap.md
-4. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure)
-5. Cross-phase handoff notes: lead writes handoff sections to task .md files for tasks consuming prior-phase output
+2. Re-validate base branch: `scripts/validate-plan --check-base plan.json` (multi-phase only — ensures dispatch happens from integration worktree, not main)
+3. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in worktree
+4. **Bootstrap dependencies** in the worktree. **See:** skills/design/dependency-bootstrap.md
+5. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure)
+6. Cross-phase handoff notes: lead writes handoff sections to task .md files for tasks consuming prior-phase output
 
 ### Dispatch, Complete, and Review Tasks
 
@@ -65,7 +69,8 @@ After all tasks complete and branches merged:
 3. Append review changes to `${PHASE_DIR}/completion.md`
 4. Run phase criteria: `scripts/validate-plan --criteria plan.json --phase {LETTER}`
 5. Update status: `scripts/validate-plan --update-status plan.json --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
-6. (Multi-phase) Create phase PR, external review gate, merge, clean up worktree
+6. Re-validate consistency: `scripts/validate-plan --consistency plan.json` (catches state drift after status updates)
+7. (Multi-phase) Create phase PR, external review gate, merge, clean up worktree
 
 ## Review Loop Protocol
 
@@ -89,7 +94,8 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 3. `scripts/validate-plan --check-review plan.json --type impl-review --scope phase-a`
 4. Run plan criteria: `scripts/validate-plan --criteria plan.json --plan`
 5. `scripts/validate-plan --update-status plan.json --plan --status Complete`
-6. Route on workflow:
+6. Re-validate consistency: `scripts/validate-plan --consistency plan.json`
+7. Route on workflow:
    - `"pr-create"`: invoke pr-create (targets main), `scripts/validate-plan --check-workflow plan.json`, stop
    - `"pr-merge"`: invoke pr-create, poll checks + pr-review --automated (skip if `review_wait_minutes` is 0), then pr-merge with `--squash`, `scripts/validate-plan --check-workflow plan.json`
 
@@ -99,7 +105,8 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 2. Final review: dispatch implementation-review with `PLAN_BASE_SHA..HEAD`, run Review Loop Protocol (scope: `final`)
 3. `scripts/validate-plan --check-review plan.json --type impl-review --scope final`
 4. `scripts/validate-plan --update-status plan.json --plan --status Complete`
-5. Route on workflow:
+5. Re-validate consistency: `scripts/validate-plan --consistency plan.json`
+6. Route on workflow:
    - `"pr-merge"`: create final PR, poll checks, pr-review --automated, pr-merge with `--rebase`, `scripts/validate-plan --check-workflow plan.json`, clean up
    - `"pr-create"`: create final PR, `scripts/validate-plan --check-workflow plan.json`, stop
 
@@ -115,6 +122,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 | Record PHASE_BASE_SHA per phase | Per-phase review needs exact phase start |
 | Use validate-plan for all status updates | Keeps plan.json and plan.md in sync |
 | All tasks complete before advancing phase | Phase completion gate prevents unresolved work |
+| Run gate checks at startup and after status changes | Entry gates prevent wasted work, base-branch checks prevent wrong-worktree dispatch, consistency checks catch state drift |
 
 ## Integration
 
