@@ -15,9 +15,12 @@ Usage:
 
 Subprocess environment:
     - CLAUDECODE env var removed (allows nested claude -p)
-    - CLAUDE_SKIP_MEMORY=1 (suppresses memory injection)
     - --output-format json (captures timing in response)
     - --allowedTools "" (pure text, no tool use)
+    - --no-session-persistence (no session storage overhead)
+    - --model sonnet (default, overridable via --model flag)
+    - --disable-slash-commands (no slash command discovery)
+    - --settings disableAllHooks + empty mcpServers (minimal overhead)
 """
 
 import argparse
@@ -34,7 +37,20 @@ def build_claude_command(
     skill_path: str | None = None, model: str | None = None
 ) -> list[str]:
     """Build the claude -p command with appropriate flags."""
-    cmd = ["claude", "-p", "--output-format", "json", "--allowedTools", ""]
+    cmd = [
+        "claude",
+        "-p",
+        "--output-format",
+        "json",
+        "--allowedTools",
+        "",
+        "--no-session-persistence",
+        "--model",
+        "sonnet",
+        "--disable-slash-commands",
+        "--settings",
+        '{"disableAllHooks": true, "mcpServers": {}}',
+    ]
     if skill_path:
         content = Path(skill_path).read_text()
         cmd.extend(["--system-prompt", content])
@@ -47,11 +63,8 @@ def build_env() -> dict:
     """Build environment for claude -p subprocess.
 
     Removes CLAUDECODE to allow nested sessions.
-    Sets CLAUDE_SKIP_MEMORY to suppress memory injection.
     """
-    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
-    env["CLAUDE_SKIP_MEMORY"] = "1"
-    return env
+    return {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
 
 def slugify(text: str) -> str:

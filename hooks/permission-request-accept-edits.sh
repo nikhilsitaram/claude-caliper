@@ -7,15 +7,16 @@ cwd=$(echo "$input" | jq -r '.cwd // empty')
 
 [[ -n "$cwd" ]] || exit 0
 
-found=false
+sentinel=""
 while IFS= read -r f; do
   if [[ -n "$f" ]]; then
-    found=true
+    sentinel="$f"
     break
   fi
 done < <(find "$cwd/docs/plans" "$cwd/.claude/worktrees"/*/docs/plans -maxdepth 3 -name .design-approved 2>/dev/null)
 
-if [[ "$found" == "true" ]]; then
+if [[ -n "$sentinel" ]]; then
+  rm -f "$sentinel"
   cat << 'HOOKJSON'
 {
   "hookSpecificOutput": {
