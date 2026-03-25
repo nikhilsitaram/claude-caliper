@@ -77,7 +77,7 @@ docs/plans/YYYY-MM-DD-topic/
 }
 ```
 
-Optional: `success_criteria` array at plan, phase, and task levels for automated verification. `workflow` field controls post-plan behavior: `pr-create` (orchestrate + pr-create, default), `pr-merge` (orchestrate + pr-create + pr-review + pr-merge), `plan-only` (stop after planning). Set by the design skill based on user choice. `execution_mode` controls how orchestrate runs tasks: `subagents` (parallel via agent teams) or `sequential` (one at a time in main context). The design skill overwrites this after draft-plan returns with the user's actual choice; draft-plan always writes `"subagents"` as the default. `review_wait_minutes` integer sets the max wait for external reviewers (default 10, set 0 to skip polling).
+Optional: `success_criteria` array at plan, phase, and task levels for automated verification. `workflow` field controls post-plan behavior: `pr-create` (orchestrate + pr-create, default), `pr-merge` (orchestrate + pr-create + pr-review + pr-merge), `plan-only` (stop after planning). Set by the design skill based on user choice. `execution_mode` controls how orchestrate runs tasks: `subagents` (parallel via Agent tool with worktree isolation) or `agent-teams` (parallel teammates with push notifications and mailbox messaging). The design skill overwrites this after draft-plan returns with the user's actual choice; draft-plan writes `"subagents"` as a placeholder. `review_wait_minutes` integer sets the max wait for external reviewers (default 10, set 0 to skip polling).
 
 **See:** `docs/plans/2026-03-19-structured-plans/design-structured-plans.md` for full schema reference.
 

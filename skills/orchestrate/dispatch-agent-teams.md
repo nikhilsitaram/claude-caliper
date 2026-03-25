@@ -1,6 +1,6 @@
 # Agent Teams Dispatch Protocol
 
-Dispatch protocol for executing plan tasks via agent team teammates. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` environment variable — the design skill checks and enables this flag.
+Dispatch protocol for executing plan tasks via agent team teammates. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` environment variable — the design skill verifies this flag is set and offers a fallback if not.
 
 ## Spawn Implementer Teammates
 

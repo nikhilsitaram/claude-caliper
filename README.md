@@ -154,7 +154,7 @@ These skills chain automatically. You trigger the first one by describing what t
 | **Design Gate** | [design-review](skills/design-review/) | 8-point validation: problem clarity, success criteria, architecture fit, scope alignment, handoff quality |
 | **Planning** | [draft-plan](skills/draft-plan/) | Structured plan: `plan.json` manifest + per-task `.md` files with TDD steps, exact file paths, verification commands |
 | **Plan Gate** | [plan-review](skills/plan-review/) | Catches vague steps, missing file paths, design-plan drift, the "Different Claude Test" |
-| **Execution** | [orchestrate](skills/orchestrate/) | Spawns agent team teammates per task (parallel within phase, sequential phases), push-based completion via idle notifications |
+| **Execution** | [orchestrate](skills/orchestrate/) | Dispatches tasks via subagents or agent teams (parallel within phase, sequential phases); mode selected during design |
 | **Review Gate** | [implementation-review](skills/implementation-review/) | Cross-task holistic review — catches inconsistencies invisible to per-task reviewers |
 | **Create PR** | [pr-create](skills/pr-create/) | Commits, rebases, tests, pushes, opens PR with structured summary |
 | **Review PR** | [pr-review](skills/pr-review/) | Fresh-eyes review before reading external feedback, addresses comments, posts assessment |

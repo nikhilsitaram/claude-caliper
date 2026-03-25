@@ -50,12 +50,12 @@ Process phases in order (A, B, C...). For each phase:
 
 ### Dispatch, Complete, and Review Tasks
 
-Follow the dispatch protocol from the mode-specific file read during setup. All three modes share these invariants:
+Follow the dispatch protocol from the mode-specific file read during setup. Both modes share these invariants:
 - Only dispatch tasks whose dependencies are met (`scripts/validate-plan --check-deps`)
 - Each task gets reviewed after implementation (reviewer always uses `./task-reviewer-prompt.md`)
 - After review passes: validate criteria (`scripts/validate-plan --criteria plan.json --task {TASK_ID}`), merge task branch, check for newly unblocked tasks
 
-The dispatch file specifies how tasks are dispatched (teammates vs subagents vs lead), how completions are detected (push vs background notification vs synchronous), and how review fixes are communicated (mailbox vs fresh agent vs direct fix).
+The dispatch file specifies how tasks are dispatched (teammates vs subagents), how completions are detected (push vs background notification), and how review fixes are communicated (mailbox vs fresh agent).
 
 ### Phase Wrap-Up
 
