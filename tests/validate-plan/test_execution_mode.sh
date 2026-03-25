@@ -45,30 +45,30 @@ make_plan() {
 
 echo "=== execution_mode validation ==="
 
-echo "Test 1: Plan with execution_mode 'main' passes"
-make_plan
-jq '. + {"execution_mode": "main"}' "$TMPDIR/plan.json" > "$TMPDIR/plan.tmp" && mv "$TMPDIR/plan.tmp" "$TMPDIR/plan.json"
-assert_pass "execution_mode 'main' accepted" "$VALIDATE" --schema "$TMPDIR/plan.json"
-
-echo "Test 2: Plan with execution_mode 'subagents' passes"
+echo "Test 1: Plan with execution_mode 'subagents' passes"
 make_plan
 jq '. + {"execution_mode": "subagents"}' "$TMPDIR/plan.json" > "$TMPDIR/plan.tmp" && mv "$TMPDIR/plan.tmp" "$TMPDIR/plan.json"
 assert_pass "execution_mode 'subagents' accepted" "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 3: Plan with execution_mode 'agent-teams' passes"
+echo "Test 2: Plan with execution_mode 'agent-teams' passes"
 make_plan
 jq '. + {"execution_mode": "agent-teams"}' "$TMPDIR/plan.json" > "$TMPDIR/plan.tmp" && mv "$TMPDIR/plan.tmp" "$TMPDIR/plan.json"
 assert_pass "execution_mode 'agent-teams' accepted" "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 4: Plan missing execution_mode fails"
+echo "Test 3: Plan missing execution_mode fails"
 make_plan
 jq 'del(.execution_mode)' "$TMPDIR/plan.json" > "$TMPDIR/plan.tmp" && mv "$TMPDIR/plan.tmp" "$TMPDIR/plan.json"
 assert_fail "missing execution_mode rejected" "missing_field: execution_mode" "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 5: Plan with invalid execution_mode fails"
+echo "Test 4: Plan with invalid execution_mode 'parallel' fails"
 make_plan
 jq '. + {"execution_mode": "parallel"}' "$TMPDIR/plan.json" > "$TMPDIR/plan.tmp" && mv "$TMPDIR/plan.tmp" "$TMPDIR/plan.json"
 assert_fail "invalid execution_mode 'parallel' rejected" "invalid_execution_mode" "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 5: Plan with invalid execution_mode 'main' fails"
+make_plan
+jq '. + {"execution_mode": "main"}' "$TMPDIR/plan.json" > "$TMPDIR/plan.tmp" && mv "$TMPDIR/plan.tmp" "$TMPDIR/plan.json"
+assert_fail "invalid execution_mode 'main' rejected" "invalid_execution_mode" "$VALIDATE" --schema "$TMPDIR/plan.json"
 
 echo "Test 6: Plan with empty execution_mode fails"
 make_plan

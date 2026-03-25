@@ -26,5 +26,24 @@
     "remaining": 0,
     "verdict": "pass",
     "timestamp": "2026-03-24T21:45:00-05:00"
+  },
+  {
+    "type": "plan-review",
+    "scope": "plan",
+    "iteration": 1,
+    "issues_found": 5,
+    "severity": {
+      "critical": 0,
+      "high": 1,
+      "medium": 3,
+      "low": 1
+    },
+    "actionable": 5,
+    "dismissed": 0,
+    "dismissals": [],
+    "fixed": 5,
+    "remaining": 0,
+    "verdict": "pass",
+    "timestamp": "2026-03-24T22:35:00-05:00"
   }
 ]

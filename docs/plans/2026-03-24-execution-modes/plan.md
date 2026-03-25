@@ -1,5 +1,5 @@
 ---
-status: Not Yet Started
+status: In Development
 ---
 
 # Add execution mode selection (main/subagents/agent-teams) to orchestration Implementation Plan

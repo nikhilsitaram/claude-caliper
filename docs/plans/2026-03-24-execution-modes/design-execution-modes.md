@@ -6,13 +6,12 @@ The orchestrate skill currently requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 
 ## Goal
 
-Let users choose how orchestration executes tasks — sequentially in the main context, in parallel via subagents, or in parallel via agent teams — with the choice stored in plan.json and enforced by orchestrate.
+Let users choose how orchestration executes tasks — in parallel via subagents or in parallel via agent teams — with the choice stored in plan.json and enforced by orchestrate.
 
 ## Success Criteria
 
-1. Users can orchestrate a 3-task single-phase plan using main context mode (no env var, no subagent dispatch)
-2. Users can orchestrate an 8-task plan using subagent mode with parallel worktree-isolated dispatches (no agent teams env var required)
-3. Users can orchestrate a 12-task multi-phase plan using agent teams mode (existing behavior preserved)
+1. Users can orchestrate a plan using subagent mode with parallel worktree-isolated dispatches (no agent teams env var required)
+2. Users can orchestrate a multi-phase plan using agent teams mode (existing behavior preserved)
 4. Users choose workflow extent, execution mode, and design approval in a single interaction, with the execution mode pre-selected based on plan complexity
 5. When a user selects agent-teams without the env var set, they receive the exact shell command to run and instructions to restart Claude Code
 6. `validate-plan --schema` rejects plan.json files with missing or invalid `execution_mode` values
@@ -20,27 +19,24 @@ Let users choose how orchestration executes tasks — sequentially in the main c
 
 ## Architecture
 
-### Three Execution Modes
+### Two Execution Modes
 
 | Mode | `execution_mode` value | Dispatch mechanism | Parallelism | Env requirement |
 |------|----------------------|-------------------|-------------|-----------------|
-| Main context | `main` | Lead implements directly | Sequential | None |
 | Subagents | `subagents` | Agent tool + `isolation: "worktree"` + `run_in_background` | Parallel (background completion notifications) | None |
 | Agent teams | `agent-teams` | Teammate spawn (current model) | Parallel + push notifications + mailbox | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
 
-### Auto-Suggestion Thresholds
+### Recommendation Thresholds
 
-Evaluated in priority order (first match wins):
+Design skill recommends based on plan complexity:
 
-1. **>10 tasks OR >2 phases OR >3 tasks able to run in parallel** → suggest `agent-teams`
-2. **≤5 tasks** → suggest `main`
-3. **Everything else** → suggest `subagents`
+- **≤10 tasks AND single phase** → recommend `subagents`
+- **>10 tasks OR multi-phase** → recommend `agent-teams`
 
-This ordering prevents overlap: a 5-task plan with 4 parallel tasks correctly suggests agent-teams (rule 1), not main (rule 2).
+Neither mode is a default — the user always chooses, with the recommendation marked.
 
 ### Review Feedback Loop Per Mode
 
-- **main**: Lead fixes directly after review findings
 - **subagents**: Dispatch a NEW implementer subagent with original task context + reviewer findings (no mailbox — can't reuse the original agent)
 - **agent-teams**: Send review feedback to original implementer via mailbox (current behavior)
 
@@ -50,8 +46,7 @@ This ordering prevents overlap: a 5-task plan with 4 parallel tasks correctly su
 - `skills/design/SKILL.md` — Remove agent teams prerequisite section. Replace steps 7+8 with combined AskUserQuestion. Add auto-suggestion logic and agent-teams fallback flow.
 
 **Orchestrate skill:**
-- `skills/orchestrate/SKILL.md` — Read `execution_mode` at setup. Add conditional See-reference: "Read `./dispatch-main.md` (main), `./dispatch-subagents.md` (subagents), or `./dispatch-agent-teams.md` (agent-teams) — read only the file matching `execution_mode` from plan.json."
-- `skills/orchestrate/dispatch-main.md` — New: sequential execution protocol
+- `skills/orchestrate/SKILL.md` — Read `execution_mode` at setup. Add conditional See-reference: "Read `./dispatch-subagents.md` (subagents) or `./dispatch-agent-teams.md` (agent-teams) — read only the file matching `execution_mode` from plan.json."
 - `skills/orchestrate/dispatch-subagents.md` — New: parallel Agent tool dispatch protocol
 - `skills/orchestrate/dispatch-agent-teams.md` — New: extracted current teammate protocol
 
@@ -64,8 +59,8 @@ This ordering prevents overlap: a 5-task plan with 4 parallel tasks correctly su
 
 ## Key Decisions
 
-1. **execution_mode is a required enum in plan.json** (`["main", "subagents", "agent-teams"]`). Draft-plan writes it; validate-plan enforces it.
-2. **Mode-specific dispatch lives in separate template files** — keeps orchestrate SKILL.md under the 1,500-word budget while supporting three distinct dispatch protocols.
+1. **execution_mode is a required enum in plan.json** (`["subagents", "agent-teams"]`). Draft-plan writes it; validate-plan enforces it.
+2. **Mode-specific dispatch lives in separate template files** — keeps orchestrate SKILL.md under the 1,500-word budget while supporting two distinct dispatch protocols.
 3. **No mid-plan mode switching** — execution_mode is read once at setup and fixed for the plan's lifetime.
 4. **No automatic shell profile modification** — design skill provides the exact command but does not run it. This eliminates the #124 confusion.
 5. **Combined decision point** — workflow extent + execution mode + design approval in a single AskUserQuestion reduces back-and-forth.
@@ -73,9 +68,9 @@ This ordering prevents overlap: a 5-task plan with 4 parallel tasks correctly su
 
 ## Alternatives Considered
 
-- **Two modes (main + agent-teams)**: Leaves a gap for medium-complexity plans (6-10 tasks) where agent teams overhead is unnecessary but sequential execution is too slow. Subagents fill this gap with zero env var friction.
-- **Fully automatic selection**: Rejected because users may prefer sequential execution for debugging, or may want agent teams for a small plan they know will grow. The auto-suggestion provides a reasonable default while preserving user agency.
-- **Two modes (main + subagents, drop agent-teams)**: Loses push notifications and mailbox feedback loops that make agent teams significantly more efficient for large plans. Agent teams is worth keeping for users who have it enabled.
+- **Three modes (add main/sequential)**: Plans going through the full design workflow are never simple enough to warrant sequential execution — the design overhead itself implies medium+ complexity. Dropped to reduce maintenance burden.
+- **Fully automatic selection**: Rejected because users may want agent teams for a plan that fits the subagents threshold, or vice versa. The recommendation provides guidance while preserving user agency.
+- **Subagents only (drop agent-teams)**: Loses push notifications and mailbox feedback loops that make agent teams significantly more efficient for large plans. Agent teams is worth keeping for users who have it enabled.
 
 ## Non-Goals
 

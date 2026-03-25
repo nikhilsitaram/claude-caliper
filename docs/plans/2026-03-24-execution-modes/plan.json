@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Not Yet Started",
+  "status": "In Development",
   "workflow": "pr-create",
   "execution_mode": "subagents",
   "goal": "Add execution mode selection (main/subagents/agent-teams) to orchestration",
@@ -21,8 +21,12 @@
           "depends_on": [],
           "files": {
             "create": [],
-            "modify": ["scripts/validate-plan"],
-            "test": ["tests/validate-plan/test_execution_mode.sh"]
+            "modify": [
+              "scripts/validate-plan"
+            ],
+            "test": [
+              "tests/validate-plan/test_execution_mode.sh"
+            ]
           },
           "verification": "bash tests/validate-plan/test_execution_mode.sh",
           "done_when": "validate-plan --schema rejects plan.json missing execution_mode or with invalid values, accepts valid enum values (main, subagents, agent-teams); test_execution_mode.sh passes (note: existing test_schema.sh will fail until A8 updates the fixture)"
@@ -31,10 +35,14 @@
           "id": "A2",
           "name": "Rewrite design SKILL.md for execution mode selection",
           "status": "pending",
-          "depends_on": ["A1"],
+          "depends_on": [
+            "A1"
+          ],
           "files": {
             "create": [],
-            "modify": ["skills/design/SKILL.md"],
+            "modify": [
+              "skills/design/SKILL.md"
+            ],
             "test": []
           },
           "verification": "wc -w skills/design/SKILL.md | awk '{if ($1 <= 2000) exit 0; else exit 1}'",
@@ -44,9 +52,13 @@
           "id": "A3",
           "name": "Extract dispatch-agent-teams.md from current orchestrate SKILL.md",
           "status": "pending",
-          "depends_on": ["A1"],
+          "depends_on": [
+            "A1"
+          ],
           "files": {
-            "create": ["skills/orchestrate/dispatch-agent-teams.md"],
+            "create": [
+              "skills/orchestrate/dispatch-agent-teams.md"
+            ],
             "modify": [],
             "test": []
           },
@@ -57,9 +69,13 @@
           "id": "A4",
           "name": "Write dispatch-subagents.md",
           "status": "pending",
-          "depends_on": ["A3"],
+          "depends_on": [
+            "A3"
+          ],
           "files": {
-            "create": ["skills/orchestrate/dispatch-subagents.md"],
+            "create": [
+              "skills/orchestrate/dispatch-subagents.md"
+            ],
             "modify": [],
             "test": []
           },
@@ -70,9 +86,13 @@
           "id": "A5",
           "name": "Write dispatch-main.md",
           "status": "pending",
-          "depends_on": ["A3"],
+          "depends_on": [
+            "A3"
+          ],
           "files": {
-            "create": ["skills/orchestrate/dispatch-main.md"],
+            "create": [
+              "skills/orchestrate/dispatch-main.md"
+            ],
             "modify": [],
             "test": []
           },
@@ -83,10 +103,17 @@
           "id": "A6",
           "name": "Refactor orchestrate SKILL.md for execution_mode dispatch",
           "status": "pending",
-          "depends_on": ["A3", "A4", "A5"],
+          "depends_on": [
+            "A3",
+            "A4",
+            "A5"
+          ],
           "files": {
             "create": [],
-            "modify": ["skills/orchestrate/SKILL.md", ".claude-plugin/marketplace.json"],
+            "modify": [
+              "skills/orchestrate/SKILL.md",
+              ".claude-plugin/marketplace.json"
+            ],
             "test": []
           },
           "verification": "wc -w skills/orchestrate/SKILL.md | awk '{if ($1 <= 2000) exit 0; else exit 1}'",
@@ -96,10 +123,14 @@
           "id": "A7",
           "name": "Update draft-plan to include execution_mode in plan.json",
           "status": "pending",
-          "depends_on": ["A1"],
+          "depends_on": [
+            "A1"
+          ],
           "files": {
             "create": [],
-            "modify": ["skills/draft-plan/SKILL.md"],
+            "modify": [
+              "skills/draft-plan/SKILL.md"
+            ],
             "test": []
           },
           "verification": "grep -q 'execution_mode' skills/draft-plan/SKILL.md",
@@ -109,10 +140,14 @@
           "id": "A8",
           "name": "Add execution_mode tests and update valid-plan fixture",
           "status": "pending",
-          "depends_on": ["A1"],
+          "depends_on": [
+            "A1"
+          ],
           "files": {
             "create": [],
-            "modify": ["tests/validate-plan/fixtures/valid-plan/plan.json"],
+            "modify": [
+              "tests/validate-plan/fixtures/valid-plan/plan.json"
+            ],
             "test": []
           },
           "verification": "for f in tests/validate-plan/*.sh tests/hooks/*.sh; do bash \"$f\" || exit 1; done",

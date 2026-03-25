@@ -53,7 +53,7 @@ Bash test scripts live in `tests/`. Run with `bash tests/<dir>/<script>.sh`. Ski
 
 This repo uses its own skills. The typical flow: design -> worktree -> draft-plan -> orchestrate -> pr-create -> pr-review -> pr-merge.
 
-Orchestrate supports three execution modes: main context (sequential), subagents (parallel Agent tool dispatches), and agent teams (parallel teammates). The design skill presents mode selection with auto-suggestion based on plan complexity. Agent teams requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+Orchestrate supports two execution modes: subagents (parallel Agent tool dispatches) and agent teams (parallel teammates). The design skill recommends a mode based on plan complexity. Agent teams requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
 
 ## Markdown
 

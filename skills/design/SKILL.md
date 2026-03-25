@@ -37,13 +37,13 @@ Complete in order:
     - **Plan only** — Stop after plan is reviewed
 
     **Q2 — Execution mode** (header: "Exec mode"):
-    Auto-suggest based on design complexity (first match wins):
-    1. >10 tasks OR >2 phases OR >3 tasks able to run in parallel → suggest `Agent teams`
-    2. ≤5 tasks → suggest `Main context`
-    3. Everything else → suggest `Subagents`
+    Recommend based on design complexity:
+    - ≤10 tasks AND single phase → recommend `Subagents`
+    - >10 tasks OR multi-phase → recommend `Agent teams`
+
+    Mark the recommended option with "(Recommended)" in its label.
 
     Options:
-    - **Main context** — Lead implements tasks sequentially. Best for small plans.
     - **Subagents** — Parallel Agent tool dispatches with worktree isolation. No special env var needed.
     - **Agent teams** — Parallel teammates with push notifications and mailbox messaging. Requires env var.
 
@@ -61,7 +61,7 @@ Complete in order:
 10. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero design context)
 11. **Route workflow** — Map step 7 choices to schema values:
     - Workflow: `Create PR` → `pr-create`, `Merge PR` → `pr-merge`, `Plan only` → `plan-only`
-    - Exec mode: `Main context` → `main`, `Subagents` → `subagents`, `Agent teams` → `agent-teams`
+    - Exec mode: `Subagents` → `subagents`, `Agent teams` → `agent-teams`
 
     Write both: `jq --arg w "<workflow>" --arg e "<exec-mode>" '.workflow = $w | .execution_mode = $e' plan.json > tmp && mv tmp plan.json`
 

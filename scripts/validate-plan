@@ -92,8 +92,8 @@ do_schema() {
     err "ERROR: missing_field: execution_mode"
   else
     case "$execution_mode" in
-      "main"|"subagents"|"agent-teams") ;;
-      *) err "ERROR: invalid_execution_mode: $execution_mode (expected: main, subagents, or agent-teams)" ;;
+      "subagents"|"agent-teams") ;;
+      *) err "ERROR: invalid_execution_mode: $execution_mode (expected: subagents or agent-teams)" ;;
     esac
   fi
 

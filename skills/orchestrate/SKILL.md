@@ -7,7 +7,7 @@ description: Use when executing implementation plans with independent tasks in t
 
 Execute plans via the configured execution mode. Phases run sequentially; task dispatch within each phase depends on the mode.
 
-**Core principle:** The lead coordinates — only dispatched implementers touch code.
+**Core principle:** The lead coordinates — dispatched implementers touch code.
 
 ## Prompt Templates
 
@@ -16,7 +16,6 @@ Execute plans via the configured execution mode. Phases run sequentially; task d
 | `./implementer-prompt.md` | Task implementer |
 | `./task-reviewer-prompt.md` | Per-task reviewer |
 | `skills/implementation-review/reviewer-prompt.md` | Cross-task reviewer (lead dispatches) |
-| `./dispatch-main.md` | Main context dispatch protocol |
 | `./dispatch-subagents.md` | Subagents dispatch protocol |
 | `./dispatch-agent-teams.md` | Agent teams dispatch protocol |
 
@@ -35,7 +34,7 @@ Before first phase:
 - `PLAN_BASE_SHA=$(git rev-parse HEAD)`
 - `PLAN_DIR=$(dirname "$(realpath plan.json)")` and `[ -f "$PLAN_DIR/reviews.json" ] || echo '[]' > "$PLAN_DIR/reviews.json"`
 - Push branch: `git push -u origin HEAD`
-- Read the dispatch protocol for `EXEC_MODE`: **See:** `./dispatch-main.md` (main), `./dispatch-subagents.md` (subagents), or `./dispatch-agent-teams.md` (agent-teams) — read only the file matching `EXEC_MODE`
+- Read the dispatch protocol for `EXEC_MODE`: **See:** `./dispatch-subagents.md` (subagents) or `./dispatch-agent-teams.md` (agent-teams) — read only the file matching `EXEC_MODE`
 
 ## Per-Phase Execution (Sequential)
 
