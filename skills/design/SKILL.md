@@ -65,6 +65,9 @@ Complete in order:
 
     Write both: `jq --arg w "<workflow>" --arg e "<exec-mode>" '.workflow = $w | .execution_mode = $e' plan.json > tmp && mv tmp plan.json`
 
+    For multi-phase plans, also write the integration branch name:
+    `jq --arg ib "integrate/<feature>" '.integration_branch = $ib' plan.json > tmp && mv tmp plan.json`
+
     For **Create PR** or **Merge PR**: invoke orchestrate.
     For **Plan only**: run `scripts/validate-plan --check-workflow plan.json` to verify design-review and plan-review passed. Report the plan file path and stop.
 
