@@ -37,16 +37,18 @@ No replacement needed — CI runs all test files independently.
 ### Change 2: Mock `gh` in workflow tests
 
 Create a stub script `tests/validate-plan/fixtures/gh-mock.sh` that:
-- Intercepts `gh pr list` calls
+- Intercepts `gh pr list` calls (recognized = `$1` is `pr` and `$2` is `list`; all other args ignored)
 - Reads `GH_MOCK_PR_COUNT` env var (default: `0`) to control the return value
-- Returns the count as stdout (mimicking `--jq 'length'` output)
-- Returns exit 0 on recognized commands, exit 1 on unrecognized
+- Returns the count as bare integer on stdout (mimicking `--jq 'length'` output)
+- Returns exit 0 on recognized commands, exit 1 on unrecognized (any non-`pr list` invocation)
 
 `test_check_workflow.sh` will:
 1. Create a temp directory with a symlink `gh` → `gh-mock.sh`
 2. Prepend that directory to `PATH` so `gh` resolves to the mock
 3. Remove all `command -v gh` skip guards — tests run unconditionally
 4. Set `GH_MOCK_PR_COUNT` per-test to control PR existence scenarios
+
+**Note:** Test 9 (lines 207-222) wraps a temporary git repo setup inside the skip guard block — this controls the branch name for `validate-plan`'s `git rev-parse`. Only the `command -v gh` conditional and SKIP echo should be removed; the git init, pushd/popd, and cleanup logic must be preserved.
 
 ## Key Decisions
 
