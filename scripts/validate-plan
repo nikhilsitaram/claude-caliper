@@ -86,6 +86,17 @@ do_schema() {
     esac
   fi
 
+  local execution_mode
+  execution_mode=$(echo "$json" | jq -r '.execution_mode // empty')
+  if [[ -z "$execution_mode" ]]; then
+    err "ERROR: missing_field: execution_mode"
+  else
+    case "$execution_mode" in
+      "main"|"subagents"|"agent-teams") ;;
+      *) err "ERROR: invalid_execution_mode: $execution_mode (expected: main, subagents, or agent-teams)" ;;
+    esac
+  fi
+
   if [[ -n "$status" ]]; then
     case "$status" in
       "Not Yet Started"|"In Development"|"Complete") ;;
