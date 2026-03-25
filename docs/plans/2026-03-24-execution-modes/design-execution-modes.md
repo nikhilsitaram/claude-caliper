@@ -13,7 +13,7 @@ Let users choose how orchestration executes tasks — sequentially in the main c
 1. Users can orchestrate a 3-task single-phase plan using main context mode (no env var, no subagent dispatch)
 2. Users can orchestrate an 8-task plan using subagent mode with parallel worktree-isolated dispatches (no agent teams env var required)
 3. Users can orchestrate a 12-task multi-phase plan using agent teams mode (existing behavior preserved)
-4. Design skill presents a combined decision point (workflow extent + execution mode + design approval) as a single AskUserQuestion with auto-suggested execution mode
+4. Users choose workflow extent, execution mode, and design approval in a single interaction, with the execution mode pre-selected based on plan complexity
 5. When a user selects agent-teams without the env var set, they receive the exact shell command to run and instructions to restart Claude Code
 6. `validate-plan --schema` rejects plan.json files with missing or invalid `execution_mode` values
 7. All existing tests continue to pass (no regressions)
@@ -25,16 +25,18 @@ Let users choose how orchestration executes tasks — sequentially in the main c
 | Mode | `execution_mode` value | Dispatch mechanism | Parallelism | Env requirement |
 |------|----------------------|-------------------|-------------|-----------------|
 | Main context | `main` | Lead implements directly | Sequential | None |
-| Subagents | `subagents` | Agent tool + `isolation: "worktree"` + `run_in_background` | Parallel | None |
+| Subagents | `subagents` | Agent tool + `isolation: "worktree"` + `run_in_background` | Parallel (background completion notifications) | None |
 | Agent teams | `agent-teams` | Teammate spawn (current model) | Parallel + push notifications + mailbox | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
 
 ### Auto-Suggestion Thresholds
 
-Based on estimated task count and phase count from design discussion:
+Evaluated in priority order (first match wins):
 
-- **≤5 tasks** → suggest `main`
-- **≤10 tasks AND ≤2 phases** → suggest `subagents`
-- **>10 tasks OR >2 phases OR >3 tasks able to run in parallel** → suggest `agent-teams`
+1. **>10 tasks OR >2 phases OR >3 tasks able to run in parallel** → suggest `agent-teams`
+2. **≤5 tasks** → suggest `main`
+3. **Everything else** → suggest `subagents`
+
+This ordering prevents overlap: a 5-task plan with 4 parallel tasks correctly suggests agent-teams (rule 1), not main (rule 2).
 
 ### Review Feedback Loop Per Mode
 
@@ -48,7 +50,7 @@ Based on estimated task count and phase count from design discussion:
 - `skills/design/SKILL.md` — Remove agent teams prerequisite section. Replace steps 7+8 with combined AskUserQuestion. Add auto-suggestion logic and agent-teams fallback flow.
 
 **Orchestrate skill:**
-- `skills/orchestrate/SKILL.md` — Read `execution_mode` at setup. Replace inline dispatch/completion sections with `Read ./dispatch-${EXEC_MODE}.md`.
+- `skills/orchestrate/SKILL.md` — Read `execution_mode` at setup. Add conditional See-reference: "Read `./dispatch-main.md` (main), `./dispatch-subagents.md` (subagents), or `./dispatch-agent-teams.md` (agent-teams) — read only the file matching `execution_mode` from plan.json."
 - `skills/orchestrate/dispatch-main.md` — New: sequential execution protocol
 - `skills/orchestrate/dispatch-subagents.md` — New: parallel Agent tool dispatch protocol
 - `skills/orchestrate/dispatch-agent-teams.md` — New: extracted current teammate protocol
@@ -67,7 +69,13 @@ Based on estimated task count and phase count from design discussion:
 3. **No mid-plan mode switching** — execution_mode is read once at setup and fixed for the plan's lifetime.
 4. **No automatic shell profile modification** — design skill provides the exact command but does not run it. This eliminates the #124 confusion.
 5. **Combined decision point** — workflow extent + execution mode + design approval in a single AskUserQuestion reduces back-and-forth.
-6. **Subagent review fixes use fresh agents** — no mailbox emulation. The new subagent receives original task context + reviewer findings.
+6. **Subagent review fixes use fresh agents** — no mailbox emulation. Fresh agents cost more tokens (re-reading task context) but avoid the complexity of capturing and forwarding original agent state, which the Agent tool doesn't support. Accepts ~2x token cost for review-fix cycles in exchange for implementation simplicity.
+
+## Alternatives Considered
+
+- **Two modes (main + agent-teams)**: Leaves a gap for medium-complexity plans (6-10 tasks) where agent teams overhead is unnecessary but sequential execution is too slow. Subagents fill this gap with zero env var friction.
+- **Fully automatic selection**: Rejected because users may prefer sequential execution for debugging, or may want agent teams for a small plan they know will grow. The auto-suggestion provides a reasonable default while preserving user agency.
+- **Two modes (main + subagents, drop agent-teams)**: Loses push notifications and mailbox feedback loops that make agent teams significantly more efficient for large plans. Agent teams is worth keeping for users who have it enabled.
 
 ## Non-Goals
 
