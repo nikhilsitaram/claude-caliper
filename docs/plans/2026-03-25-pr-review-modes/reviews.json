@@ -1,0 +1,26 @@
+[
+  {
+    "type": "design-review",
+    "scope": "design",
+    "iteration": 1,
+    "issues_found": 7,
+    "severity": {
+      "high": 1,
+      "medium": 2,
+      "low": 4
+    },
+    "actionable": 2,
+    "dismissed": 5,
+    "dismissals": [
+      {"id": 2, "reason": "Warm-up is for user-selected automated mode only; issue 1's fix resolves the --automated path. Non-flag automated mode warm-up is still useful."},
+      {"id": 3, "reason": "Skill already says 'assess against current working tree' — wave 2 inherently operates on post-wave-1 state."},
+      {"id": 4, "reason": "Advisory for planning phase, not design-level."},
+      {"id": 6, "reason": "Implementation detail for planning phase, not design scope."},
+      {"id": 7, "reason": "Subagent comment is point-in-time audit trail. Step 9 unified comment is canonical."}
+    ],
+    "fixed": 2,
+    "remaining": 0,
+    "verdict": "pass",
+    "timestamp": "2026-03-25T16:15:00Z"
+  }
+]
