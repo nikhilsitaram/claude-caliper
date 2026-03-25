@@ -46,7 +46,7 @@ def build_claude_command(
         "",
         "--no-session-persistence",
         "--model",
-        "sonnet",
+        model or "sonnet",
         "--disable-slash-commands",
         "--settings",
         '{"disableAllHooks": true, "mcpServers": {}}',
@@ -54,8 +54,6 @@ def build_claude_command(
     if skill_path:
         content = Path(skill_path).read_text()
         cmd.extend(["--system-prompt", content])
-    if model:
-        cmd.extend(["--model", model])
     return cmd
 
 
@@ -221,7 +219,7 @@ def main():
         "--runs", type=int, default=3, help="Runs per eval (default: 3)"
     )
     parser.add_argument(
-        "--model", help="Model for eval subject (default: system default)"
+        "--model", help="Model for eval subject (default: sonnet)"
     )
     parser.add_argument(
         "--timeout", type=int, default=120, help="Timeout per run in seconds"
