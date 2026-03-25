@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "In Development",
+  "status": "Complete",
   "workflow": "pr-create",
   "execution_mode": "subagents",
   "goal": "Add automated vs deliberate mode selection, background subagent dispatch, poll-based bot readiness detection, and two-wave fixing to pr-review",
@@ -10,14 +10,14 @@
     {
       "letter": "A",
       "name": "Rewrite pr-review SKILL.md and bump version",
-      "status": "Not Started",
+      "status": "Complete (2026-03-25)",
       "depends_on": [],
       "rationale": "Single file rewrite plus a version bump — no dependency layers or natural cut points.",
       "tasks": [
         {
           "id": "A1",
           "name": "Rewrite pr-review SKILL.md with mode selection and restructured workflow",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [],
           "files": {
             "create": [],
@@ -32,7 +32,7 @@
         {
           "id": "A2",
           "name": "Bump version in marketplace.json",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [],
           "files": {
             "create": [],
