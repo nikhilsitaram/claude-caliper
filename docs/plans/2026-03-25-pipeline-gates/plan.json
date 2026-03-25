@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Not Yet Started",
+  "status": "In Development",
   "workflow": "pr-merge",
   "execution_mode": "agent-teams",
   "goal": "Add pipeline enforcement gates to validate-plan",
