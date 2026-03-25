@@ -23,7 +23,7 @@ The `isolation: "worktree"` parameter gives each subagent its own git worktree a
 When a background agent completes (push notification — do not poll):
 
 1. Read the agent's return message for completion notes and task summary
-2. Mark task in-progress → complete via `scripts/validate-plan --update-status`
+2. Note the agent's worktree path and branch from the result (needed for review and fix cycles)
 3. Dispatch a reviewer subagent (synchronous, not background):
 
 ```text
@@ -40,17 +40,19 @@ Agent(
 
 ## Review Fix Cycle
 
-If fixes needed, dispatch a **new** implementer subagent (subagents have no mailbox — the original agent is gone). Include in the prompt:
+If fixes needed, dispatch a **new** implementer subagent (subagents have no mailbox — the original agent is gone). Do NOT use `isolation: "worktree"` — that creates a new worktree from HEAD, which doesn't have the original implementation. Instead, pass the original agent's worktree path so the fix agent works on the same branch with the existing code.
+
+Include in the prompt:
 - Original task context (metadata + prose)
 - Reviewer findings to address
-- The worktree branch from the original agent (so fixes land on the same branch)
+- The worktree path from the original implementer agent
 
 ```text
 Agent(
   subagent_type: "general-purpose",
   model: "opus",
-  isolation: "worktree",
-  prompt: "<original task context + reviewer findings>"
+  prompt: "Working directory: <original worktree path>
+    <original task context + reviewer findings>"
 )
 ```
 
@@ -58,14 +60,15 @@ Re-dispatch reviewer after fixes. Repeat until review passes (max 3 cycles, then
 
 ## After Review Passes
 
-1. Validate criteria: `scripts/validate-plan --criteria plan.json --task {TASK_ID}`
-2. Merge the task's worktree branch into the feature/integration branch
-3. Check if dependent tasks are now unblocked (`scripts/validate-plan --check-deps`)
-4. Dispatch newly unblocked tasks (same pattern as above)
+1. Mark task complete: `scripts/validate-plan --update-status plan.json --task {TASK_ID} --status complete`
+2. Validate criteria: `scripts/validate-plan --criteria plan.json --task {TASK_ID}`
+3. Merge the task's worktree branch into the feature/integration branch
+4. Check if dependent tasks are now unblocked (`scripts/validate-plan --check-deps`)
+5. Dispatch newly unblocked tasks (same pattern as above)
 
 ## Key Differences from Agent Teams
 
 - No push-based idle notifications — use `run_in_background` completion events instead
 - No mailbox messaging — review fixes require a fresh agent with the original context
 - Worktrees are managed by the `isolation: "worktree"` parameter, not auto-provisioned by the teammate API
-- Lead must explicitly merge task branches (teammates do incremental merge automatically)
+- Fix agents reuse the original worktree path (no `isolation: "worktree"`) to preserve implementation context

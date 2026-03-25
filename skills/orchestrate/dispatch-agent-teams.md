@@ -37,7 +37,7 @@ Teammates send Rule 4 violations (architectural changes) to lead via mailbox. Le
 
 Implementer teammates use the template in `./implementer-prompt.md`. Key spawn parameters:
 
-```text
+```yaml
 Teammate spawn:
   model: "opus"
   mode: "auto"

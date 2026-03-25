@@ -366,9 +366,11 @@ The litmus test for every task: *could a fresh Claude with zero codebase context
 </details>
 
 <details>
-<summary><strong>Agent Teams Execution</strong></summary>
+<summary><strong>Parallel Execution</strong></summary>
 
-Orchestrate uses **Claude Code agent teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) for push-based parallel execution with zero polling overhead.
+Orchestrate supports two execution modes, selected during design based on plan complexity:
+- **Subagents** (default recommendation for ≤10 tasks, single phase) — parallel Agent tool dispatches with worktree isolation. No special env var needed.
+- **Agent teams** (recommended for >10 tasks or multi-phase) — Claude Code agent teams (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) with push-based notifications and mailbox messaging.
 
 ### Architecture
 
@@ -480,8 +482,8 @@ The design skill waits for explicit approval. Say "needs changes" and iterate. N
 **What about simple changes?**
 The design can be a few sentences. "Single phase, two tasks, no dependency layers." The process scales down — but it still validates before executing, because "simple" changes are where unexamined assumptions cause the most wasted work.
 
-**What are agent teams? Why does the plugin require them?**
-Agent teams are a Claude Code feature that lets multiple Claude instances (teammates) work in parallel, each in its own git worktree, with push-based completion notifications. The orchestrate skill uses this to run all tasks in a phase concurrently — one teammate per task — instead of sequentially. Enable with `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+**What are agent teams? Do I need them?**
+Agent teams are a Claude Code feature that lets multiple Claude instances (teammates) work in parallel with push-based completion notifications. The orchestrate skill supports two modes: **subagents** (no env var needed) and **agent teams** (requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). The design skill recommends a mode based on plan complexity — agent teams is recommended for large or multi-phase plans.
 
 **Does it modify my git workflow?**
 It uses feature branches, worktrees for isolation, and squash merges. It never commits directly to main. All changes go through PRs.
@@ -498,7 +500,7 @@ Re-run `/plugin install claude-caliper@claude-caliper`. Claude Code compares you
 
 - [Claude Code](https://claude.ai/code) v2.1.32+ with plugin support
 - Git (for worktree-based parallel execution)
-- **Agent teams enabled** — set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in your environment or Claude Code settings. The orchestrate skill requires this for push-based parallel task execution. Without it, orchestrate will not run.
+- **Agent teams (optional)** — set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` for agent teams execution mode. Without it, orchestrate uses subagents mode (parallel Agent tool dispatches with worktree isolation).
 
 ## License
 

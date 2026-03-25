@@ -39,6 +39,7 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
 make_plan() {
+  rm -rf "${TMPDIR:?}/"*
   cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
   cp "$FIXTURES/valid-plan/plan.json" "$TMPDIR/plan.json"
 }
