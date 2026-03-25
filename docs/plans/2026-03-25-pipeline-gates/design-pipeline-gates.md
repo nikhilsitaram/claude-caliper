@@ -20,8 +20,8 @@ Make the pipeline self-enforcing: invalid states are caught deterministically by
 
 1. `validate-plan --consistency plan.json` exits non-zero when phase status contradicts task statuses (either direction)
 2. `validate-plan --consistency plan.json` exits non-zero when a "complete" task has a pending/in-progress dependency
-3. `validate-plan --check-entry <plan-dir> --stage execution` exits non-zero when plan-review has not passed
-4. `validate-plan --check-entry <plan-dir> --stage draft-plan` exits non-zero when design-review has not passed
+3. `validate-plan --check-entry plan.json --stage execution` exits non-zero when plan-review has not passed
+4. `validate-plan --check-entry plan.json --stage draft-plan` exits non-zero when design-review has not passed (plan.json need not exist — only reviews.json is read)
 5. `validate-plan --check-base plan.json` exits non-zero when current branch is `main`/`master` (single-phase) or doesn't match `integration_branch` (multi-phase)
 6. Orchestrate skill calls all three gates at startup and fails fast on violations
 7. All existing validate-plan tests continue to pass (no regressions)
@@ -43,16 +43,20 @@ Six rules, all hard errors:
 | 5 | Plan "Complete" but has phases not "Complete" | plan → phase |
 | 6 | Phase "Complete" without passing impl-review record | status ↔ review |
 
-Rules 2 and 5 currently live in `--schema`. They move to `--consistency` (state checks, not structural). `--schema` calls `--consistency` internally so existing callers aren't broken.
+Rule 6 catches plans where phase status was manually edited or set by a tool that bypassed `--update-status` (which already gates on impl-review). It serves as a defense-in-depth check for direct JSON edits.
 
-### `--check-entry <plan-dir> --stage <stage>`
+Rules 2 and 5 currently live in `--schema`. They move to `--consistency` (state checks, not structural). `--schema` calls `--consistency` internally so existing callers aren't broken. Error format and exit codes for moved rules remain unchanged — `--consistency` uses the same `err()` accumulator pattern and `status_inconsistency` error prefix. Tests calling `--schema` continue to pass because `--schema` chains to `--consistency`.
+
+### `--check-entry plan.json --stage <stage>`
 
 | Stage | Prerequisites | Called by |
 |-------|--------------|----------|
 | `draft-plan` | design-review passed in reviews.json | draft-plan skill at startup |
 | `execution` | design-review + plan-review passed | orchestrate skill at startup |
 
-Reads `<plan-dir>/reviews.json` and calls existing `check_review_record` function. Fails with actionable message naming the missing review and how to fix it.
+Accepts a `plan.json` path like every other mode and derives the plan directory via `dirname`. For the `draft-plan` stage, plan.json does not need to exist — the command only reads `reviews.json` from the same directory. This keeps the CLI interface consistent (all modes take plan.json) while supporting the case where plan.json hasn't been created yet.
+
+Calls existing `check_review_record` function internally. Fails with actionable message naming the missing review and how to fix it.
 
 ### `--check-base plan.json`
 
@@ -60,6 +64,7 @@ Reads `<plan-dir>/reviews.json` and calls existing `check_review_record` functio
 |-----------|-------|
 | Multi-phase (`integration_branch` field present) | Current branch == `integration_branch` value |
 | Single-phase (no `integration_branch`) | Current branch is NOT `main` or `master` |
+| Multi-phase without `integration_branch` (backward compat) | Falls back to single-phase check (not main/master) |
 
 ### Schema addition: `integration_branch`
 
@@ -71,9 +76,9 @@ Optional string field in plan.json root. Set by the design skill when creating a
 
 2. **`integration_branch` tracked in plan.json** (not derived from naming conventions): Explicit field is auditable and survives convention changes. The design skill writes it; validate-plan reads it.
 
-3. **Entry gates in validate-plan** (not hooks): Skills call gates explicitly. If a skill forgets, exit gates in `--update-status` still catch it. Hook-based gating is fragile for skill interception.
+3. **Entry gates in validate-plan** (not hooks): Skills call gates explicitly. If a skill forgets, exit gates in `--update-status` provide a backstop for some checks (e.g., plan completion requires all reviews), though entry gates for individual stages are not redundantly enforced elsewhere. Hook-based gating is fragile for skill interception.
 
-4. **`--check-entry` takes plan-dir** (not plan.json): At the `draft-plan` stage, plan.json doesn't exist yet — only reviews.json does. Using the directory as the argument works for both stages.
+4. **`--check-entry` takes plan.json path** (consistent CLI): Every validate-plan mode accepts plan.json as its first positional argument. `--check-entry` follows this convention and derives the directory via `dirname`. For the `draft-plan` stage, plan.json need not exist — only reviews.json from the same directory is read.
 
 5. **All consistency rules are hard errors** (no warnings): "All tasks done but phase In Progress" is not flagged — that's a normal transient state during review. Only clearly inconsistent states (phase "Not Started" with active tasks, complete task with pending dependency) are errors.
 
@@ -89,8 +94,8 @@ Single phase. All changes target one script (validate-plan), three new test file
 
 ### Skill changes
 
-- **orchestrate/SKILL.md:** Add `--check-entry`, `--check-base`, and `--consistency` calls to setup. Re-run `--check-base` before each phase dispatch (multi-phase). Re-run `--consistency` after each status update.
-- **draft-plan/SKILL.md:** Add `--check-entry $PLAN_DIR --stage draft-plan` at startup.
+- **orchestrate/SKILL.md:** Add `--check-entry`, `--check-base`, and `--consistency` calls to setup. Re-run `--check-base` before each phase dispatch (multi-phase). Re-run `--consistency` after phase and plan status updates (not after every task update — task-level dependency ordering is already enforced by `--check-deps` before dispatch).
+- **draft-plan/SKILL.md:** Add `--check-entry $PLAN_DIR/plan.json --stage draft-plan` at startup.
 - **design/SKILL.md:** Write `integration_branch` to plan.json when creating integration worktree (multi-phase only).
 - **dispatch-subagents.md / dispatch-agent-teams.md:** Document that `--check-base` runs at startup and before each phase — no separate dispatch-level checks needed.
 
