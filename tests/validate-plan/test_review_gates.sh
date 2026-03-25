@@ -150,9 +150,6 @@ rm -f "$TMPDIR/reviews.json"
 assert_pass "plan In Development not gated" \
   "$VALIDATE" --update-status "$TMPDIR/plan.json" --plan --status "In Development"
 
-echo "Test 11: Run existing update-status tests still pass"
-assert_pass "test_update_status.sh still passes" bash "$SCRIPT_DIR/test_update_status.sh"
-
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -36,7 +36,10 @@ assert_fail() {
 }
 
 TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
+MOCK_BIN=$(mktemp -d)
+ln -s "$FIXTURES/gh-mock.sh" "$MOCK_BIN/gh"
+export PATH="$MOCK_BIN:$PATH"
+trap 'rm -rf "$TMPDIR" "$MOCK_BIN"' EXIT
 
 setup_plan_dir() {
   rm -rf "${TMPDIR:?}/"*
@@ -183,16 +186,12 @@ assert_fail "pr-create missing impl-review for phase-a exits 1" "impl-review pha
 echo ""
 echo "=== pr-merge workflow ==="
 
-echo "Test 7: pr-merge requires PR merged (skipped if gh not available)"
-if ! command -v gh >/dev/null 2>&1; then
-  echo "SKIP: gh CLI not available — skipping PR check tests"
-else
-  setup_plan_dir
-  write_single_phase_plan "pr-merge" "Complete"
-  printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
-  assert_fail "pr-merge with all reviews but no merged PR exits 1" "PR not merged\|no PR found\|gh pr list failed" \
-    "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
-fi
+echo "Test 7: pr-merge requires PR merged"
+setup_plan_dir
+write_single_phase_plan "pr-merge" "Complete"
+printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+GH_MOCK_PR_COUNT=0 assert_fail "pr-merge with all reviews but no merged PR exits 1" "PR not merged\|no PR found\|gh pr list failed" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
 
 echo ""
 echo "=== multi-phase specifics ==="
@@ -205,21 +204,17 @@ assert_fail "pr-create two-phase without final impl-review exits 1" "impl-review
   "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
 
 echo "Test 9: single-phase pr-create does not require final impl-review (fails on PR state, not reviews)"
-if ! command -v gh >/dev/null 2>&1; then
-  echo "SKIP: gh CLI not available"
-else
-  setup_plan_dir
-  write_single_phase_plan "pr-create" "Complete"
-  printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
-  GIT_TMPDIR=$(mktemp -d)
-  git -C "$GIT_TMPDIR" init -b test-no-pr-branch >/dev/null 2>&1
-  git -C "$GIT_TMPDIR" commit --allow-empty -m "init" >/dev/null 2>&1
-  pushd "$GIT_TMPDIR" >/dev/null
-  assert_fail "single-phase pr-create fails on PR state not final impl-review" "no PR found\|no final PR found\|gh pr list failed" \
-    "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
-  popd >/dev/null
-  rm -rf "$GIT_TMPDIR"
-fi
+setup_plan_dir
+write_single_phase_plan "pr-create" "Complete"
+printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+GIT_TMPDIR=$(mktemp -d)
+git -C "$GIT_TMPDIR" init -b test-no-pr-branch >/dev/null 2>&1
+git -C "$GIT_TMPDIR" commit --allow-empty -m "init" >/dev/null 2>&1
+pushd "$GIT_TMPDIR" >/dev/null
+GH_MOCK_PR_COUNT=0 assert_fail "single-phase pr-create fails on PR state not final impl-review" "no PR found\|no final PR found\|gh pr list failed" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+popd >/dev/null
+rm -rf "$GIT_TMPDIR"
 
 echo "Test 9b: single-phase pr-create fails when missing phase impl-review"
 setup_plan_dir

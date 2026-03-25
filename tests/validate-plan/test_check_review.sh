@@ -122,10 +122,6 @@ printf '[{"type":"plan-review","scope":"plan","verdict":"pass"}]' > "$TMPDIR/rev
 assert_pass "missing remaining field defaults to 0, passes" \
   "$VALIDATE" --check-review "$TMPDIR/plan.json" --type plan-review --scope plan
 
-echo "Test 12: Run existing test suites still pass"
-assert_pass "test_schema.sh still passes" bash "$SCRIPT_DIR/test_schema.sh"
-assert_pass "test_update_status.sh still passes" bash "$SCRIPT_DIR/test_update_status.sh"
-
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
