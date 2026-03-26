@@ -101,10 +101,12 @@ do_schema() {
     esac
   fi
 
-  local integration_branch
-  integration_branch=$(echo "$json" | jq -r '.integration_branch // empty')
-  if [[ -n "$integration_branch" ]]; then
-    if [[ "$integration_branch" =~ ^[[:space:]]*$ ]]; then
+  local ib_exists
+  ib_exists=$(echo "$json" | jq 'has("integration_branch")')
+  if [[ "$ib_exists" == "true" ]]; then
+    local integration_branch
+    integration_branch=$(echo "$json" | jq -r '.integration_branch')
+    if [[ -z "$integration_branch" || "$integration_branch" =~ ^[[:space:]]*$ ]]; then
       err "ERROR: invalid_integration_branch: integration_branch must be a non-empty string"
     fi
   fi
@@ -614,10 +616,16 @@ do_check_base() {
     exit 1
   fi
 
-  local integration_branch
-  integration_branch=$(echo "$json" | jq -r '.integration_branch // empty')
+  local ib_exists
+  ib_exists=$(echo "$json" | jq 'has("integration_branch")')
 
-  if [[ -n "$integration_branch" ]]; then
+  if [[ "$ib_exists" == "true" ]]; then
+    local integration_branch
+    integration_branch=$(echo "$json" | jq -r '.integration_branch')
+    if [[ -z "$integration_branch" || "$integration_branch" =~ ^[[:space:]]*$ ]]; then
+      echo "ERROR: base_branch_mismatch: integration_branch is present but empty. Fix plan.json." >&2
+      exit 1
+    fi
     if [[ "$current_branch" != "$integration_branch" ]]; then
       echo "ERROR: base_branch_mismatch: current branch '$current_branch' does not match integration_branch '$integration_branch'. Run from the integration worktree." >&2
       exit 1

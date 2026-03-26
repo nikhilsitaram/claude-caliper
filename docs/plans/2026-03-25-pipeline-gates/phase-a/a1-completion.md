@@ -21,7 +21,7 @@
 ## Test changes
 
 - Updated `test_status_consistency.sh` tests 1, 3, 5, 8 to set consistent plan/phase statuses and provide reviews.json where needed (new consistency rules exposed previously-implicit state inconsistencies in test fixtures).
-- Created 4 new test files: `test_consistency.sh` (9 tests), `test_check_entry.sh` (7 tests), `test_check_base.sh` (4 tests), `test_integration_branch.sh` (3 tests).
+- Created 4 new test files: `test_consistency.sh` (10 tests), `test_check_entry.sh` (8 tests), `test_check_base.sh` (5 tests), `test_integration_branch.sh` (4 tests).
 
 ## Deviations
 

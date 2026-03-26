@@ -64,6 +64,12 @@ jq '.integration_branch = "  "' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv
 assert_fail "whitespace integration_branch fails" "invalid_integration_branch" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
+echo "Test 4: Plan with empty string integration_branch fails"
+setup_valid_plan "$TMPDIR"
+jq '.integration_branch = ""' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
+assert_fail "empty integration_branch fails" "invalid_integration_branch" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 exit $FAIL

@@ -49,7 +49,7 @@ echo "=== --check-base tests ==="
 
 init_git_repo() {
   local dir="$1"
-  git -C "$dir" init -q
+  git -C "$dir" init -q -b main
   git -C "$dir" -c user.email="test@test.com" -c user.name="Test" commit --allow-empty -m "init" -q
 }
 
@@ -89,6 +89,15 @@ init_git_repo "$TMPDIR"
 git -C "$TMPDIR" checkout -b feat/wrong -q 2>/dev/null
 jq '.integration_branch = "integrate/my-feature"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
 assert_fail "integration branch mismatch" "base_branch_mismatch" \
+  run_in_dir "$TMPDIR" "$VALIDATE" --check-base "$TMPDIR/plan.json"
+
+echo "Test 5: empty integration_branch fails"
+setup_valid_plan "$TMPDIR"
+rm -rf "$TMPDIR/.git"
+init_git_repo "$TMPDIR"
+git -C "$TMPDIR" checkout -b feat/test -q 2>/dev/null
+jq '.integration_branch = ""' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
+assert_fail "empty integration_branch fails" "base_branch_mismatch" \
   run_in_dir "$TMPDIR" "$VALIDATE" --check-base "$TMPDIR/plan.json"
 
 echo ""
