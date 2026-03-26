@@ -70,6 +70,12 @@ jq '.integration_branch = ""' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "
 assert_fail "empty integration_branch fails" "invalid_integration_branch" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
+echo "Test 5: Plan with null integration_branch fails"
+setup_valid_plan "$TMPDIR"
+jq '.integration_branch = null' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
+assert_fail "null integration_branch fails" "invalid_integration_branch" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 exit $FAIL

@@ -105,9 +105,15 @@ do_schema() {
   ib_exists=$(echo "$json" | jq 'has("integration_branch")')
   if [[ "$ib_exists" == "true" ]]; then
     local integration_branch
-    integration_branch=$(echo "$json" | jq -r '.integration_branch')
-    if [[ -z "$integration_branch" || "$integration_branch" =~ ^[[:space:]]*$ ]]; then
-      err "ERROR: invalid_integration_branch: integration_branch must be a non-empty string"
+    local ib_type
+    ib_type=$(echo "$json" | jq -r '.integration_branch | type')
+    if [[ "$ib_type" != "string" ]]; then
+      err "ERROR: invalid_integration_branch: integration_branch must be a string, got $ib_type"
+    else
+      integration_branch=$(echo "$json" | jq -r '.integration_branch')
+      if [[ -z "$integration_branch" || "$integration_branch" =~ ^[[:space:]]*$ ]]; then
+        err "ERROR: invalid_integration_branch: integration_branch must be a non-empty string"
+      fi
     fi
   fi
 
@@ -620,7 +626,12 @@ do_check_base() {
   ib_exists=$(echo "$json" | jq 'has("integration_branch")')
 
   if [[ "$ib_exists" == "true" ]]; then
-    local integration_branch
+    local integration_branch ib_type
+    ib_type=$(echo "$json" | jq -r '.integration_branch | type')
+    if [[ "$ib_type" != "string" ]]; then
+      echo "ERROR: base_branch_mismatch: integration_branch must be a string, got $ib_type. Fix plan.json." >&2
+      exit 1
+    fi
     integration_branch=$(echo "$json" | jq -r '.integration_branch')
     if [[ -z "$integration_branch" || "$integration_branch" =~ ^[[:space:]]*$ ]]; then
       echo "ERROR: base_branch_mismatch: integration_branch is present but empty. Fix plan.json." >&2
