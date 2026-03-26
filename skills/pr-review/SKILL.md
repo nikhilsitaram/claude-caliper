@@ -118,9 +118,7 @@ Post a `gh pr comment` with unified assessment: what was fixed, dismissed (with 
 
 Report: PR URL, review items (fixed/dismissed/informational).
 
-If `--automated` flag was passed, stop after commenting — orchestrate handles merge separately.
-
-If user-selected automated, invoke pr-merge after commenting. The user chose automated as their decision to go all the way through merge.
+If automated mode, invoke pr-merge after commenting. `--automated` flag and user-selected automated are the same — the flag just pre-selects the mode so the prompt is skipped.
 
 In deliberate mode, AskUserQuestion with options:
 - **Merge PR** — invoke pr-merge via Skill tool (pr-merge's worktree guard handles CWD automatically)

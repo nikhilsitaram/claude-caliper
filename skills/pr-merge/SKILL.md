@@ -46,7 +46,8 @@ If behind (non-zero exit): rebase onto default branch, resolve conflicts, run te
 
 **Merge strategy:**
 - Default: `gh pr merge $PR_NUMBER --squash`
-- When caller passes `--rebase` (orchestrate does this for multi-phase final PRs): `gh pr merge $PR_NUMBER --rebase`
+- Integration branches (`IS_INTEGRATION=true`): `gh pr merge $PR_NUMBER --rebase` — auto-detected, no flag needed
+- Explicit `--rebase` flag overrides default for any branch
 
 Multi-phase plans produce one squash commit per phase on the integration branch. Rebase preserves this per-phase history on main. Single-phase plans use squash (one phase = one commit). Phase PRs (base is `integrate/*`) always use `--squash`.
 
