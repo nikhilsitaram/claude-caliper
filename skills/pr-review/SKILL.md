@@ -65,7 +65,7 @@ The subagent posts its findings as a `gh pr comment` on the PR, then returns fin
 
 ### Step 5: External Feedback
 
-**`--automated` flag (from orchestrate):** Skip polling entirely — orchestrate already confirmed bot readiness. Collect available feedback via `gh` and proceed directly to fixing.
+**`--automated` flag (from orchestrate):** Wait 90 seconds for bots to post, then poll `gh pr checks` every 30 seconds (timeout: 5 minutes). Bots need time to analyze the diff — skipping this window means merging before external feedback lands.
 
 **User-selected automated / Deliberate — poll for bot readiness:**
 1. **Warm-up:** In user-selected automated mode, wait 60 seconds for bots to register checks. Skip in deliberate mode (user triggers manually after seeing bot activity).
