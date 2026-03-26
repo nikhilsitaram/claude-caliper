@@ -47,10 +47,11 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 echo "Test 1: Phase marked Complete with all tasks complete passes"
 setup_valid_plan "$TMPDIR"
-jq '.phases[0].status = "Complete (2026-03-24)" | .phases[0].tasks[0].status = "complete" | .phases[0].tasks[1].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
+jq '.status = "In Development" | .phases[0].status = "Complete (2026-03-24)" | .phases[0].tasks[0].status = "complete" | .phases[0].tasks[1].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
 mkdir -p "$TMPDIR/phase-a"
 echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
 echo "# A2 Completion" > "$TMPDIR/phase-a/a2-completion.md"
+echo '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_pass "phase complete with all tasks complete" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
@@ -69,6 +70,7 @@ mkdir -p "$TMPDIR/phase-a" "$TMPDIR/phase-b"
 echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
 echo "# A2 Completion" > "$TMPDIR/phase-a/a2-completion.md"
 echo "# B1 Completion" > "$TMPDIR/phase-b/b1-completion.md"
+echo '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-b","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_pass "plan complete with all phases complete" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
@@ -83,7 +85,7 @@ assert_fail "plan complete with not-started phase" "status_inconsistency" \
 
 echo "Test 5: Task marked complete with completion file present passes"
 setup_valid_plan "$TMPDIR"
-jq '.phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
+jq '.status = "In Development" | .phases[0].status = "In Progress" | .phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
 mkdir -p "$TMPDIR/phase-a"
 echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
 assert_pass "task complete with completion file" \
@@ -103,7 +105,7 @@ assert_fail "orphaned md file in phase directory" "orphaned_task_file" \
 
 echo "Test 8: Files listed in files.create exist on disk when task is complete passes"
 setup_valid_plan "$TMPDIR"
-jq '.phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
+jq '.status = "In Development" | .phases[0].status = "In Progress" | .phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
 mkdir -p "$TMPDIR/phase-a"
 echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
 git -C "$TMPDIR" init -q 2>/dev/null || true

@@ -449,6 +449,185 @@ do_schema() {
     for e in "${ERRORS[@]}"; do echo "$e" >&2; done
     exit 1
   fi
+
+  # Chain to consistency checks so --schema callers don't lose coverage
+  if ! do_consistency "$plan_json"; then
+    exit 1
+  fi
+  exit 0
+}
+
+do_consistency() {
+  local plan_json="$1"
+  local json
+  json=$(cat "$plan_json")
+
+  local plan_status
+  plan_status=$(echo "$json" | jq -r '.status // empty')
+
+  local phase_count
+  phase_count=$(echo "$json" | jq '(.phases // []) | length')
+
+  ERRORS=()
+
+  for ((p=0; p<phase_count; p++)); do
+    local letter phase_status
+    letter=$(echo "$json" | jq -r ".phases[$p].letter // empty")
+    phase_status=$(echo "$json" | jq -r ".phases[$p].status // empty")
+    local task_count
+    task_count=$(echo "$json" | jq "(.phases[$p].tasks // []) | length")
+
+    if [[ "$phase_status" == "Not Started" ]]; then
+      for ((t=0; t<task_count; t++)); do
+        local ts
+        ts=$(echo "$json" | jq -r ".phases[$p].tasks[$t].status // empty")
+        if [[ "$ts" == "in_progress" || "$ts" == "complete" ]]; then
+          err "ERROR: status_inconsistency: phase $letter is 'Not Started' but task $(echo "$json" | jq -r ".phases[$p].tasks[$t].id") is '$ts'"
+        fi
+      done
+    fi
+
+    if [[ "$phase_status" =~ ^Complete ]]; then
+      for ((t=0; t<task_count; t++)); do
+        local ts
+        ts=$(echo "$json" | jq -r ".phases[$p].tasks[$t].status // empty")
+        if [[ "$ts" != "complete" && "$ts" != "skipped" ]]; then
+          err "ERROR: status_inconsistency: phase $letter is '$phase_status' but task $(echo "$json" | jq -r ".phases[$p].tasks[$t].id") is '$ts'"
+        fi
+      done
+    fi
+
+    for ((t=0; t<task_count; t++)); do
+      local ts tid
+      ts=$(echo "$json" | jq -r ".phases[$p].tasks[$t].status // empty")
+      tid=$(echo "$json" | jq -r ".phases[$p].tasks[$t].id // empty")
+      if [[ "$ts" == "complete" ]]; then
+        local dep_count
+        dep_count=$(echo "$json" | jq "(.phases[$p].tasks[$t].depends_on // []) | length")
+        for ((d=0; d<dep_count; d++)); do
+          local dep_id
+          dep_id=$(echo "$json" | jq -r ".phases[$p].tasks[$t].depends_on[$d]")
+          local dep_status=""
+          for ((p2=0; p2<phase_count; p2++)); do
+            local tc2
+            tc2=$(echo "$json" | jq "(.phases[$p2].tasks // []) | length")
+            for ((t2=0; t2<tc2; t2++)); do
+              local tid2
+              tid2=$(echo "$json" | jq -r ".phases[$p2].tasks[$t2].id")
+              if [[ "$tid2" == "$dep_id" ]]; then
+                dep_status=$(echo "$json" | jq -r ".phases[$p2].tasks[$t2].status")
+                break 2
+              fi
+            done
+          done
+          if [[ "$dep_status" == "pending" || "$dep_status" == "in_progress" ]]; then
+            err "ERROR: status_inconsistency: task $tid is 'complete' but dependency $dep_id is '$dep_status'"
+          fi
+        done
+      fi
+    done
+
+    if [[ "$phase_status" =~ ^Complete ]]; then
+      local letter_lower
+      letter_lower=$(echo "$letter" | tr '[:upper:]' '[:lower:]')
+      local plan_dir
+      plan_dir="$(cd "$(dirname "$plan_json")" && pwd)"
+      if ! check_review_record "$plan_dir" "impl-review" "phase-$letter_lower" > /dev/null 2>&1; then
+        err "ERROR: status_inconsistency: phase $letter is '$phase_status' but no passing impl-review record for scope phase-$letter_lower"
+      fi
+    fi
+  done
+
+  if [[ "$plan_status" == "Not Yet Started" ]]; then
+    for ((p=0; p<phase_count; p++)); do
+      local ps
+      ps=$(echo "$json" | jq -r ".phases[$p].status // empty")
+      if [[ "$ps" == "In Progress" || "$ps" =~ ^Complete ]]; then
+        err "ERROR: status_inconsistency: plan is 'Not Yet Started' but phase $(echo "$json" | jq -r ".phases[$p].letter") is '$ps'"
+      fi
+    done
+  fi
+
+  if [[ "$plan_status" == "Complete" ]]; then
+    for ((p=0; p<phase_count; p++)); do
+      local ps
+      ps=$(echo "$json" | jq -r ".phases[$p].status // empty")
+      if [[ ! "$ps" =~ ^Complete ]]; then
+        err "ERROR: status_inconsistency: plan is Complete but phase $(echo "$json" | jq -r ".phases[$p].letter") is '$ps'"
+      fi
+    done
+  fi
+
+  if [ ${#ERRORS[@]} -gt 0 ]; then
+    for e in "${ERRORS[@]}"; do echo "$e" >&2; done
+    return 1
+  fi
+  return 0
+}
+
+do_check_entry() {
+  local plan_json="$1" stage="$2"
+  local plan_dir
+  plan_dir="$(cd "$(dirname "$plan_json")" && pwd)"
+
+  case "$stage" in
+    draft-plan)
+      local result
+      if ! result=$(check_review_record "$plan_dir" "design-review" "design"); then
+        echo "ERROR: entry gate failed for stage '$stage' — design-review not passed ($result). Run design-review first." >&2
+        exit 1
+      fi
+      ;;
+    execution)
+      local gate_errors=()
+      local result
+      if ! result=$(check_review_record "$plan_dir" "design-review" "design"); then
+        gate_errors+=("design-review: $result")
+      fi
+      if ! result=$(check_review_record "$plan_dir" "plan-review" "plan"); then
+        gate_errors+=("plan-review: $result")
+      fi
+      if [[ ${#gate_errors[@]} -gt 0 ]]; then
+        echo "ERROR: entry gate failed for stage '$stage':" >&2
+        for ge in "${gate_errors[@]}"; do echo "  - $ge" >&2; done
+        echo "Run the missing reviews before starting execution." >&2
+        exit 1
+      fi
+      ;;
+    *)
+      echo "ERROR: unknown stage '$stage' (expected: draft-plan or execution)" >&2
+      exit 2
+      ;;
+  esac
+  exit 0
+}
+
+do_check_base() {
+  local plan_json="$1"
+  local json
+  json=$(cat "$plan_json")
+
+  local current_branch
+  current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+  if [[ -z "$current_branch" ]]; then
+    echo "ERROR: not in a git repository" >&2
+    exit 1
+  fi
+
+  local integration_branch
+  integration_branch=$(echo "$json" | jq -r '.integration_branch // empty')
+
+  if [[ -n "$integration_branch" ]]; then
+    if [[ "$current_branch" != "$integration_branch" ]]; then
+      echo "ERROR: base_branch_mismatch: current branch '$current_branch' does not match integration_branch '$integration_branch'. Run from the integration worktree." >&2
+      exit 1
+    fi
+  else
+    if [[ "$current_branch" == "main" || "$current_branch" == "master" ]]; then
+      echo "ERROR: base_branch_mismatch: current branch is '$current_branch'. Run from a feature worktree, not the main checkout." >&2
+      exit 1
+    fi
+  fi
   exit 0
 }
 
@@ -1033,6 +1212,7 @@ UPDATE_ID=""
 UPDATE_STATUS=""
 CHECK_REVIEW_TYPE=""
 CHECK_REVIEW_SCOPE=""
+CHECK_ENTRY_STAGE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -1111,11 +1291,42 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
+    --consistency)
+      MODE="consistency"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --check-entry)
+      MODE="check-entry"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --check-base)
+      MODE="check-base"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
     --check-deps)
       MODE="check-deps"
       shift
       if [[ $# -gt 0 ]]; then
         PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --stage)
+      shift
+      if [[ $# -gt 0 ]]; then
+        CHECK_ENTRY_STAGE="$1"
         shift
       fi
       ;;
@@ -1168,6 +1379,15 @@ case "$MODE" in
     fi
     do_check_review "$PLAN_JSON" "$CHECK_REVIEW_TYPE" "$CHECK_REVIEW_SCOPE"
     ;;
+  consistency) do_consistency "$PLAN_JSON" || exit 1 ;;
+  check-entry)
+    if [[ -z "$CHECK_ENTRY_STAGE" ]]; then
+      echo "ERROR: --check-entry requires --stage <STAGE>" >&2
+      exit 2
+    fi
+    do_check_entry "$PLAN_JSON" "$CHECK_ENTRY_STAGE"
+    ;;
+  check-base) do_check_base "$PLAN_JSON" ;;
   check-workflow) do_check_workflow "$PLAN_JSON" ;;
   check-deps)
     if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" ]]; then
