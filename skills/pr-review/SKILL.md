@@ -118,9 +118,9 @@ Post a `gh pr comment` with unified assessment: what was fixed, dismissed (with 
 
 Report: PR URL, review items (fixed/dismissed/informational).
 
-If `--automated` flag was passed, skip the merge prompt — the caller (orchestrate) handles merge separately.
+If automated mode (either `--automated` flag or user-selected), skip the merge prompt and stop after commenting. The caller handles merge separately — orchestrate via pr-merge, or the user via `/pr-merge`.
 
-For all other modes (user-selected automated or deliberate), AskUserQuestion with options:
+In deliberate mode, AskUserQuestion with options:
 - **Merge PR** — invoke pr-merge via Skill tool (pr-merge's worktree guard handles CWD automatically)
 - **Not yet** — if inside a worktree, tell the user: "When ready to merge: `cd` to the main repo, then run `/pr-merge`." Otherwise: "Run `/pr-merge` when ready to merge."
 
