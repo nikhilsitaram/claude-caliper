@@ -97,7 +97,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 6. Re-validate consistency: `scripts/validate-plan --consistency plan.json`
 7. Route on workflow:
    - `"pr-create"`: invoke pr-create (targets main), `scripts/validate-plan --check-workflow plan.json`, stop
-   - `"pr-merge"`: invoke pr-create, poll checks + pr-review --automated (skip if `review_wait_minutes` is 0), `scripts/validate-plan --check-workflow plan.json`
+   - `"pr-merge"`: invoke pr-create, poll checks + pr-review --automated (skip if `review_wait_minutes` is 0; if skipped, invoke pr-merge directly), `scripts/validate-plan --check-workflow plan.json`
 
 ## After All Phases (Multi-Phase Only)
 
