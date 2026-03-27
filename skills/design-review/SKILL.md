@@ -20,7 +20,7 @@ Dispatch an Opus subagent to validate a design doc before planning. Catches spec
 ## Dispatch
 
 Gather inputs:
-- **Design doc** — `docs/plans/YYYY-MM-DD-topic/design-topic.md`
+- **Design doc** — `.claude/claude-caliper/YYYY-MM-DD-topic/design-topic.md`
 - **Repo root** — the worktree the design targets
 
 Dispatch with `model: "opus"` — fresh-eyes review requires strong reasoning to catch blind spots the designer and user converged past.
