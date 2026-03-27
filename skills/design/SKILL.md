@@ -32,21 +32,23 @@ Complete in order:
 7. **Configure and approve** — single AskUserQuestion with 3 questions:
 
     **Q1 — Workflow** (header: "Workflow"):
-    Check `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get workflow` for the user's preferred default. Mark the matching option with "(default)":
-    - **Create PR** — Orchestrate → pr-create
-    - **Merge PR** — Orchestrate → pr-create → pr-review → pr-merge
-    - **Plan only** — Stop after plan is reviewed
+    Run `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings source workflow`.
+    - If `"user"`: skip this question. Get the value with `caliper-settings get workflow` and message: "Using your configured workflow: <value>".
+    - If `"default"`: include in AskUserQuestion with recommended option marked "(Recommended)":
+      - **Create PR** — Orchestrate → pr-create (Recommended)
+      - **Merge PR** — Orchestrate → pr-create → pr-review → pr-merge
+      - **Plan only** — Stop after plan is reviewed
 
     **Q2 — Execution mode** (header: "Exec mode"):
-    Check `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get execution_mode` for the user's preferred default. Recommend based on design complexity (these override the setting when they differ):
-    - ≤10 tasks AND single phase → recommend `Subagents`
-    - >10 tasks OR multi-phase → recommend `Agent teams`
+    Run `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings source execution_mode`.
+    - If `"user"`: skip this question. Get the value with `caliper-settings get execution_mode` and message: "Using your configured execution mode: <value>".
+    - If `"default"`: include in AskUserQuestion. Recommend based on design complexity:
+      - ≤10 tasks AND single phase → recommend `Subagents`
+      - >10 tasks OR multi-phase → recommend `Agent teams`
 
-    Mark the recommended option with "(Recommended)" in its label. If the user's setting differs from the complexity recommendation, note both in the option labels.
-
-    Options:
-    - **Subagents** — Parallel Agent tool dispatches with worktree isolation. No special env var needed.
-    - **Agent teams** — Parallel teammates with push notifications and mailbox messaging. Requires env var.
+      Mark the recommended option with "(Recommended)". Options:
+      - **Subagents** — Parallel Agent tool dispatches with worktree isolation. No special env var needed.
+      - **Agent teams** — Parallel teammates with push notifications and mailbox messaging. Requires env var.
 
     **Q3 — Approval** (header: "Approval"):
     - **Approve design (auto turn on acceptEdits)**
@@ -57,7 +59,7 @@ Complete in order:
     **Agent teams fallback:** If user picks "Agent teams", check `$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`. If not `1`, use AskUserQuestion to explain: "Agent teams requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`. To enable: run `echo 'export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1' >> ~/.zshrc && source ~/.zshrc`, then restart Claude Code." Offer: "Continue with subagents" or "Stop (I'll restart with agent teams)". If they choose subagents, override the Q2 answer to `Subagents` before step 11 writes plan.json. If they stop, tell them the exact command to resume: `claude --continue` in the worktree directory.
 
     On approval, create sentinel: `mkdir -p <plan-dir> && touch <plan-dir>/.design-approved`
-8. **Write design doc** — `docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`, commit
+8. **Write design doc** — `.claude/claude-caliper/YYYY-MM-DD-<topic>/design-<topic>.md` (no commit — gitignored transient state)
 9. **Dispatch design-review subagent** — fresh Opus agent validates design before planning (hard gate)
 10. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero design context)
 11. **Route workflow** — Map step 7 choices to schema values:
@@ -76,7 +78,7 @@ Complete in order:
 Agent(
   subagent_type: "general-purpose",
   model: "opus",
-  prompt: "Review the design doc at docs/plans/<folder>/design-<topic>.md
+  prompt: "Review the design doc at .claude/claude-caliper/<folder>/design-<topic>.md
     using the design-review skill.
     Working directory: .claude/worktrees/<feature>"
 )
@@ -88,7 +90,7 @@ If design-review finds issues, present them to the user, collaboratively fix the
 Agent(
   subagent_type: "general-purpose",
   model: "opus",
-  prompt: "Read the design doc at docs/plans/<folder>/design-<topic>.md and write
+  prompt: "Read the design doc at .claude/claude-caliper/<folder>/design-<topic>.md and write
     an implementation plan using the draft-plan skill.
     Working directory: .claude/worktrees/<feature>"
 )
@@ -100,9 +102,9 @@ After draft-plan returns, dispatch plan-review with the same review loop protoco
 Agent(
   subagent_type: "general-purpose",
   model: "opus",
-  prompt: "Review the plan at docs/plans/<folder>/plan.json
+  prompt: "Review the plan at .claude/claude-caliper/<folder>/plan.json
     using the plan-review skill.
-    Design doc: docs/plans/<folder>/design-<topic>.md
+    Design doc: .claude/claude-caliper/<folder>/design-<topic>.md
     Working directory: .claude/worktrees/<feature>"
 )
 ```
@@ -143,7 +145,7 @@ Use AskUserQuestion with "Looks good" / "Adjust phases" options.
 
 ## Design Doc Contents
 
-When writing the design doc (`docs/plans/YYYY-MM-DD-<topic>/design-<topic>.md`):
+When writing the design doc (`.claude/claude-caliper/YYYY-MM-DD-<topic>/design-<topic>.md`):
 - Sections in order: Problem, Goal, Success Criteria, Architecture, Key Decisions, Non-Goals, Implementation Approach
 - **Problem** — what's broken, who's affected, consequences of not solving
 - **Success Criteria** — human-verifiable behavioral statements (not "tests pass"); collectively complete (all pass = goal met), individually necessary
