@@ -40,10 +40,11 @@ Replace heavy-handed `MUST`/`NEVER`/`ALWAYS` patterns with reasoning that explai
 
 ```text
 skills/           — One directory per skill (SKILL.md + optional supporting files)
-docs/plans/       — Design docs and implementation plans
 docs/reviews/     — Codebase review reports
 .claude-plugin/   — Plugin manifest and marketplace config
 ```
+
+Plan artifacts (design docs, plan.json, task briefs) are created by the design/draft-plan skills under `.claude/claude-caliper/` and gitignored — they're transient working state, not permanent repo content.
 
 ## Testing
 

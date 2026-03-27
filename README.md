@@ -271,7 +271,7 @@ Plans aren't freeform text. They're machine-readable artifacts validated by a sc
 ### Directory Layout
 
 ```text
-docs/plans/2026-03-21-rate-limiter/
+.claude/claude-caliper/2026-03-21-rate-limiter/
 ├── design-rate-limiter.md  # Design doc with success criteria
 ├── plan.json               # Machine-readable manifest (source of truth)
 ├── plan.md                 # Auto-rendered from plan.json (never hand-edited)
@@ -287,6 +287,8 @@ docs/plans/2026-03-21-rate-limiter/
     ├── b1-completion.md
     └── completion.md
 ```
+
+> Plan artifacts are gitignored transient state created by the design and draft-plan skills. They live outside the repo proper so they don't pollute git history.
 
 ### plan.json — The Machine-Readable Manifest
 

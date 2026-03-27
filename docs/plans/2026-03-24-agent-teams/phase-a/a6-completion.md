@@ -1,1 +1,0 @@
-# A6 Completion

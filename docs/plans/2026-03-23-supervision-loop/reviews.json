@@ -1,1 +1,0 @@
-[{"type":"impl-review","scope":"phase-a","iteration":1,"issues_found":4,"severity":{"critical":0,"high":3,"medium":0,"low":1},"actionable":3,"dismissed":1,"dismissals":[{"issue":"implementer model change to opus","reason":"User explicitly requested all agents be upgraded to opus"}],"fixed":3,"remaining":0,"verdict":"pass","timestamp":"2026-03-23T23:30:00Z"}]
