@@ -1,0 +1,49 @@
+[
+  {
+    "type": "design-review",
+    "scope": "design",
+    "iteration": 1,
+    "issues_found": 8,
+    "severity": {
+      "critical": 1,
+      "high": 2,
+      "medium": 4,
+      "low": 1
+    },
+    "actionable": 6,
+    "dismissed": 2,
+    "dismissals": [
+      {
+        "id": 1,
+        "reason": "CLAUDE_PLUGIN_DATA fallback to $PLUGIN_ROOT/data matches actual layout confirmed in issue #148 comments; data/ created on first set via mkdir -p; git-based plugin updates preserve untracked dirs"
+      },
+      {
+        "id": 5,
+        "reason": "Key Decisions section already covers reasoning for all architectural choices; alternatives section would add bulk without value for well-understood approaches"
+      }
+    ],
+    "fixed": 6,
+    "remaining": 0,
+    "verdict": "pass",
+    "timestamp": "2026-03-27T13:52:00-05:00"
+  },
+  {
+    "type": "plan-review",
+    "scope": "plan",
+    "iteration": 1,
+    "issues_found": 1,
+    "severity": {
+      "critical": 0,
+      "high": 0,
+      "medium": 1,
+      "low": 0
+    },
+    "actionable": 1,
+    "dismissed": 0,
+    "dismissals": [],
+    "fixed": 1,
+    "remaining": 0,
+    "verdict": "pass",
+    "timestamp": "2026-03-27T14:10:00-05:00"
+  }
+]
