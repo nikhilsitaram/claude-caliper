@@ -26,7 +26,7 @@ Two-stage review:
 **Stage 2: Prose + design review** — If schema passes, dispatch Opus subagent.
 
 Gather inputs:
-- **Plan directory** — `docs/plans/YYYY-MM-DD-topic/` (containing plan.json + task .md files)
+- **Plan directory** — `.claude/claude-caliper/YYYY-MM-DD-topic/` (containing plan.json + task .md files)
 - **Design doc** — if one exists (or "None")
 - **Repo root** — the worktree the plan targets
 
