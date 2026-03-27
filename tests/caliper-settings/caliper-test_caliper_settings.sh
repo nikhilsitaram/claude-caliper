@@ -74,8 +74,8 @@ teardown() {
 echo "=== Environment validation ==="
 
 setup
-check_fail "fails without CLAUDE_PLUGIN_ROOT" env -u CLAUDE_PLUGIN_ROOT bash "$SCRIPT" list
-check_fail "fails without CLAUDE_PLUGIN_DATA" env -u CLAUDE_PLUGIN_DATA bash "$SCRIPT" list
+result=$(env -u CLAUDE_PLUGIN_ROOT -u CLAUDE_PLUGIN_DATA bash "$SCRIPT" get "$FIRST_BOOL_KEY" 2>&1) || true
+assert_eq "works without env vars (self-locating)" "$FIRST_BOOL_DEFAULT" "$result"
 teardown
 
 echo ""
@@ -215,6 +215,19 @@ setup
 echo "NOT JSON" > "$TEST_DIR/settings.json"
 check "set succeeds with corrupt JSON" bash "$SCRIPT" set "$FIRST_BOOL_KEY" true
 assert_eq "get after set with corrupt JSON" "true" "$(bash "$SCRIPT" get "$FIRST_BOOL_KEY")"
+teardown
+
+echo ""
+echo "=== source ==="
+
+setup
+assert_eq "source returns default when no override" "default" "$(bash "$SCRIPT" source "$FIRST_ENUM_KEY")"
+bash "$SCRIPT" set "$FIRST_ENUM_KEY" "$FIRST_ENUM_ALT" > /dev/null
+assert_eq "source returns user when override exists" "user" "$(bash "$SCRIPT" source "$FIRST_ENUM_KEY")"
+bash "$SCRIPT" reset "$FIRST_ENUM_KEY"
+assert_eq "source returns default after reset" "default" "$(bash "$SCRIPT" source "$FIRST_ENUM_KEY")"
+check_fail "source unknown key fails" bash "$SCRIPT" source nonexistent_key
+check_fail "source with no key fails" bash "$SCRIPT" source
 teardown
 
 echo ""

@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEFAULTS_FILE="${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT not set — cannot locate defaults.json}/defaults.json"
-SETTINGS_FILE="${CLAUDE_PLUGIN_DATA:?CLAUDE_PLUGIN_DATA not set — cannot locate settings storage}/settings.json"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA:-$CLAUDE_PLUGIN_ROOT/data}"
+DEFAULTS_FILE="$CLAUDE_PLUGIN_ROOT/defaults.json"
+SETTINGS_FILE="$CLAUDE_PLUGIN_DATA/settings.json"
 
 if [[ ! -f "$DEFAULTS_FILE" ]]; then
   echo "ERROR: defaults.json not found at $DEFAULTS_FILE" >&2
@@ -27,6 +30,7 @@ usage() {
   echo "  get <key>         Get the current value of a setting" >&2
   echo "  set <key> <value> Set a setting to a new value" >&2
   echo "  reset [key]       Reset one or all settings to defaults" >&2
+  echo "  source <key>      Check if a setting has a user override (returns 'user' or 'default')" >&2
   exit 1
 }
 
@@ -126,6 +130,16 @@ cmd_reset() {
   fi
 }
 
+cmd_source() {
+  local key="${1:?source requires a key}"
+  validate_key "$key"
+  if echo "$SETTINGS" | jq -e --arg k "$key" 'has($k)' > /dev/null 2>&1; then
+    echo "user"
+  else
+    echo "default"
+  fi
+}
+
 cmd_list() {
   echo ""
   printf "%-25s %-20s %-20s %s\n" "KEY" "CURRENT" "DEFAULT" "DESCRIPTION"
@@ -149,9 +163,10 @@ if [[ $# -eq 0 ]]; then
 fi
 
 case "${1}" in
-  list)  cmd_list ;;
-  get)   shift; cmd_get "$@" ;;
-  set)   shift; cmd_set "$@" ;;
-  reset) shift; cmd_reset "$@" ;;
-  *)     usage ;;
+  list)   cmd_list ;;
+  get)    shift; cmd_get "$@" ;;
+  set)    shift; cmd_set "$@" ;;
+  reset)  shift; cmd_reset "$@" ;;
+  source) shift; cmd_source "$@" ;;
+  *)      usage ;;
 esac
