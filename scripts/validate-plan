@@ -183,18 +183,17 @@ do_schema() {
     ] | map(. + "\u0000") | join("")] | join("")')
   local _total_tasks=$(( ${#_ts[@]} / 12 ))
 
-  # --- Level 4b: Task arrays (depends_on, create, modify, test, criteria) as JSON-per-line (1 jq call) ---
-  local _task_arrays
-  _task_arrays=$(echo "$json" | jq -c '
-    [.phases // [] | to_entries[] | .key as $pi |
-     (.value.tasks // []) | to_entries[] | {
-      pi: $pi, ti: .key,
-      depends_on: (.value.depends_on // []),
-      create: (.value.files.create // []),
-      modify: (.value.files.modify // []),
-      test_files: (.value.files.test // []),
-      criteria: (.value.success_criteria // [])
-    }] | .[]')
+  # --- Level 4b: Task arrays as indexed JSON array (1 jq call) ---
+  local _task_arrays_all
+  _task_arrays_all=$(echo "$json" | jq -c '
+    [.phases // [] | to_entries[] |
+     (.value.tasks // []) | .[] | {
+      depends_on: (.depends_on // []),
+      create: (.files.create // []),
+      modify: (.files.modify // []),
+      test_files: (.files.test // []),
+      criteria: (.success_criteria // [])
+    }]')
 
   # --- Level 5: Bulk extract BFS dependency graph (1 jq call) ---
   local _dep_graph=()
@@ -282,7 +281,9 @@ do_schema() {
 
     # --- Validate tasks for this phase from pre-extracted scalars ---
     local _phase_task_ids=()
-    local _phase_task_names=()
+    local _global_task_idx=${_global_task_idx:-0}
+    local _phase_file_paths=()
+    local _phase_file_tids=()
     for ((ti=0; ti<_total_tasks; ti++)); do
       local tbase=$((ti * 12))
       local _tp="${_ts[$tbase]}"
@@ -334,67 +335,76 @@ do_schema() {
         [[ "$test_exists" != "true" ]] && err "ERROR: missing_field: phases[$p].tasks[$t].files.test"
       fi
 
-      # Task arrays (depends_on, create, criteria) — extract from pre-extracted JSON
-      local _tarr=""
-      while IFS= read -r _taline; do
-        [[ -z "$_taline" ]] && continue
-        local _tap _tat
-        _tap=$(echo "$_taline" | jq -r '.pi')
-        _tat=$(echo "$_taline" | jq -r '.ti')
-        if [[ "$_tap" == "$p" && "$_tat" == "$t" ]]; then
-          _tarr="$_taline"
-          break
-        fi
-      done <<< "$_task_arrays"
+      # Task arrays — direct index into pre-extracted JSON array (no scanning)
+      local _tarr
+      _tarr=$(echo "$_task_arrays_all" | jq -c ".[$ti]")
 
-      if [[ -n "$_tarr" ]]; then
-        local _task_deps
-        _task_deps=$(echo "$_tarr" | jq -r '.depends_on[]?')
-        while IFS= read -r dep_id; do
-          [[ -z "$dep_id" ]] && continue
-          local found=0
-          if [[ ${#all_task_ids[@]} -gt 0 ]]; then
-            for existing_id in "${all_task_ids[@]}"; do
-              if [[ "$existing_id" == "$dep_id" ]]; then
-                found=1
-                break
-              fi
-            done
-          fi
-          if [[ $found -eq 0 ]]; then
-            err "ERROR: invalid_dependency: task $id depends_on $dep_id which doesn't exist in same or prior phase"
-          fi
-        done <<< "$_task_deps"
-
-        local _create_paths
-        _create_paths=$(echo "$_tarr" | jq -r '.create[]?')
-        while IFS= read -r create_path; do
-          [[ -z "$create_path" ]] && continue
-          if [[ ${#all_create_paths[@]} -gt 0 ]]; then
-            for existing_path in "${all_create_paths[@]}"; do
-              if [[ "$existing_path" == "$create_path" ]]; then
-                err "ERROR: duplicate_create_path: $create_path appears in multiple tasks"
-              fi
-            done
-          fi
-          all_create_paths+=("$create_path")
-        done <<< "$_create_paths"
-
-        local _tcrit
-        _tcrit=$(echo "$_tarr" | jq -c '.criteria // []')
-        local task_criteria_count
-        task_criteria_count=$(echo "$_tcrit" | jq 'length')
-        if [[ "$task_criteria_count" -gt 0 ]]; then
-          local _tcv=()
-          mapfile -d '' _tcv < <(echo "$_tcrit" | jq -j '[.[] | [(.run // ""), (.expect_exit // "" | tostring), (.expect_output // "")]] | map(map(. + "\u0000") | join("")) | join("")')
-          for ((c=0; c<task_criteria_count; c++)); do
-            local cidx=$((c * 3))
-            local run="${_tcv[$cidx]}" expect_exit="${_tcv[$((cidx+1))]}" expect_output="${_tcv[$((cidx+2))]}"
-            [[ -z "$run" ]] && err "ERROR: empty_run: task $id success_criteria[$c]"
-            [[ -z "$expect_exit" && -z "$expect_output" ]] && err "ERROR: missing_expect: task $id success_criteria[$c] has neither expect_exit nor expect_output"
+      local _task_deps
+      _task_deps=$(echo "$_tarr" | jq -r '.depends_on[]?')
+      while IFS= read -r dep_id; do
+        [[ -z "$dep_id" ]] && continue
+        local found=0
+        if [[ ${#all_task_ids[@]} -gt 0 ]]; then
+          for existing_id in "${all_task_ids[@]}"; do
+            if [[ "$existing_id" == "$dep_id" ]]; then
+              found=1
+              break
+            fi
           done
         fi
+        if [[ $found -eq 0 ]]; then
+          err "ERROR: invalid_dependency: task $id depends_on $dep_id which doesn't exist in same or prior phase"
+        fi
+      done <<< "$_task_deps"
+
+      local _create_paths
+      _create_paths=$(echo "$_tarr" | jq -r '.create[]?')
+      while IFS= read -r create_path; do
+        [[ -z "$create_path" ]] && continue
+        if [[ ${#all_create_paths[@]} -gt 0 ]]; then
+          for existing_path in "${all_create_paths[@]}"; do
+            if [[ "$existing_path" == "$create_path" ]]; then
+              err "ERROR: duplicate_create_path: $create_path appears in multiple tasks"
+            fi
+          done
+        fi
+        all_create_paths+=("$create_path")
+      done <<< "$_create_paths"
+
+      local _tcrit
+      _tcrit=$(echo "$_tarr" | jq -c '.criteria // []')
+      local task_criteria_count
+      task_criteria_count=$(echo "$_tcrit" | jq 'length')
+      if [[ "$task_criteria_count" -gt 0 ]]; then
+        local _tcv=()
+        mapfile -d '' _tcv < <(echo "$_tcrit" | jq -j '[.[] | [(.run // ""), (.expect_exit // "" | tostring), (.expect_output // "")]] | map(map(. + "\u0000") | join("")) | join("")')
+        for ((c=0; c<task_criteria_count; c++)); do
+          local cidx=$((c * 3))
+          local run="${_tcv[$cidx]}" expect_exit="${_tcv[$((cidx+1))]}" expect_output="${_tcv[$((cidx+2))]}"
+          [[ -z "$run" ]] && err "ERROR: empty_run: task $id success_criteria[$c]"
+          [[ -z "$expect_exit" && -z "$expect_output" ]] && err "ERROR: missing_expect: task $id success_criteria[$c] has neither expect_exit nor expect_output"
+        done
       fi
+
+      # Fileset overlap — collect files during task validation (no second pass)
+      local _all_files
+      _all_files=$(echo "$_tarr" | jq -r '(.create[]?, .modify[]?, .test_files[]?)')
+      while IFS= read -r fpath; do
+        [[ -z "$fpath" ]] && continue
+        local existing_owner=""
+        for ((fi=0; fi<${#_phase_file_paths[@]}; fi++)); do
+          if [[ "${_phase_file_paths[$fi]}" == "$fpath" ]]; then
+            existing_owner="${_phase_file_tids[$fi]}"
+            break
+          fi
+        done
+        if [[ -n "$existing_owner" && "$existing_owner" != "$id" ]]; then
+          err "ERROR: fileset_overlap: file '$fpath' claimed by tasks $existing_owner and $id in phase $letter"
+        elif [[ -z "$existing_owner" ]]; then
+          _phase_file_paths+=("$fpath")
+          _phase_file_tids+=("$id")
+        fi
+      done <<< "$_all_files"
 
       local id_lower="${id,,}"
       local task_file="$plan_dir/$phase_dir/$id_lower.md"
@@ -431,51 +441,7 @@ do_schema() {
 
       all_task_ids+=("$id")
       _phase_task_ids+=("$id")
-      _phase_task_names+=("$task_name")
     done
-
-    # Fileset overlap check — find matching task arrays and check files
-    local phase_file_paths=()
-    local phase_file_tids=()
-    while IFS= read -r _taline; do
-      [[ -z "$_taline" ]] && continue
-      local _tap
-      _tap=$(echo "$_taline" | jq -r '.pi')
-      [[ "$_tap" != "$p" ]] && continue
-
-      local tid
-      tid=$(echo "$_taline" | jq -r '.depends_on | length | . as $x | empty // empty' 2>/dev/null || true)
-      tid=$(echo "$_taline" | jq -r 'empty' 2>/dev/null || true)
-      local _fti
-      _fti=$(echo "$_taline" | jq -r '.ti')
-      local _ftbase=$((_fti * 12 + p * 0))
-      for ((fti=0; fti<_total_tasks; fti++)); do
-        local ftbase=$((fti * 12))
-        if [[ "${_ts[$ftbase]}" == "$p" && "${_ts[$((ftbase+1))]}" == "$_fti" ]]; then
-          tid="${_ts[$((ftbase+2))]}"
-          break
-        fi
-      done
-
-      local _all_files
-      _all_files=$(echo "$_taline" | jq -r '(.create[]?, .modify[]?, .test_files[]?)')
-      while IFS= read -r fpath; do
-        [[ -z "$fpath" ]] && continue
-        local existing_owner=""
-        for ((i=0; i<${#phase_file_paths[@]}; i++)); do
-          if [[ "${phase_file_paths[$i]}" == "$fpath" ]]; then
-            existing_owner="${phase_file_tids[$i]}"
-            break
-          fi
-        done
-        if [[ -n "$existing_owner" && "$existing_owner" != "$tid" ]]; then
-          err "ERROR: fileset_overlap: file '$fpath' claimed by tasks $existing_owner and $tid in phase $letter"
-        elif [[ -z "$existing_owner" ]]; then
-          phase_file_paths+=("$fpath")
-          phase_file_tids+=("$tid")
-        fi
-      done <<< "$_all_files"
-    done <<< "$_task_arrays"
 
     # Orphan file check using pre-extracted task IDs
     local phase_full_dir="$plan_dir/$phase_dir"
