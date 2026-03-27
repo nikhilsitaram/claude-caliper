@@ -33,7 +33,7 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
 echo "Test 1: Sentinel exists returns allow+setMode JSON and consumes sentinel"
-SENTINEL_DIR1="$TMPDIR/docs/plans/2026-03-20-topic"
+SENTINEL_DIR1="$TMPDIR/.claude/claude-caliper/2026-03-20-topic"
 mkdir -p "$SENTINEL_DIR1"
 touch "$SENTINEL_DIR1/.design-approved"
 INPUT1=$(jq -n --arg cwd "$TMPDIR" '{cwd: $cwd}')
@@ -52,7 +52,7 @@ OUTPUT2=$(echo "$INPUT2" | bash "$HOOK" 2>/dev/null)
 assert_output_empty "missing sentinel produces no output" "$OUTPUT2"
 
 echo "Test 3: Worktree search path finds sentinel and consumes it"
-WORKTREE_SENTINEL="$TMPDIR/.claude/worktrees/my-branch/docs/plans/2026-03-20-topic"
+WORKTREE_SENTINEL="$TMPDIR/.claude/worktrees/my-branch/.claude/claude-caliper/2026-03-20-topic"
 mkdir -p "$WORKTREE_SENTINEL"
 touch "$WORKTREE_SENTINEL/.design-approved"
 INPUT3=$(jq -n --arg cwd "$TMPDIR" '{cwd: $cwd}')
@@ -70,6 +70,18 @@ echo "Test 4: Empty cwd produces no output"
 INPUT4=$(jq -n '{cwd: ""}')
 OUTPUT4=$(echo "$INPUT4" | bash "$HOOK" 2>/dev/null)
 assert_output_empty "empty cwd produces no output" "$OUTPUT4"
+
+echo "Test 5: Auto-approve for .claude/claude-caliper/ file paths"
+INPUT5=$(jq -n --arg cwd "$TMPDIR" '{cwd: $cwd, tool_input: {file_path: "/some/project/.claude/claude-caliper/2026-03-20-topic/plan.md"}}')
+OUTPUT5=$(echo "$INPUT5" | bash "$HOOK" 2>/dev/null)
+assert_output_contains "auto-approve allows .claude/claude-caliper/ path" "$OUTPUT5" '"behavior": "allow"'
+if echo "$OUTPUT5" | grep -qF '"updatedPermissions"'; then
+  echo "FAIL: auto-approve should not include updatedPermissions"
+  ((FAIL++)) || true
+else
+  echo "PASS: auto-approve does not include updatedPermissions"
+  ((PASS++)) || true
+fi
 
 echo ""
 echo "$PASS passed, $FAIL failed"
