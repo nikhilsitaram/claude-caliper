@@ -49,7 +49,7 @@
         {
           "id": "A3",
           "name": "Write test suite for caliper-settings script",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [
             "A2"
           ],
@@ -66,7 +66,7 @@
         {
           "id": "A4",
           "name": "Create caliper-settings skill SKILL.md",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [
             "A2"
           ],
@@ -83,7 +83,7 @@
         {
           "id": "A5",
           "name": "Integrate skip_tests into pr-create",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [
             "A2"
           ],
@@ -100,7 +100,7 @@
         {
           "id": "A6",
           "name": "Integrate review_mode, skip_review, and review_wait_minutes into pr-review",
-          "status": "pending",
+          "status": "in_progress",
           "depends_on": [
             "A2"
           ],
@@ -117,7 +117,7 @@
         {
           "id": "A7",
           "name": "Integrate merge_strategy into pr-merge",
-          "status": "pending",
+          "status": "in_progress",
           "depends_on": [
             "A2"
           ],
