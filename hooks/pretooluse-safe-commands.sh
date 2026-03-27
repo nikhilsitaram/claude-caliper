@@ -249,7 +249,6 @@ for seg in "${segments[@]+"${segments[@]}"}"; do
         printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Do not use %s -c. Run the actual command directly."}}\n' "$_first_word"
         exit 0
       elif [[ "$_token" == -* && "$_token" != "--" ]]; then
-        # If compound flag ends with 'o' (e.g. -euo), next token is -o's argument (e.g. pipefail)
         _skip_next=0
         if [[ "$_token" =~ o$ ]]; then _skip_next=1; fi
         _rest="${_rest#"$_token"}"
