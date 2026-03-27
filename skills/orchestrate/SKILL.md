@@ -28,6 +28,7 @@ TaskCreate per phase: "Execute tasks ({N})", "Implementation review", "Create PR
 Before first phase:
 - Read workflow: `WORKFLOW=$(jq -r '.workflow' plan.json)`
 - Read execution mode: `EXEC_MODE=$(jq -r '.execution_mode' plan.json)`
+Note: `workflow` and `execution_mode` are read from plan.json (set by the design skill based on user selection and caliper-settings defaults), not from caliper-settings at runtime. This avoids two sources of truth — the plan is the single source once created.
 - Count phases: `PHASE_COUNT=$(jq '.phases | length' plan.json)`
 - Validate schema: `scripts/validate-plan --schema plan.json`
 - Validate entry gate: `scripts/validate-plan --check-entry plan.json --stage execution`
@@ -74,13 +75,15 @@ After all tasks complete and branches merged:
 
 ## Review Loop Protocol
 
+Read the re-review threshold: `RE_REVIEW_THRESHOLD=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get re_review_threshold)` (default: 5).
+
 After each impl-review dispatch:
 
 1. Extract last `json review-summary` fenced block from response. Missing/malformed -> verdict:fail, re-dispatch.
 2. Triage issues: "fix" (dispatch implementer) or "dismiss" (with reasoning)
 3. actionable == 0 -> write reviews.json record with verdict:pass, advance
-4. actionable 1-5 -> fix all, verify, write record verdict:pass, advance
-5. actionable > 5 -> fix all, write record verdict:fail, re-dispatch (max 3 iterations, then escalate via AskUserQuestion)
+4. actionable 1-$RE_REVIEW_THRESHOLD -> fix all, verify, write record verdict:pass, advance
+5. actionable > $RE_REVIEW_THRESHOLD -> fix all, write record verdict:fail, re-dispatch (max 3 iterations, then escalate via AskUserQuestion)
 
 Append record to `{PLAN_DIR}/reviews.json`:
 `{"type":"impl-review","scope":"{SCOPE}","iteration":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass|fail","timestamp":"ISO8601"}`
@@ -97,7 +100,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 6. Re-validate consistency: `scripts/validate-plan --consistency plan.json`
 7. Route on workflow:
    - `"pr-create"`: invoke pr-create (targets main), `scripts/validate-plan --check-workflow plan.json`, stop
-   - `"pr-merge"`: invoke pr-create, poll checks + pr-review --automated (skip if `review_wait_minutes` is 0; if skipped, invoke pr-merge directly), `scripts/validate-plan --check-workflow plan.json`
+   - `"pr-merge"`: invoke pr-create, read `REVIEW_WAIT=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get review_wait_minutes)`, poll checks + pr-review --automated (skip if $REVIEW_WAIT is 0; if skipped, invoke pr-merge directly), `scripts/validate-plan --check-workflow plan.json`
 
 ## After All Phases (Multi-Phase Only)
 
