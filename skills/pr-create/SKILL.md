@@ -51,7 +51,7 @@ Check if changes require updates to README.md, CLAUDE.md, or docs/. Make updates
 
 Auto-detect the project's test runner and run tests. If tests fail, stop and help fix. If no tests found, note and continue.
 
-Skip with `--skip-tests` or `-T`.
+Skip with `--skip-tests` or `-T`. If neither flag was passed, check `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get skip_tests` — if it returns `true`, skip tests.
 
 ### Step 5: Stage and Commit
 
