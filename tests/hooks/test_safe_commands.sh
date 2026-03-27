@@ -76,7 +76,7 @@ run_hook() {
     tool_input: { command: $cmd },
     session_id: "test-session"
   }')
-  echo "$json" | CLAUDE_SAFE_COMMANDS_FILE="$safe_file" CLAUDE_SAFE_CMDS_LOG="$log_file" bash "$HOOK" 2>/dev/null || true
+  echo "$json" | CLAUDE_SAFE_COMMANDS_FILE="$safe_file" CLAUDE_SAFE_CMDS_LOG="$log_file" "$HOOK" 2>/dev/null || true
 }
 
 run_hook_override() {
@@ -95,7 +95,7 @@ run_hook_override() {
   local orig_safe="$hook_dir/safe-commands.txt"
   cp "$orig_safe" "$TMPDIR_TEST/orig-safe-commands.txt.bak" 2>/dev/null || true
   cp "$bundled_file" "$orig_safe"
-  echo "$json" | CLAUDE_SAFE_COMMANDS_FILE="$user_file" CLAUDE_SAFE_CMDS_LOG="$log_file" bash "$HOOK" 2>/dev/null || true
+  echo "$json" | CLAUDE_SAFE_COMMANDS_FILE="$user_file" CLAUDE_SAFE_CMDS_LOG="$log_file" "$HOOK" 2>/dev/null || true
   cp "$TMPDIR_TEST/orig-safe-commands.txt.bak" "$orig_safe" 2>/dev/null || true
 }
 
@@ -298,33 +298,34 @@ cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE26"
 OUT26=$(run_hook "command -v uv" "$SAFE26" "$LOG26")
 assert_output_contains "command builtin returns allow" "$OUT26" "allow"
 
-echo "Test 27: bash scripts/validate-plan resolves to validate-plan (safe)"
+echo "Test 27: bash scripts/validate-plan denied with guidance"
 SAFE27="$TMPDIR_TEST/safe27.txt"
 LOG27="$TMPDIR_TEST/log27.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE27"
 OUT27=$(run_hook "bash scripts/validate-plan --schema plan.json" "$SAFE27" "$LOG27")
-assert_output_contains "bash + safe script resolves and allows" "$OUT27" "allow"
+assert_output_contains_deny_with_reason "bash + script denied with invoke-directly message" "$OUT27" "Do not use"
 
-echo "Test 28: bash -e scripts/validate-plan skips flags, resolves script"
+echo "Test 28: bash -e scripts/validate-plan denied with guidance"
 SAFE28="$TMPDIR_TEST/safe28.txt"
 LOG28="$TMPDIR_TEST/log28.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE28"
 OUT28=$(run_hook "bash -e scripts/validate-plan --schema plan.json" "$SAFE28" "$LOG28")
-assert_output_contains "bash -e + safe script resolves and allows" "$OUT28" "allow"
+assert_output_contains_deny_with_reason "bash -e + script denied with invoke-directly message" "$OUT28" "Do not use"
 
-echo "Test 29: bash -euo pipefail is a known limitation (resolves to pipefail, not script)"
+echo "Test 29: bash -euo pipefail denied with guidance"
 SAFE29="$TMPDIR_TEST/safe29.txt"
 LOG29="$TMPDIR_TEST/log29.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE29"
 OUT29=$(run_hook "bash -euo pipefail scripts/validate-plan" "$SAFE29" "$LOG29")
-assert_output_empty "bash -euo pipefail correctly not allowed (known limitation)" "$OUT29"
+assert_output_contains_deny_with_reason "bash -euo pipefail denied" "$OUT29" "Do not use"
 
-echo "Test 30: bash with variable script arg triggers deny"
+echo "Test 30: bash with variable script arg denied with guidance"
 SAFE30="$TMPDIR_TEST/safe30.txt"
 LOG30="$TMPDIR_TEST/log30.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE30"
+# shellcheck disable=SC2016
 OUT30=$(run_hook 'bash "$SCRIPT_PATH"' "$SAFE30" "$LOG30")
-assert_output_contains_deny_with_reason "bash + variable script denied with reason" "$OUT30" "shell variable"
+assert_output_contains_deny_with_reason "bash + variable script denied" "$OUT30" "Do not use"
 
 echo "Test 31: bare bash (no script) falls through"
 SAFE31="$TMPDIR_TEST/safe31.txt"
@@ -333,25 +334,25 @@ cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE31"
 OUT31=$(run_hook "bash" "$SAFE31" "$LOG31")
 assert_output_empty "bare bash not allowed" "$OUT31"
 
-echo "Test 32: sh scripts/validate-plan resolves like bash"
+echo "Test 32: sh scripts/validate-plan denied with guidance"
 SAFE32="$TMPDIR_TEST/safe32.txt"
 LOG32="$TMPDIR_TEST/log32.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE32"
 OUT32=$(run_hook "sh scripts/validate-plan --schema plan.json" "$SAFE32" "$LOG32")
-assert_output_contains "sh + safe script resolves and allows" "$OUT32" "allow"
+assert_output_contains_deny_with_reason "sh + script denied with invoke-directly message" "$OUT32" "Do not use"
 
-echo "Test 33: bash tests/hooks/test_safe_commands.sh resolves basename"
+echo "Test 33: bash tests/hooks/test_safe_commands.sh denied with guidance"
 SAFE33="$TMPDIR_TEST/safe33.txt"
 LOG33="$TMPDIR_TEST/log33.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE33"
-printf 'test_safe_commands.sh\n' >> "$SAFE33"
 OUT33=$(run_hook "bash tests/hooks/test_safe_commands.sh" "$SAFE33" "$LOG33")
-assert_output_contains "bash + test script with path resolves basename" "$OUT33" "allow"
+assert_output_contains_deny_with_reason "bash + script denied with invoke-directly message" "$OUT33" "Do not use"
 
 echo "Test 34: \$VAR as command word triggers deny with feedback"
 SAFE34="$TMPDIR_TEST/safe34.txt"
 LOG34="$TMPDIR_TEST/log34.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE34"
+# shellcheck disable=SC2016
 OUT34=$(run_hook '$VALIDATE --help' "$SAFE34" "$LOG34")
 assert_output_contains_deny_with_reason "\$VAR command denied with reason" "$OUT34" "shell variable"
 
@@ -359,6 +360,7 @@ echo "Test 35: \"\$VAR\" (quoted) as command word triggers deny with feedback"
 SAFE35="$TMPDIR_TEST/safe35.txt"
 LOG35="$TMPDIR_TEST/log35.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE35"
+# shellcheck disable=SC2016
 OUT35=$(run_hook '"$VALIDATE" --help' "$SAFE35" "$LOG35")
 assert_output_contains_deny_with_reason "quoted \$VAR command denied with reason" "$OUT35" "shell variable"
 
@@ -366,6 +368,7 @@ echo "Test 36: \${VAR} as command word triggers deny with feedback"
 SAFE36="$TMPDIR_TEST/safe36.txt"
 LOG36="$TMPDIR_TEST/log36.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE36"
+# shellcheck disable=SC2016
 OUT36=$(run_hook '${VALIDATE} --help' "$SAFE36" "$LOG36")
 assert_output_contains_deny_with_reason "\${VAR} command denied with reason" "$OUT36" "shell variable"
 
@@ -373,22 +376,23 @@ echo "Test 37: safe command + \$VAR compound still triggers deny"
 SAFE37="$TMPDIR_TEST/safe37.txt"
 LOG37="$TMPDIR_TEST/log37.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE37"
+# shellcheck disable=SC2016
 OUT37=$(run_hook 'git status && $DEPLOY' "$SAFE37" "$LOG37")
 assert_output_contains_deny_with_reason "safe + \$VAR compound denied" "$OUT37" "shell variable"
 
-echo "Test 38: bash -c 'command string' denies (not treated as script path)"
+echo "Test 38: bash -c 'command string' denied with guidance"
 SAFE38="$TMPDIR_TEST/safe38.txt"
 LOG38="$TMPDIR_TEST/log38.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE38"
 OUT38=$(run_hook "bash -c 'command -v foo'" "$SAFE38" "$LOG38")
-assert_output_empty "bash -c correctly denied" "$OUT38"
+assert_output_contains_deny_with_reason "bash -c denied with guidance" "$OUT38" "Do not use"
 
-echo "Test 39: bash -- scripts/validate-plan resolves after end-of-flags"
+echo "Test 39: bash -- scripts/validate-plan denied with guidance"
 SAFE39="$TMPDIR_TEST/safe39.txt"
 LOG39="$TMPDIR_TEST/log39.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE39"
 OUT39=$(run_hook "bash -- scripts/validate-plan --schema plan.json" "$SAFE39" "$LOG39")
-assert_output_contains "bash -- + safe script resolves and allows" "$OUT39" "allow"
+assert_output_contains_deny_with_reason "bash -- + script denied with invoke-directly message" "$OUT39" "Do not use"
 
 echo ""
 echo "$PASS passed, $FAIL failed"

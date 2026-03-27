@@ -49,6 +49,10 @@ docs/reviews/     — Codebase review reports
 
 Bash test scripts live in `tests/`. Run with `bash tests/<dir>/<script>.sh`. Skill-eval is available for dedicated skill refactors — see Skill Testing above.
 
+## Scripts
+
+All shell scripts (`scripts/*`, `tests/**/*.sh`) must have a `#!/usr/bin/env bash` shebang and the executable bit set (`chmod +x`). Agent teammates can't auto-approve `bash <script>` because `bash` is excluded from safe-commands — but `./script` resolves to the script's own path, which the hook can approve.
+
 ## Development Workflow
 
 This repo uses its own skills. The typical flow: design -> worktree -> draft-plan -> orchestrate -> pr-create -> pr-review -> pr-merge.

@@ -234,6 +234,41 @@ is_safe() {
 extract_segments "$cmd"
 segments=("${SEGMENTS[@]+"${SEGMENTS[@]}"}")
 
+# Pre-check: deny bash/sh/zsh used as script runners or with -c
+for seg in "${segments[@]+"${segments[@]}"}"; do
+  _trimmed="${seg#"${seg%%[![:space:]]*}"}"
+  _first_word="${_trimmed%% *}"
+  _first_word="${_first_word##*/}"
+  if [[ "$_first_word" == "bash" || "$_first_word" == "sh" || "$_first_word" == "zsh" ]]; then
+    if [[ "$_trimmed" == "$_first_word" ]]; then continue; fi
+    _rest="${_trimmed#"${_trimmed%% *}" }"
+    _rest="${_rest#"${_rest%%[![:space:]]*}"}"
+    while [[ -n "$_rest" ]]; do
+      _token="${_rest%% *}"
+      if [[ "$_token" == "-c" ]]; then
+        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Do not use %s -c. Run the actual command directly."}}\n' "$_first_word"
+        exit 0
+      elif [[ "$_token" == -* && "$_token" != "--" ]]; then
+        _rest="${_rest#"$_token"}"
+        _rest="${_rest#"${_rest%%[![:space:]]*}"}"
+        continue
+      elif [[ "$_token" == "--" ]]; then
+        _rest="${_rest#"$_token"}"
+        _rest="${_rest#"${_rest%%[![:space:]]*}"}"
+        if [[ -n "$_rest" ]]; then
+          _script="${_rest%% *}"
+          printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Do not use %s to run scripts. Ensure the script has a shebang (#!/usr/bin/env bash) and executable bit (chmod +x), then invoke it directly: ./%s"}}\n' "$_first_word" "$_script"
+          exit 0
+        fi
+        break
+      else
+        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Do not use %s to run scripts. Ensure the script has a shebang (#!/usr/bin/env bash) and executable bit (chmod +x), then invoke it directly: ./%s"}}\n' "$_first_word" "$_token"
+        exit 0
+      fi
+    done
+  fi
+done
+
 count=0
 all_safe=1
 variable_as_command=0
