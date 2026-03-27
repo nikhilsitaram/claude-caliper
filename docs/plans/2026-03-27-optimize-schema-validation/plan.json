@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Not Yet Started",
+  "status": "Complete",
   "workflow": "pr-create",
   "execution_mode": "subagents",
   "goal": "Optimize validate-plan schema validation by batching jq calls",
@@ -120,18 +120,20 @@
     {
       "letter": "A",
       "name": "Batch jq calls in do_schema and do_consistency",
-      "status": "Not Started",
+      "status": "Complete (2026-03-27)",
       "depends_on": [],
       "rationale": "Single phase because the three tasks are independent: A1 refactors do_schema, A2 refactors do_consistency, A3 runs the full benchmark. A1 and A2 modify disjoint line ranges of the same file, but since both modify scripts/validate-plan, A2 depends on A1 to avoid merge conflicts.",
       "tasks": [
         {
           "id": "A1",
           "name": "Batch jq calls in do_schema()",
-          "status": "pending",
+          "status": "complete",
           "depends_on": [],
           "files": {
             "create": [],
-            "modify": ["scripts/validate-plan"],
+            "modify": [
+              "scripts/validate-plan"
+            ],
             "test": []
           },
           "verification": "./tests/validate-plan/test_schema.sh && ./tests/validate-plan/test_fileset_overlap.sh && ./tests/validate-plan/test_structural_ordering.sh && ./tests/validate-plan/test_execution_mode.sh && ./tests/validate-plan/test_integration_branch.sh && ./tests/validate-plan/test_supervision_schema.sh && ./tests/validate-plan/test_status_consistency.sh",
@@ -184,8 +186,10 @@
         {
           "id": "A2",
           "name": "Batch jq calls in do_consistency()",
-          "status": "pending",
-          "depends_on": ["A1"],
+          "status": "complete",
+          "depends_on": [
+            "A1"
+          ],
           "files": {
             "create": [],
             "modify": [],
@@ -211,8 +215,11 @@
         {
           "id": "A3",
           "name": "Run full test suite and benchmark",
-          "status": "pending",
-          "depends_on": ["A1", "A2"],
+          "status": "complete",
+          "depends_on": [
+            "A1",
+            "A2"
+          ],
           "files": {
             "create": [],
             "modify": [],
