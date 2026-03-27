@@ -312,12 +312,12 @@ cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE28"
 OUT28=$(run_hook "bash -e scripts/validate-plan --schema plan.json" "$SAFE28" "$LOG28")
 assert_output_contains_deny_with_reason "bash -e + script denied with invoke-directly message" "$OUT28" "Do not use"
 
-echo "Test 29: bash -euo pipefail denied with guidance"
+echo "Test 29: bash -euo pipefail denied with correct script name"
 SAFE29="$TMPDIR_TEST/safe29.txt"
 LOG29="$TMPDIR_TEST/log29.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE29"
 OUT29=$(run_hook "bash -euo pipefail scripts/validate-plan" "$SAFE29" "$LOG29")
-assert_output_contains_deny_with_reason "bash -euo pipefail denied" "$OUT29" "Do not use"
+assert_output_contains_deny_with_reason "bash -euo pipefail denied with correct script" "$OUT29" "scripts/validate-plan"
 
 echo "Test 30: bash with variable script arg denied with guidance"
 SAFE30="$TMPDIR_TEST/safe30.txt"
