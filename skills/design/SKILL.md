@@ -33,7 +33,7 @@ Complete in order:
 
     **Q1 — Workflow** (header: "Workflow"):
     Run `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings source workflow`.
-    - If `"user"`: skip this question. Get the value with `caliper-settings get workflow` and message: "Using your configured workflow: <value>".
+    - If `"user"`: skip this question. Get the value with `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get workflow` and message: "Using your configured workflow: <value>".
     - If `"default"`: include in AskUserQuestion with recommended option marked "(Recommended)":
       - **Create PR** — Orchestrate → pr-create (Recommended)
       - **Merge PR** — Orchestrate → pr-create → pr-review → pr-merge
@@ -41,7 +41,7 @@ Complete in order:
 
     **Q2 — Execution mode** (header: "Exec mode"):
     Run `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings source execution_mode`.
-    - If `"user"`: skip this question. Get the value with `caliper-settings get execution_mode` and message: "Using your configured execution mode: <value>".
+    - If `"user"`: skip this question. Get the value with `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get execution_mode` and message: "Using your configured execution mode: <value>".
     - If `"default"`: include in AskUserQuestion. Recommend based on design complexity:
       - ≤10 tasks AND single phase → recommend `Subagents`
       - >10 tasks OR multi-phase → recommend `Agent teams`

@@ -224,7 +224,9 @@ prefix_list=()
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
   if [[ "$line" == *'*' ]]; then
-    prefix_list+=("${line%\*}")
+    prefix="${line%\*}"
+    [[ -z "$prefix" ]] && continue
+    prefix_list+=("$prefix")
   else
     exact_list+=("$line")
   fi
