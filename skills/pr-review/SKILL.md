@@ -30,6 +30,8 @@ If not on the PR branch: look up `WORKTREE_PATH` first — if the branch is in a
 
 If `--automated`/`-A` flag was passed, use automated mode (skip prompt). If both `--automated` and `--skip-fixes` are passed, fail fast — these flags are mutually exclusive.
 
+If no mode flag was passed, check `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get review_mode`. If it returns `automated`, use automated mode (skip prompt). If `deliberate` (or any other value), proceed to the prompt below.
+
 Otherwise, AskUserQuestion:
 - **Automated** — Fix all actionable findings without interaction. External feedback processed first, then subagent findings.
 - **Deliberate** — Collect all feedback, present unified triage, choose what to fix.
@@ -54,7 +56,7 @@ After a force-push, existing bot review comments become outdated. Step 5 should 
 
 ### Step 4: Dispatch Subagent in Background
 
-Skip if `--skip-review` was passed.
+Skip if `--skip-review` was passed. If `--skip-review` was not passed, check `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get skip_review` — if it returns `true`, skip this step.
 
 Read `reviewer-prompt.md` (same directory as SKILL.md) and dispatch a fresh-eyes reviewer subagent with `run_in_background: true`:
 - `{DIFF_RANGE}` = `origin/$BASE_BRANCH..HEAD`
@@ -73,7 +75,7 @@ The subagent posts its findings as a `gh pr comment` on the PR, then returns fin
 3. Scan latest PR comments for "processing" / "in progress" indicators from bots.
 4. **Ready when:** all checks complete AND no processing indicators found.
 5. **CodeRabbit rate limit:** if a rate-limit warning is detected in bot comments, treat as ready — proceed with available feedback.
-6. **Timeout:** 10 minutes max. Proceed with available feedback.
+6. **Timeout:** `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get review_wait_minutes` minutes max (default: 10). Proceed with available feedback.
 
 **Collect feedback:** Fetch PR conversation comments, inline review comments, and review status via `gh`. Categorize each item:
 
