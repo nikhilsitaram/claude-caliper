@@ -15,7 +15,7 @@ Reduce jq subprocess forks in `do_schema()` and `do_consistency()` from ~100 to 
 ## Success Criteria
 
 - `test_schema.sh` completes in under 3 seconds (down from 10.5s)
-- All 19 existing test files pass with zero modifications
+- All 18 existing test files pass with zero modifications
 - No changes to error strings, exit codes, or CLI interface
 - `validate-plan --schema` behaves identically for all callers (orchestrate, plan-review, draft-plan, design)
 
@@ -35,10 +35,9 @@ One jq call outputs one JSON line per phase containing: letter, name, status, ra
 One jq call outputs one JSON line per task containing: phase letter, id, name, status, verification, done_when, files object, depends_on array, success_criteria. Bash iterates and validates.
 
 **Level 4 — Dependency graph (1 jq call, replaces ~4 × N_phases):**
-Extract the full phase dependency adjacency list as a single JSON object. Bash performs BFS cycle detection on the extracted graph without further jq calls.
+Extract the full phase dependency adjacency list as a single JSON object. This covers the BFS cycle detection section (lines 426-454) which currently calls jq per BFS node visit and per dependency edge. Bash performs BFS on the extracted graph without further jq calls.
 
-**Level 5 — Fileset overlap detection (covered by Level 3):**
-Task file lists are already extracted in Level 3. Bash builds associative arrays for duplicate path detection without additional jq calls.
+**Orphan file check and fileset overlap** are covered by Level 3 — task IDs and file lists are already extracted. Bash builds associative arrays for duplicate path and orphan detection without additional jq calls. The `tr '[:upper:]' '[:lower:]'` calls for case conversion should also use bash `${var,,}` to eliminate subprocess forks.
 
 ### What stays in bash
 
@@ -62,6 +61,8 @@ Same batching pattern. One jq call extracts all plan/phase/task statuses and dep
 
 4. **No changes to other functions** — Only `do_schema()` and `do_consistency()` are refactored. `do_criteria`, `do_render`, `do_update_status`, and check functions have few jq calls and are not bottlenecks.
 
+6. **Pass loaded JSON between functions** — `do_schema()` chains to `do_consistency()`, which currently re-reads plan.json from disk. Pass the already-loaded `$json` variable to eliminate redundant file I/O.
+
 5. **No test modifications** — The optimization is internal to validate-plan. If tests need changes, the refactor has a bug.
 
 ## Non-Goals
@@ -79,4 +80,4 @@ Single phase, 3 tasks:
 
 2. **Refactor `do_consistency()`** — Replace ~20 individual jq calls with 1-2 bulk extractions. Same pattern as do_schema.
 
-3. **Benchmark and validate** — Run all 19 test files, confirm zero failures. Benchmark `test_schema.sh` and full suite, confirm speedup targets met.
+3. **Benchmark and validate** — Run all 18 test files, confirm zero failures. Benchmark `test_schema.sh` and full suite, confirm speedup targets met.
