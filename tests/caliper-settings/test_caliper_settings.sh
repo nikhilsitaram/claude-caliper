@@ -52,25 +52,23 @@ assert_contains() {
   fi
 }
 
-NUM_SETTINGS=$(jq 'keys | length' "$DEFAULTS_FILE")
 ALL_KEYS=$(jq -r 'keys[]' "$DEFAULTS_FILE")
 FIRST_BOOL_KEY=$(jq -r 'to_entries[] | select(.value.type == "bool") | .key' "$DEFAULTS_FILE" | head -1)
 FIRST_BOOL_DEFAULT=$(jq -r --arg k "$FIRST_BOOL_KEY" '.[$k].default' "$DEFAULTS_FILE")
 FIRST_ENUM_KEY=$(jq -r 'to_entries[] | select(.value.type == "enum") | .key' "$DEFAULTS_FILE" | head -1)
 FIRST_ENUM_DEFAULT=$(jq -r --arg k "$FIRST_ENUM_KEY" '.[$k].default' "$DEFAULTS_FILE")
-FIRST_ENUM_VALUES=$(jq -r --arg k "$FIRST_ENUM_KEY" '.[$k].values | join(", ")' "$DEFAULTS_FILE")
 FIRST_ENUM_ALT=$(jq -r --arg k "$FIRST_ENUM_KEY" '.[$k].values[1]' "$DEFAULTS_FILE")
 FIRST_INT_KEY=$(jq -r 'to_entries[] | select(.value.type == "int") | .key' "$DEFAULTS_FILE" | head -1)
 FIRST_INT_DEFAULT=$(jq -r --arg k "$FIRST_INT_KEY" '.[$k].default' "$DEFAULTS_FILE")
 
 setup() {
-  TMPDIR=$(mktemp -d)
+  TEST_DIR=$(mktemp -d)
   export CLAUDE_PLUGIN_ROOT="$REPO_ROOT"
-  export CLAUDE_PLUGIN_DATA="$TMPDIR"
+  export CLAUDE_PLUGIN_DATA="$TEST_DIR"
 }
 
 teardown() {
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_DIR"
 }
 
 echo "=== Environment validation ==="
@@ -134,8 +132,8 @@ echo "=== set ==="
 setup
 check "set bool to true" bash "$SCRIPT" set "$FIRST_BOOL_KEY" true
 assert_eq "get bool after set" "true" "$(bash "$SCRIPT" get "$FIRST_BOOL_KEY")"
-check "settings.json created" test -f "$TMPDIR/settings.json"
-stored=$(jq -r --arg k "$FIRST_BOOL_KEY" '.[$k]' "$TMPDIR/settings.json")
+check "settings.json created" test -f "$TEST_DIR/settings.json"
+stored=$(jq -r --arg k "$FIRST_BOOL_KEY" '.[$k]' "$TEST_DIR/settings.json")
 assert_eq "bool stored as JSON boolean" "true" "$stored"
 
 check "set enum" bash "$SCRIPT" set "$FIRST_ENUM_KEY" "$FIRST_ENUM_ALT"
@@ -143,10 +141,10 @@ assert_eq "get enum after set" "$FIRST_ENUM_ALT" "$(bash "$SCRIPT" get "$FIRST_E
 
 check "set int" bash "$SCRIPT" set "$FIRST_INT_KEY" 42
 assert_eq "get int after set" "42" "$(bash "$SCRIPT" get "$FIRST_INT_KEY")"
-stored_int=$(jq --arg k "$FIRST_INT_KEY" '.[$k]' "$TMPDIR/settings.json")
+stored_int=$(jq --arg k "$FIRST_INT_KEY" '.[$k]' "$TEST_DIR/settings.json")
 assert_eq "int stored as JSON number" "42" "$stored_int"
 
-prev_bool=$(jq -r --arg k "$FIRST_BOOL_KEY" '.[$k]' "$TMPDIR/settings.json")
+prev_bool=$(jq -r --arg k "$FIRST_BOOL_KEY" '.[$k]' "$TEST_DIR/settings.json")
 assert_eq "set int preserves existing bool override" "true" "$prev_bool"
 teardown
 
@@ -201,10 +199,22 @@ echo ""
 echo "=== corrupted settings.json ==="
 
 setup
-echo "NOT JSON" > "$TMPDIR/settings.json"
+echo "NOT JSON" > "$TEST_DIR/settings.json"
 output=$(bash "$SCRIPT" list 2>&1)
 assert_contains "warns about invalid JSON" "$output" "invalid JSON"
 assert_contains "still shows defaults" "$output" "$FIRST_BOOL_KEY"
+teardown
+
+setup
+echo "NOT JSON" > "$TEST_DIR/settings.json"
+check "reset key succeeds with corrupt JSON" bash "$SCRIPT" reset "$FIRST_BOOL_KEY"
+check "reset all succeeds with corrupt JSON" bash "$SCRIPT" reset
+teardown
+
+setup
+echo "NOT JSON" > "$TEST_DIR/settings.json"
+check "set succeeds with corrupt JSON" bash "$SCRIPT" set "$FIRST_BOOL_KEY" true
+assert_eq "get after set with corrupt JSON" "true" "$(bash "$SCRIPT" get "$FIRST_BOOL_KEY")"
 teardown
 
 echo ""

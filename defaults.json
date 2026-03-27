@@ -50,5 +50,11 @@
     "default": 5,
     "description": "Issue count above which reviewer is re-dispatched after fixes",
     "used_by": ["design", "orchestrate", "design-review", "plan-review", "implementation-review"]
+  },
+  "bot_poll_timeout_minutes": {
+    "type": "int",
+    "default": 10,
+    "description": "Maximum minutes to wait for external bot reviews before proceeding",
+    "used_by": ["pr-review"]
   }
 }

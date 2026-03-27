@@ -43,7 +43,6 @@ validate_key() {
 cmd_get() {
   local key="${1:?get requires a key}"
   validate_key "$key"
-  local user_val
   if echo "$SETTINGS" | jq -e --arg k "$key" 'has($k)' > /dev/null 2>&1; then
     echo "$SETTINGS" | jq -r --arg k "$key" '.[$k] | tostring'
   else
@@ -79,21 +78,32 @@ cmd_set() {
         exit 1
       fi
       ;;
+    *)
+      echo "ERROR: unknown type '$type' for setting '$key'" >&2
+      exit 1
+      ;;
   esac
 
   mkdir -p "$(dirname "$SETTINGS_FILE")"
 
   local existing="{}"
   if [[ -f "$SETTINGS_FILE" ]]; then
-    existing=$(jq '.' "$SETTINGS_FILE" 2>/dev/null || echo "{}")
+    existing=$(jq 'if type == "object" then . else {} end' "$SETTINGS_FILE" 2>/dev/null || echo "{}")
   fi
 
+  local tmp
+  tmp=$(mktemp "${SETTINGS_FILE}.XXXXXX")
   case "$type" in
     bool|int)
-      echo "$existing" | jq --arg k "$key" --argjson v "$value" '.[$k] = $v' > "$SETTINGS_FILE"
+      echo "$existing" | jq --arg k "$key" --argjson v "$value" '.[$k] = $v' > "$tmp" && mv "$tmp" "$SETTINGS_FILE"
       ;;
     enum)
-      echo "$existing" | jq --arg k "$key" --arg v "$value" '.[$k] = $v' > "$SETTINGS_FILE"
+      echo "$existing" | jq --arg k "$key" --arg v "$value" '.[$k] = $v' > "$tmp" && mv "$tmp" "$SETTINGS_FILE"
+      ;;
+    *)
+      rm -f "$tmp"
+      echo "ERROR: unknown type '$type' for setting '$key'" >&2
+      exit 1
       ;;
   esac
 }
@@ -103,9 +113,11 @@ cmd_reset() {
   if [[ -n "$key" ]]; then
     validate_key "$key"
     if [[ -f "$SETTINGS_FILE" ]]; then
-      local updated
-      updated=$(jq --arg k "$key" 'del(.[$k])' "$SETTINGS_FILE")
-      echo "$updated" > "$SETTINGS_FILE"
+      local existing
+      existing=$(jq 'if type == "object" then . else {} end' "$SETTINGS_FILE" 2>/dev/null || echo "{}")
+      local tmp
+      tmp=$(mktemp "${SETTINGS_FILE}.XXXXXX")
+      echo "$existing" | jq --arg k "$key" 'del(.[$k])' > "$tmp" && mv "$tmp" "$SETTINGS_FILE"
     fi
   else
     if [[ -f "$SETTINGS_FILE" ]]; then
