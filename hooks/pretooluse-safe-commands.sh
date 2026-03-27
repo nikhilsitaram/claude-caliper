@@ -219,14 +219,26 @@ extract_command_words_from_segment() {
   done
 }
 
-mapfile -t safe_list < "$SAFE_FILE"
+exact_list=()
+prefix_list=()
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  if [[ "$line" == *'*' ]]; then
+    prefix_list+=("${line%\*}")
+  else
+    exact_list+=("$line")
+  fi
+done < "$SAFE_FILE"
 
 is_safe() {
   local word="$1"
   [[ -z "$word" ]] && return 0
   local entry
-  for entry in "${safe_list[@]}"; do
+  for entry in "${exact_list[@]}"; do
     [[ "$word" == "$entry" ]] && return 0
+  done
+  for entry in "${prefix_list[@]}"; do
+    [[ "$word" == "$entry"* ]] && return 0
   done
   return 1
 }

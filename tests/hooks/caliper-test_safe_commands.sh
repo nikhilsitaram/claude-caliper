@@ -394,6 +394,35 @@ cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE39"
 OUT39=$(run_hook "bash -- scripts/validate-plan --schema plan.json" "$SAFE39" "$LOG39")
 assert_output_contains_deny_with_reason "bash -- + script denied with invoke-directly message" "$OUT39" "Do not use"
 
+echo "Test 40: Prefix glob matching with trailing *"
+SAFE40="$TMPDIR_TEST/safe40.txt"
+LOG40="$TMPDIR_TEST/log40.txt"
+printf 'caliper-test_*\ngit\n' > "$SAFE40"
+OUT40=$(run_hook "./tests/validate-plan/caliper-test_schema.sh" "$SAFE40" "$LOG40")
+assert_output_contains "prefix glob caliper-test_* matches caliper-test_schema.sh" "$OUT40" "allow"
+
+echo "Test 41: Prefix glob does not match non-prefixed command"
+SAFE41="$TMPDIR_TEST/safe41.txt"
+LOG41="$TMPDIR_TEST/log41.txt"
+printf 'caliper-test_*\n' > "$SAFE41"
+OUT41=$(run_hook "test_schema.sh" "$SAFE41" "$LOG41")
+assert_output_empty "prefix glob caliper-test_* does not match test_schema.sh" "$OUT41"
+assert_file_contains "non-matching command logged" "$LOG41" "test_schema.sh"
+
+echo "Test 42: Exact entry without * still works (backward compatible)"
+SAFE42="$TMPDIR_TEST/safe42.txt"
+LOG42="$TMPDIR_TEST/log42.txt"
+printf 'validate-plan\n' > "$SAFE42"
+OUT42=$(run_hook "./scripts/validate-plan --schema plan.json" "$SAFE42" "$LOG42")
+assert_output_contains "exact match without glob still works" "$OUT42" "allow"
+
+echo "Test 43: Prefix glob in compound command"
+SAFE43="$TMPDIR_TEST/safe43.txt"
+LOG43="$TMPDIR_TEST/log43.txt"
+printf 'caliper-test_*\nchmod\n' > "$SAFE43"
+OUT43=$(run_hook "chmod +x tests/hooks/caliper-test_safe_commands.sh && ./tests/hooks/caliper-test_safe_commands.sh" "$SAFE43" "$LOG43")
+assert_output_contains "prefix glob works in compound commands" "$OUT43" "allow"
+
 echo ""
 echo "$PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
