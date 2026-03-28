@@ -15,30 +15,21 @@ Dispatch fresh-eyes review, address feedback, and comment on the PR.
 
 ### Step 1: Setup
 
-Identify the PR from argument, current branch (`gh pr view`), or `gh pr list --author @me --state open`. If multiple candidates and you're not on a branch with an associated PR, ask the user to pick. Store PR number, branch name, and URL.
+Identify the PR from argument, current branch (`gh pr view`), or `gh pr list --author @me --state open`. If multiple candidates, ask the user. Store PR number, branch, URL.
 
-Detect environment:
-- `BASE_BRANCH` from `gh pr view $PR_NUMBER --json baseRefName --jq .baseRefName` (fallback: `DEFAULT_BRANCH`)
-- `DEFAULT_BRANCH` from `refs/remotes/origin/HEAD` (fallback: main/master) — used only as fallback for `BASE_BRANCH`
-- `MAIN_REPO` from `git rev-parse --path-format=absolute --git-common-dir` (strip `/.git`)
-- `IS_WORKTREE` — true when `--git-dir` differs from `--git-common-dir`
-- `WORKTREE_PATH` — look up from `git worktree list` by matching `$BRANCH_NAME` (works regardless of CWD)
+Detect: `BASE_BRANCH` from `gh pr view --json baseRefName`, `DEFAULT_BRANCH` from `refs/remotes/origin/HEAD` (fallback for BASE_BRANCH), `MAIN_REPO` from `git rev-parse --path-format=absolute --git-common-dir` (strip `/.git`), `IS_WORKTREE` (git-dir differs from git-common-dir), `WORKTREE_PATH` from `git worktree list` matching branch.
 
-If not on the PR branch: look up `WORKTREE_PATH` first — if the branch is in a worktree, `cd` into it (`gh pr checkout` fails when a worktree holds the branch). Otherwise `gh pr checkout $PR_NUMBER`.
+If not on PR branch: use existing worktree if found (`cd` into it), otherwise `gh pr checkout`.
 
 ### Step 2: Mode Selection
 
-If `--automated`/`-A` flag was passed, use automated mode (skip prompt). If both `--automated` and `--skip-fixes` are passed, fail fast — these flags are mutually exclusive.
+If `--automated`/`-A` passed, use automated mode. `--automated` + `--skip-fixes` is invalid — fail fast.
 
-If no mode flag was passed, check `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get review_mode`. If it returns `automated`, use automated mode (skip prompt). If `deliberate` (or any other value), proceed to the prompt below.
-
-Otherwise, AskUserQuestion:
-- **Automated** — Fix all actionable findings without interaction. External feedback processed first, then subagent findings.
+If no flag, check `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get review_mode`. If `automated`, use it. Otherwise prompt:
+- **Automated** — Fix all actionable findings without interaction.
 - **Deliberate** — Collect all feedback, present unified triage, choose what to fix.
 
 ### Step 3: Rebase onto Base Branch
-
-Ensure the PR branch is up-to-date with its base branch so the review covers only this PR's changes:
 
 ```bash
 git fetch origin $BASE_BRANCH
@@ -48,111 +39,95 @@ if ! git merge-base --is-ancestor origin/$BASE_BRANCH HEAD; then
 fi
 ```
 
-If rebased, log: "Branch was behind `$BASE_BRANCH` — rebased and force-pushed to ensure the review covers only this PR's changes."
-
-If rebase has conflicts, stop and ask the user to resolve.
-
-After a force-push, existing bot review comments become outdated. Step 5 should only process comments posted *after* the rebase push timestamp, or wait for fresh bot comments if the PR was just rebased.
+If rebased, log it. If conflicts, stop and ask user. After force-push, only process comments posted *after* the push timestamp (or wait for fresh bot comments).
 
 ### Step 4: Dispatch Subagent in Background
 
-Skip if `--skip-review` was passed. If `--skip-review` was not passed, check `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get skip_review` — if it returns `true`, skip this step.
+Skip if `--skip-review` passed or `caliper-settings get skip_review` returns `true`.
 
-Read `reviewer-prompt.md` (same directory as SKILL.md) and dispatch a fresh-eyes reviewer subagent with `run_in_background: true`:
+Read reviewer model: `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get reviewer_model` — substitute into `reviewer-prompt.md`'s `model:` field.
+
+Read `reviewer-prompt.md` and dispatch with `run_in_background: true`:
 - `{DIFF_RANGE}` = `origin/$BASE_BRANCH..HEAD`
-- `{REPO_PATH}` = repository root path
-- `{PR_NUMBER}` = PR number from Step 1
+- `{REPO_PATH}` = repository root
+- `{PR_NUMBER}` = PR number
 
-The subagent posts its findings as a `gh pr comment` on the PR, then returns findings for use in Step 6.
+Subagent posts findings as `gh pr comment`, then returns them for Step 6.
 
 ### Step 5: External Feedback
 
-**`--automated` flag (from orchestrate):** Wait 90 seconds for bots to post, then poll `gh pr checks` every 30 seconds (timeout: 5 minutes). Bots need time to analyze the diff — skipping this window means merging before external feedback lands.
+**Wait for bots:**
+- `--automated` from orchestrate: wait 90s, then poll `gh pr checks` every 30s (timeout: 5 min).
+- User-selected automated: wait 60s warm-up, then poll every 60s.
+- Deliberate: no warm-up, poll every 60s.
+- Poll until all checks complete and no "processing"/"in progress" indicators in comments.
+- CodeRabbit rate-limit warning = treat as ready.
+- Timeout: `caliper-settings get review_wait_minutes` (default: 10).
 
-**User-selected automated / Deliberate — poll for bot readiness:**
-1. **Warm-up:** In user-selected automated mode, wait 60 seconds for bots to register checks. Skip in deliberate mode (user triggers manually after seeing bot activity).
-2. Poll `gh pr checks $PR_NUMBER` every 60 seconds.
-3. Scan latest PR comments for "processing" / "in progress" indicators from bots.
-4. **Ready when:** all checks complete AND no processing indicators found.
-5. **CodeRabbit rate limit:** if a rate-limit warning is detected in bot comments, treat as ready — proceed with available feedback.
-6. **Timeout:** `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get review_wait_minutes` minutes max (default: 10). Proceed with available feedback.
+**Collect from all three sources:**
+1. Conversation comments: `gh pr view --json comments`
+2. Inline review comments: `gh api repos/{owner}/{repo}/pulls/$PR_NUMBER/comments`
+3. Reviews: `gh pr view --json reviews`
 
-**Collect feedback from all three sources:**
-1. Conversation comments: `gh pr view $PR_NUMBER --json comments --jq '.comments[]'`
-2. Inline review comments: `gh api --paginate repos/{owner}/{repo}/pulls/$PR_NUMBER/comments --jq '.[]'`
-3. Reviews (body + status): `gh pr view $PR_NUMBER --json reviews --jq '.reviews[]'`
+All three required — bots post to sources 2-3.
 
-All three must be checked — bots like Copilot and CodeRabbit post to sources 2-3, not source 1.
-
-Categorize each item:
+**Categorize:**
 
 | Category | Action |
 |----------|--------|
-| **Actionable fix** — bug, security, correctness | Fix it |
-| **Suggestion** — style, refactor, nice-to-have | Evaluate: fix if it improves correctness/readability, dismiss with reason if not |
-| **Informational** — explanation, praise | Acknowledge, no change |
-| **False positive** — incorrect analysis | Dismiss with technical reasoning |
+| **Actionable** — bug, security, correctness | Fix |
+| **Suggestion** — style, refactor | Fix if improves code, dismiss with reason if not |
+| **Informational** — praise, explanation | Acknowledge |
+| **False positive** | Dismiss with reasoning |
 
-**Automated mode:** Fix all actionable items. Run tests. If `--skip-review` was passed (no wave 2 coming): `git commit` and `git push -u origin HEAD`. Otherwise: `git commit` locally (do NOT push yet — wave 2 may modify the same files).
+**Automated:** Fix actionable items, run tests. If `--skip-review` (no wave 2): commit and push. Otherwise: commit locally only (wave 2 may touch same files).
 
-**Deliberate mode:** Collect and report status. No fixes yet — wait for unified triage in Step 7.
+**Deliberate:** Collect and report. No fixes yet.
 
 ### Step 6: Subagent Results
 
-Wait for the background subagent to return (dispatched in Step 4). Skip if `--skip-review` was passed.
+Wait for background subagent (Step 4). Skip if `--skip-review`.
 
-**Automated mode:** Assess subagent findings against the *current* working tree (post-wave-1 fixes). Dismiss findings already addressed by wave-1. Fix remaining actionable items. Run tests. `git commit` and `git push -u origin HEAD` (single push covers both waves).
+**Automated:** Dismiss findings already fixed in wave 1. Fix remaining actionable items, run tests, commit and push (covers both waves).
 
-**Deliberate mode:** Collect subagent findings. Merge with external feedback from Step 5 into a unified finding set. Proceed to Step 7.
+**Deliberate:** Merge with Step 5 findings into unified set. Proceed to Step 7.
 
 ### Step 7: Present & Confirm (Deliberate Only)
 
-Show the user a summary table with source, category, planned action, and counts per category.
-
-AskUserQuestion with options:
-- **Fix all** — actionable + suggestion items (excludes dismissed/false positives)
-- **Fix critical only** — actionable items (bugs, security, correctness)
-- **Skip fixes, proceed** — jump to Step 9
-- **Other** — user provides custom instructions (e.g. "fix items 1, 3, 5")
+Show summary table (source, category, action, counts). AskUserQuestion:
+- **Fix all** — actionable + suggestions
+- **Fix critical only** — bugs, security, correctness
+- **Skip fixes** — jump to Step 9
+- **Other** — custom instructions
 
 ### Step 8: Fix, Test, Push (Deliberate Only)
 
-If `--skip-fixes` was passed, skip this step.
-
-For each actionable item: make the fix. Run project tests — do not proceed with failing tests. Commit and push with `git push -u origin HEAD`.
+Skip if `--skip-fixes`. Fix each item, run tests (fail = stop), commit and push.
 
 ### Step 9: Comment on PR
 
-Post a `gh pr comment` with unified assessment: what was fixed, dismissed (with reasons), and no-action. Omit empty sections.
+Post `gh pr comment`: what was fixed, dismissed (with reasons), no-action. Omit empty sections.
 
-Report: PR URL, review items (fixed/dismissed/informational).
-
-If automated mode, invoke pr-merge after commenting. `--automated` flag and user-selected automated are the same — the flag just pre-selects the mode so the prompt is skipped.
-
-In deliberate mode, AskUserQuestion with options:
-- **Merge PR** — invoke pr-merge via Skill tool (pr-merge's worktree guard handles CWD automatically)
-- **Not yet** — if inside a worktree, tell the user: "When ready to merge: `cd` to the main repo, then run `/pr-merge`." Otherwise: "Run `/pr-merge` when ready to merge."
+Report PR URL and item counts. Automated mode: invoke pr-merge. Deliberate mode: offer merge or tell user to run `/pr-merge` when ready.
 
 ## Arguments
 
 | Arg | Effect |
 |-----|--------|
-| `<PR number>` | Target specific PR (`/pr-review 42`) |
+| `<PR number>` | Target specific PR |
 | *(none)* | Detect from current branch |
-| `--skip-review` / `-R` | Skip subagent review (Steps 4, 6) — external feedback still processed |
+| `--skip-review` / `-R` | Skip subagent review (Steps 4, 6) |
 | `--skip-fixes` / `-S` | Skip fixing — just comment (invalid with `--automated`) |
-| `--automated` / `-A` | Force fixes for all actionable items, suppress interaction (used by pr-merge workflow) |
+| `--automated` / `-A` | Fix all actionable, no interaction |
 
 ## Pitfalls
 
 | Mistake | Why |
 |---------|-----|
-| Blindly implementing review suggestions | Verify each against the codebase, push back on incorrect ones. |
-| Proceeding without commenting | Always post what was addressed before finishing. |
-| Pushing between wave 1 and wave 2 | Wave 1 commits locally, wave 2 pushes — avoids intermediate remote state. |
+| Blindly implementing suggestions | Verify against codebase, push back on incorrect ones |
+| Skipping PR comment | Always post what was addressed |
+| Pushing between wave 1 and 2 | Wave 1 commits locally, wave 2 pushes |
 
 ## Integration
 
-**Preceded by:** pr-create — after CodeRabbit reviews
-
-**Followed by:** pr-merge — when ready to merge
+**Preceded by:** pr-create | **Followed by:** pr-merge
