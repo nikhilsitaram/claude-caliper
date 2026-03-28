@@ -9,10 +9,11 @@ Use this template when spawning an implementer teammate. The lead substitutes al
 - `{TASK_PROSE}` — content of the task .md file
 - `{PLAN_DIR}` — absolute path to plan directory (in integration worktree — plan artifacts are gitignored, so this path is the only way to access plan.json from phase worktrees)
 - `{PHASE_DIR}` — absolute path to phase directory (within `{PLAN_DIR}`)
+- `{IMPLEMENTER_MODEL}` — model for the implementer agent (from caliper-settings)
 
 ```text
 Teammate spawn:
-  model: "opus"
+  model: "{IMPLEMENTER_MODEL}"
   mode: "auto"
   description: "Implement {TASK_ID}: [task name]"
   prompt: |

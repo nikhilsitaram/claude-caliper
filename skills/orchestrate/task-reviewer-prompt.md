@@ -11,10 +11,11 @@ Dispatch a reviewer teammate to evaluate a single task's implementation. Spawned
 - `{REPO_PATH}` — implementer teammate's worktree path
 - `{BASE_SHA}` — SHA before task started
 - `{HEAD_SHA}` — SHA after task completed
+- `{REVIEWER_MODEL}` — model for the reviewer agent (from caliper-settings)
 
 ```yaml
 Teammate spawn:
-  model: "opus"
+  model: "{REVIEWER_MODEL}"
   mode: "auto"
   description: "Review Task {TASK_ID}"
   prompt: |
