@@ -1,10 +1,10 @@
 # PR Review Prompt Template
 
-Dispatch a fresh-eyes Opus subagent to review the full PR diff before reading external feedback.
+Dispatch a fresh-eyes subagent to review the full PR diff before reading external feedback.
 
 ````text
 Agent tool (general-purpose):
-  model: "opus"
+  model: "{REVIEWER_MODEL}"
   mode: "auto"
   description: "Fresh-eyes PR review"
   prompt: |

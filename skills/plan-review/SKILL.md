@@ -5,7 +5,7 @@ description: Use when a plan has been written and before execution begins
 
 # Plan Review
 
-Dispatch an Opus subagent to validate a plan before execution. Catches issues that are cheap to fix in a plan but expensive to fix mid-implementation.
+Dispatch a reviewer subagent to validate a plan before execution. Catches issues that are cheap to fix in a plan but expensive to fix mid-implementation.
 
 **Core principle:** Plans are hypotheses. Validate before running the experiment.
 
@@ -30,7 +30,7 @@ Gather inputs:
 - **Design doc** — if one exists (or "None")
 - **Repo root** — the worktree the plan targets
 
-Dispatch with `model: "opus"` — consistency checking requires strong reasoning.
+Dispatch with `model: "$REVIEWER_MODEL"` — consistency checking requires strong reasoning.
 
 **See:** reviewer-prompt.md
 

@@ -1,12 +1,12 @@
 # Design Review Prompt Template
 
-Dispatch an Opus reviewer subagent to validate a design doc before planning begins.
+Dispatch a reviewer subagent to validate a design doc before planning begins.
 
 **Only dispatch after the design doc is fully written and saved.**
 
 ```yaml
 Agent tool (general-purpose):
-  model: "opus"
+  model: "{REVIEWER_MODEL}"
   description: "Design doc review"
   prompt: |
     You are reviewing a design doc BEFORE any planning or implementation begins.

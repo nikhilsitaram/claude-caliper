@@ -1,12 +1,12 @@
 # Plan Review Prompt Template
 
-Dispatch an Opus reviewer subagent to validate a plan before execution.
+Dispatch a reviewer subagent to validate a plan before execution.
 
 **Only dispatch after the plan is fully written and saved.**
 
 ```yaml
 Agent tool (general-purpose):
-  model: "opus"
+  model: "{REVIEWER_MODEL}"
   description: "Plan consistency review"
   prompt: |
     You are reviewing an implementation plan BEFORE any code is written.
