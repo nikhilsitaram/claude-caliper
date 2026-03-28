@@ -60,8 +60,8 @@ Complete in order:
 
     On approval, create sentinel: `mkdir -p <plan-dir> && touch <plan-dir>/.design-approved`
 8. **Write design doc** — `.claude/claude-caliper/YYYY-MM-DD-<topic>/design-<topic>.md` (no commit — gitignored transient state)
-9. **Dispatch design-review subagent** — fresh Opus agent validates design before planning (hard gate)
-10. **Dispatch draft-plan subagent** — fresh Opus agent with design doc path and worktree path (zero design context)
+9. **Dispatch design-review subagent** — fresh reviewer agent validates design before planning (hard gate)
+10. **Dispatch draft-plan subagent** — fresh implementer agent with design doc path and worktree path (zero design context)
 11. **Route workflow** — Map step 7 choices to schema values:
     - Workflow: `Create PR` → `pr-create`, `Merge PR` → `pr-merge`, `Plan only` → `plan-only`
     - Exec mode: `Subagents` → `subagents`, `Agent teams` → `agent-teams`
@@ -74,10 +74,12 @@ Complete in order:
     For **Create PR** or **Merge PR**: invoke orchestrate.
     For **Plan only**: run `scripts/validate-plan --check-workflow plan.json` to verify design-review and plan-review passed. Report the plan file path and stop.
 
+Read the reviewer model: `REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get reviewer_model)`
+
 ```text
 Agent(
   subagent_type: "general-purpose",
-  model: "opus",
+  model: "$REVIEWER_MODEL",
   prompt: "Review the design doc at .claude/claude-caliper/<folder>/design-<topic>.md
     using the design-review skill.
     Working directory: .claude/worktrees/<feature>"
@@ -86,10 +88,12 @@ Agent(
 
 If design-review finds issues, present them to the user, collaboratively fix the design doc, and re-dispatch design-review until clean. Only dispatch draft-plan after design-review passes. After design-review passes, extract the `json review-summary` block from the final passing review and write a record to `{PLAN_DIR}/reviews.json` (initialize with `[]` if it doesn't exist): `jq --argjson entry '{"type":"design-review","scope":"design","iteration":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass","timestamp":"<ISO8601>"}' '. += [$entry]' reviews.json > tmp && mv tmp reviews.json`
 
+Read the implementer model: `IMPLEMENTER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get implementer_model)`
+
 ```text
 Agent(
   subagent_type: "general-purpose",
-  model: "opus",
+  model: "$IMPLEMENTER_MODEL",
   prompt: "Read the design doc at .claude/claude-caliper/<folder>/design-<topic>.md and write
     an implementation plan using the draft-plan skill.
     Working directory: .claude/worktrees/<feature>"
@@ -98,10 +102,12 @@ Agent(
 
 After draft-plan returns, dispatch plan-review with the same review loop protocol:
 
+Read the reviewer model: `REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get reviewer_model)`
+
 ```text
 Agent(
   subagent_type: "general-purpose",
-  model: "opus",
+  model: "$REVIEWER_MODEL",
   prompt: "Review the plan at .claude/claude-caliper/<folder>/plan.json
     using the plan-review skill.
     Design doc: .claude/claude-caliper/<folder>/design-<topic>.md
