@@ -78,7 +78,7 @@ Write implementation plans assuming the executor has zero codebase context. Docu
 }
 ```
 
-Optional: `success_criteria` array at plan, phase, and task levels for automated verification. `workflow` field controls post-plan behavior: `pr-create` (orchestrate + pr-create, default), `pr-merge` (orchestrate + pr-create + pr-review + pr-merge), `plan-only` (stop after planning). Set by the design skill based on user choice. `execution_mode` controls how orchestrate runs tasks: `subagents` (parallel via Agent tool with worktree isolation) or `agent-teams` (parallel teammates with push notifications and mailbox messaging). The design skill overwrites this after draft-plan returns with the user's actual choice; draft-plan writes `"subagents"` as a placeholder. `review_wait_minutes` integer sets the max wait for external reviewers (default 10, set 0 to skip polling).
+Optional: `success_criteria` at plan/phase/task levels. `workflow`: `pr-create` (default), `pr-merge`, or `plan-only` — set by design skill. `execution_mode`: `subagents` (default placeholder) or `agent-teams` — design skill overwrites after draft-plan. `review_wait_minutes`: max wait for external reviewers (default 10, 0 to skip).
 
 **See:** `schema-reference.md` for full schema reference.
 
@@ -100,19 +100,13 @@ H1 header must match `# {id}: {name}` from plan.json. When a task consumes outpu
 
 ## Phasing
 
-**Use multiple phases when:** dependency layers exist (Phase A creates things Phase B consumes), verification gates are needed, or phases ship independently.
+**Multi-phase when:** dependency layers, verification gates, or independent shipping. **Single-phase when:** tasks are independent. Use A-prefix (A1, A2...).
 
-**Stay single-phase when:** tasks are independent or share a linear chain with no natural cut points. Single-phase plans use A-prefix (A1, A2, etc.).
+**Gates:** 8+ tasks single-phase → look for hidden boundary. 7+ tasks per phase → examine cut points.
 
-**Complexity gates:**
-- **8+ tasks in a single-phase plan** — almost always has a hidden dependency boundary. Look for it before proceeding.
-- **7+ tasks in any individual phase** — examine for cut points. Large phases make debugging harder.
+Phase boundaries = meaningful "run full suite" points. Each phase gets `phase-{letter}/` with `completion.md` + task files. `depends_on` declares phase ordering. Tasks within a phase execute in parallel — file sets must be disjoint (`validate-plan --schema` enforces this).
 
-**Phase boundaries** fall where "run full suite and verify" is meaningful. Each phase gets its own directory (`phase-a/`, `phase-b/`) with a `completion.md` stub and task `.md` files. The phase's `rationale` field in plan.json explains why the phase exists.
-
-Each phase declares `depends_on` — phase letters required to complete first. Phases execute sequentially. Tasks within a phase execute in parallel, so each task's file set (create + modify + test) must be disjoint from every other task in the same phase. `validate-plan --schema` rejects overlapping file sets.
-
-**Design doc inheritance:** If the design doc has approved phases, use those. Don't contradict without flagging.
+Inherit phases from design doc if approved.
 
 ## Task Structure
 
@@ -120,31 +114,27 @@ Every task splits metadata (plan.json) and prose (task .md file).
 
 **plan.json fields:**
 
-| Field | Requirement | Bad | Good |
-|-------|-------------|-----|------|
-| **files** | Exact paths (create/modify/test) | "the auth files" | `{"create": ["src/auth/login.ts"], "test": ["tests/auth/login.test.ts"]}` |
-| **verification** | Runnable command, <60s | "check that it works" | `pytest tests/auth/ -v` |
-| **done_when** | Measurable end state | "authentication complete" | `login returns JWT, 4/4 tests pass` |
-| **depends_on** | Task IDs this consumes | `["A3", "B1"]` (invalid — wrong phase) | `["A1", "A2"]` (same phase for semantic ordering, prior phase for cross-phase deps) |
+| Field | Requirement | Good |
+|-------|-------------|------|
+| **files** | Exact paths (create/modify/test) | `{"create": ["src/auth/login.ts"], "test": ["tests/auth/login.test.ts"]}` |
+| **verification** | Runnable command, <60s | `pytest tests/auth/ -v` |
+| **done_when** | Measurable end state | `login returns JWT, 4/4 tests pass` |
+| **depends_on** | Task IDs this consumes | `["A1", "A2"]` (same phase for semantic ordering, prior phase for cross-phase deps) |
 
 **Task .md file content:**
 
-| Field | Requirement | Bad | Good |
-|-------|-------------|-----|------|
-| **Avoid + WHY** | Pitfalls with reasoning | "don't use X" | "Use jose not jsonwebtoken — CJS/Edge issues" |
-| **Steps** | TDD cycle per step | "add validation" | Write failing test, verify fail, implement, verify pass, commit |
+| Field | Requirement | Good |
+|-------|-------------|------|
+| **Avoid + WHY** | Pitfalls with reasoning | "Use jose not jsonwebtoken — CJS/Edge issues" |
+| **Steps** | TDD cycle per step | Write failing test, verify fail, implement, verify pass, commit |
 
 Write complete code in each step — not "add validation" or "implement the handler."
 
-**Interface-first ordering:** Define contracts first (embed in plan), implement against them in middle tasks, wire consumers last.
+**Interface-first ordering:** Define contracts first, implement in middle tasks, wire consumers last.
 
-**First task as integration tests:** When cross-task data flow exists, the first task (A1) can be broad integration tests — the outer loop of double-loop TDD. Write end-to-end tests with stub imports that stay RED until the last piece lands.
+**First task as integration tests:** When cross-task data flow exists, A1 can be broad integration tests (double-loop TDD) that stay RED until the last piece lands.
 
 **Handoff notes:** The lead writes handoff sections to cross-phase task files between phases. Draft-plan doesn't write these.
 
-### The Fresh Claude Test
-
-> Could a fresh Claude with zero prior context execute this task without asking a single clarifying question?
-
-Vague paths ("the auth files") or done-when ("authentication complete") fail this test. Exact paths and measurable outcomes pass.
+**Fresh Claude Test:** Could a fresh Claude with zero context execute this task without clarifying questions? Exact paths and measurable done_when = pass.
 
