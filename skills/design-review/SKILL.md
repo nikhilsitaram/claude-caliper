@@ -5,7 +5,7 @@ description: Use when a design doc has been written and before draft-plan is dis
 
 # Design Review
 
-Dispatch an Opus subagent to validate a design doc before planning. Catches spec gaps that are cheap to fix in design but expensive to fix mid-implementation.
+Dispatch a reviewer subagent to validate a design doc before planning. Catches spec gaps that are cheap to fix in design but expensive to fix mid-implementation.
 
 **Core principle:** Designs are hypotheses about what to build. Validate before committing to a plan.
 

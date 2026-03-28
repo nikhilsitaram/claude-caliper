@@ -23,7 +23,7 @@ Two-stage review:
 
 **Stage 1: Structural validation** — Run `scripts/validate-plan --schema {PLAN_DIR}/plan.json`. If errors, report them and stop. No point dispatching LLM reviewer for structurally invalid plans.
 
-**Stage 2: Prose + design review** — If schema passes, dispatch Opus subagent.
+**Stage 2: Prose + design review** — If schema passes, dispatch reviewer subagent.
 
 Gather inputs:
 - **Plan directory** — `.claude/claude-caliper/YYYY-MM-DD-topic/` (containing plan.json + task .md files)
