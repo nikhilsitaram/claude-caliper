@@ -36,7 +36,7 @@ Teammate spawn:
 
     Mark your task in-progress:
     ```bash
-    bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status in_progress
+    scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status in_progress
     ```
 
     If you have questions about the requirements, approach, or dependencies
@@ -97,7 +97,7 @@ Teammate spawn:
     ## Mark Complete
 
     ```bash
-    bash scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status complete
+    scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status complete
     ```
 
     ## Report Format

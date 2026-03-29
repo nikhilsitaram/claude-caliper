@@ -42,7 +42,7 @@ Implementer teammates use the template in `./implementer-prompt.md`. Key spawn p
 ```yaml
 Teammate spawn:
   model: "opus"
-  mode: "auto"
+  mode: "acceptEdits"
   description: "Implement {TASK_ID}: [task name]"
   prompt: <filled from implementer-prompt.md template>
 ```

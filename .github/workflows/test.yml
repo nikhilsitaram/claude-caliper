@@ -18,14 +18,14 @@ jobs:
 
       - name: Hook tests
         run: |
-          bash tests/hooks/test_safe_commands.sh
-          bash tests/hooks/test_permission_request.sh
-          bash tests/hooks/test_permission_request_safe_bash.sh
+          bash tests/hooks/caliper-test_safe_commands.sh
+          bash tests/hooks/caliper-test_permission_request.sh
+          bash tests/hooks/caliper-test_permission_request_safe_bash.sh
 
       - name: Validate-plan tests
         run: |
-          bash tests/validate-plan/test_schema.sh
-          bash tests/validate-plan/test_e2e.sh
-          bash tests/validate-plan/test_render.sh
-          bash tests/validate-plan/test_update_status.sh
-          bash tests/validate-plan/test_criteria.sh
+          bash tests/validate-plan/caliper-test_schema.sh
+          bash tests/validate-plan/caliper-test_e2e.sh
+          bash tests/validate-plan/caliper-test_render.sh
+          bash tests/validate-plan/caliper-test_update_status.sh
+          bash tests/validate-plan/caliper-test_criteria.sh
