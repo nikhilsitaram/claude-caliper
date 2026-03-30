@@ -207,14 +207,19 @@ echo "Test 9: single-phase pr-create does not require final impl-review (fails o
 setup_plan_dir
 write_single_phase_plan "pr-create" "Complete"
 printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
-GIT_TMPDIR=$(mktemp -d)
-git -C "$GIT_TMPDIR" init -b test-no-pr-branch >/dev/null 2>&1
-git -C "$GIT_TMPDIR" commit --allow-empty -m "init" >/dev/null 2>&1
-pushd "$GIT_TMPDIR" >/dev/null
 GH_MOCK_PR_COUNT=0 assert_fail "single-phase pr-create fails on PR state not final impl-review" "no PR found\|no final PR found\|gh pr list failed" \
   "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
-popd >/dev/null
-rm -rf "$GIT_TMPDIR"
+
+echo "Test 9a: branch resolved from plan dir, not CWD (issue #158)"
+GIT_PLAN_DIR=$(mktemp -d)
+git -C "$GIT_PLAN_DIR" init -b fix/my-feature >/dev/null 2>&1
+git -C "$GIT_PLAN_DIR" commit --allow-empty -m "init" >/dev/null 2>&1
+write_single_phase_plan "pr-create" "Complete"
+cp "$TMPDIR/plan.json" "$GIT_PLAN_DIR/plan.json"
+printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$GIT_PLAN_DIR/reviews.json"
+GH_MOCK_PR_COUNT=0 assert_fail "branch from plan dir not CWD" "no PR found for fix/my-feature" \
+  "$VALIDATE" --check-workflow "$GIT_PLAN_DIR/plan.json"
+rm -rf "$GIT_PLAN_DIR"
 
 echo "Test 9b: single-phase pr-create fails when missing phase impl-review"
 setup_plan_dir
