@@ -25,9 +25,16 @@ If not on PR branch: use existing worktree if found (`cd` into it), otherwise `g
 
 If `--automated`/`-A` passed, use automated mode. `--automated` + `--skip-fixes` is invalid — fail fast.
 
-If no flag, check `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get review_mode`. If `automated`, use it. Otherwise prompt:
-- **Automated** — Fix all actionable findings without interaction.
-- **Deliberate** — Collect all feedback, present unified triage, choose what to fix.
+If no flag, check whether the user explicitly configured a preference:
+
+```bash
+source=$("${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings" source review_mode)
+```
+
+- If `source` = `user`: use their configured value from `caliper-settings get review_mode` without prompting.
+- If `source` = `default`: prompt the user to choose — the default is just a fallback, not an explicit preference:
+  - **Automated** — Fix all actionable findings without interaction.
+  - **Deliberate** — Collect all feedback, present unified triage, choose what to fix.
 
 ### Step 3: Rebase onto Base Branch
 
