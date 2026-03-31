@@ -88,6 +88,7 @@ setup_valid_plan "$TMPDIR"
 jq '.status = "In Development" | .phases[0].status = "In Progress" | .phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
 mkdir -p "$TMPDIR/phase-a"
 echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
+echo '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_pass "task complete with completion file" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
@@ -108,6 +109,7 @@ setup_valid_plan "$TMPDIR"
 jq '.status = "In Development" | .phases[0].status = "In Progress" | .phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
 mkdir -p "$TMPDIR/phase-a"
 echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
+echo '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 git -C "$TMPDIR" init -q 2>/dev/null || true
 mkdir -p "$TMPDIR/src"
 echo "// core" > "$TMPDIR/src/core.ts"

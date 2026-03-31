@@ -609,7 +609,7 @@ do_consistency() {
             fi
           done
         fi
-        if [[ -f "$_plan_dir_cons/reviews.json" ]] && ! check_review_record "$_plan_dir_cons" "task-review" "$tid" > /dev/null 2>&1; then
+        if ! check_review_record "$_plan_dir_cons" "task-review" "$tid" > /dev/null 2>&1; then
           err "ERROR: status_inconsistency: task $tid is 'complete' but no passing task-review record"
         fi
       fi
@@ -617,7 +617,7 @@ do_consistency() {
 
     if [[ "$phase_status" =~ ^Complete ]]; then
       local letter_lower="${letter,,}"
-      if [[ -f "$_plan_dir_cons/reviews.json" ]] && ! check_review_record "$_plan_dir_cons" "impl-review" "phase-$letter_lower" > /dev/null 2>&1; then
+      if ! check_review_record "$_plan_dir_cons" "impl-review" "phase-$letter_lower" > /dev/null 2>&1; then
         err "ERROR: status_inconsistency: phase $letter is '$phase_status' but no passing impl-review record for scope phase-$letter_lower"
       fi
     fi
