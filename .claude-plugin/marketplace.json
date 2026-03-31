@@ -10,7 +10,7 @@
       "description": "claude-caliper bundle",
 
 
-      "version": "1.21.3",
+      "version": "1.21.4",
 
       "source": "./",
       "author": {
@@ -38,7 +38,7 @@
       "description": "End-to-end development workflow: design → draft-plan → orchestrate → review → pr-create → pr-review → pr-merge",
 
 
-      "version": "1.21.3",
+      "version": "1.21.4",
 
       "source": "./",
       "author": {
@@ -64,7 +64,7 @@
       "description": "Standalone tools: codebase audit and skill evaluation",
 
 
-      "version": "1.21.3",
+      "version": "1.21.4",
 
       "source": "./",
       "author": {
