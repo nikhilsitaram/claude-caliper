@@ -1091,18 +1091,8 @@ check_review_record() {
     return 1
   fi
 
-  local verdict remaining
+  local verdict
   verdict=$(echo "$record" | jq -r '.verdict // "missing"')
-  remaining=$(echo "$record" | jq -r '.remaining // 0')
-
-  if [[ ! "$remaining" =~ ^[0-9]+$ ]]; then
-    echo "review gate failed — type=$review_type scope=$review_scope remaining='$remaining' is not a valid integer"
-    return 1
-  fi
-
-  if [[ "$verdict" == "pass" && "$remaining" -eq 0 ]]; then
-    return 0
-  fi
 
   if [[ "$verdict" == "skip" ]]; then
     local reason
@@ -1111,6 +1101,18 @@ check_review_record() {
       echo "review gate failed — type=$review_type scope=$review_scope verdict=skip but reason is missing"
       return 1
     fi
+    return 0
+  fi
+
+  local remaining
+  remaining=$(echo "$record" | jq -r '.remaining // 0')
+
+  if [[ ! "$remaining" =~ ^[0-9]+$ ]]; then
+    echo "review gate failed — type=$review_type scope=$review_scope remaining='$remaining' is not a valid integer"
+    return 1
+  fi
+
+  if [[ "$verdict" == "pass" && "$remaining" -eq 0 ]]; then
     return 0
   fi
 
