@@ -83,6 +83,34 @@ else
   ((PASS++)) || true
 fi
 
+BASH_HOOK="$REPO_ROOT/hooks/permission-request-safe-bash.sh"
+
+echo "Test 6: Bash rm on .claude/claude-caliper/ path auto-allowed"
+INPUT6=$(jq -n --arg cwd "$TMPDIR" '{cwd: $cwd, tool_name: "Bash", tool_input: {command: "rm /some/project/.claude/claude-caliper/2026-03-31-topic/phase-a/a7.md"}}')
+OUTPUT6=$(echo "$INPUT6" | bash "$BASH_HOOK" 2>/dev/null)
+assert_output_contains "Bash rm on plan path auto-allowed" "$OUTPUT6" '"behavior": "allow"'
+
+echo "Test 7: Bash mkdir on .claude/claude-caliper/ path auto-allowed"
+INPUT7=$(jq -n --arg cwd "$TMPDIR" '{cwd: $cwd, tool_name: "Bash", tool_input: {command: "mkdir -p /project/.claude/claude-caliper/2026-03-31-topic/phase-b"}}')
+OUTPUT7=$(echo "$INPUT7" | bash "$BASH_HOOK" 2>/dev/null)
+assert_output_contains "Bash mkdir on plan path auto-allowed" "$OUTPUT7" '"behavior": "allow"'
+
+echo "Test 8: Bash on non-plan .claude/ path NOT auto-allowed (falls through)"
+INPUT8=$(jq -n --arg cwd "$TMPDIR" '{cwd: $cwd, tool_name: "Bash", tool_input: {command: "rm /project/.claude/settings.json"}}')
+OUTPUT8=$(echo "$INPUT8" | bash "$BASH_HOOK" 2>/dev/null)
+if echo "$OUTPUT8" | grep -qF '"behavior": "allow"'; then
+  echo "FAIL: non-plan .claude/ path should not be auto-allowed"
+  ((FAIL++)) || true
+else
+  echo "PASS: non-plan .claude/ path not auto-allowed"
+  ((PASS++)) || true
+fi
+
+echo "Test 9: Non-Bash tool ignored by bash hook"
+INPUT9=$(jq -n --arg cwd "$TMPDIR" '{cwd: $cwd, tool_name: "Edit", tool_input: {command: "rm /.claude/claude-caliper/foo"}}')
+OUTPUT9=$(echo "$INPUT9" | bash "$BASH_HOOK" 2>/dev/null)
+assert_output_empty "non-Bash tool ignored" "$OUTPUT9"
+
 echo ""
 echo "$PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
