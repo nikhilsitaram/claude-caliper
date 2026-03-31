@@ -31,8 +31,7 @@
         "./skills/pr-merge",
         "./skills/skill-eval",
         "./skills/caliper-settings"
-      ],
-      "hooks": "./hooks/hooks.json"
+      ]
     },
     {
       "name": "claude-caliper-workflow",
@@ -58,8 +57,7 @@
         "./skills/pr-review",
         "./skills/pr-merge",
         "./skills/caliper-settings"
-      ],
-      "hooks": "./hooks/hooks.json"
+      ]
     },
     {
       "name": "claude-caliper-tooling",
