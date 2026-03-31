@@ -33,6 +33,14 @@ Teammate spawn:
     This contains: Avoid+WHY section, Steps, and any handoff notes from
     prior phases.
 
+    ## Worktree Isolation
+
+    You are working in an isolated git worktree. All code changes, file
+    creation, and commits MUST happen relative to your current working
+    directory — never use absolute paths to other worktrees or the main
+    repo. `{PLAN_DIR}` is a cross-worktree path for reading plan artifacts
+    only (plan.json, task files) — never cd there or write code there.
+
     ## Before You Begin
 
     Mark your task in-progress:

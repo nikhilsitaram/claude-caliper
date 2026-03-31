@@ -45,6 +45,7 @@ Agent(
 If fixes needed, dispatch a **new** implementer subagent (subagents have no mailbox — the original agent is gone). Do NOT use `isolation: "worktree"` — that creates a new worktree from HEAD, which doesn't have the original implementation. Instead, pass the original agent's worktree path so the fix agent works on the same branch with the existing code.
 
 Include in the prompt:
+- The worktree isolation section from implementer-prompt.md (the fix agent writes code, so it needs the same guardrails)
 - Original task context (metadata + prose)
 - Reviewer findings to address
 - The worktree path from the original implementer agent
@@ -54,6 +55,12 @@ Agent(
   subagent_type: "general-purpose",
   model: "{REVIEWER_MODEL}",
   prompt: "Working directory: <original worktree path>
+
+    ## Worktree Isolation
+    You are working in an isolated git worktree. All code changes, file
+    creation, and commits MUST happen relative to your current working
+    directory — never use absolute paths to other worktrees or the main repo.
+
     <original task context + reviewer findings>"
 )
 ```
@@ -62,11 +69,19 @@ Re-dispatch reviewer after fixes. Repeat until review passes (max 3 cycles, then
 
 ## After Review Passes
 
-1. Mark task complete: `scripts/validate-plan --update-status plan.json --task {TASK_ID} --status complete`
-2. Validate criteria: `scripts/validate-plan --criteria plan.json --task {TASK_ID}`
-3. Merge the task's worktree branch into the feature/integration branch
-4. Check if dependent tasks are now unblocked (`scripts/validate-plan --check-deps`)
-5. Dispatch newly unblocked tasks (same pattern as above)
+1. Record the task-review in `reviews.json` (in the plan directory alongside plan.json):
+   ```bash
+   jq '. += [{"type":"task-review","scope":"{TASK_ID}","verdict":"pass","remaining":0}]' "$PLAN_DIR/reviews.json" > "$PLAN_DIR/reviews.json.tmp" && mv "$PLAN_DIR/reviews.json.tmp" "$PLAN_DIR/reviews.json"
+   ```
+   If `reviews.json` doesn't exist yet, create it: `echo '[]' > "$PLAN_DIR/reviews.json"` first.
+2. Mark task complete: `scripts/validate-plan --update-status plan.json --task {TASK_ID} --status complete`
+3. Validate criteria: `scripts/validate-plan --criteria plan.json --task {TASK_ID}`
+4. Merge and clean up the agent's worktree:
+   - Use `git -C <your worktree path> merge <agent-branch>` — the `-C` flag ensures the merge targets the integration/feature branch regardless of current shell CWD, which can drift after processing agent completions
+   - After merge: `git worktree remove <agent-worktree-path>` then `git branch -d <agent-branch>`
+   - Verify your CWD is still in the integration/feature worktree with `pwd`; if it drifted, `cd` back
+5. Check if dependent tasks are now unblocked (`scripts/validate-plan --check-deps`)
+6. Dispatch newly unblocked tasks (same pattern as above)
 
 ## Key Differences from Agent Teams
 

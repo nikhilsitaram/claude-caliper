@@ -595,15 +595,22 @@ do_consistency() {
       [[ "${_ct[$ibase]}" != "$p" ]] && continue
       local tid="${_ct[$((ibase+1))]}" ts="${_ct[$((ibase+2))]}"
       local deps_str="${_ct[$((ibase+3))]}"
-      if [[ "$ts" == "complete" && -n "$deps_str" ]]; then
-        IFS=',' read -ra dep_arr <<< "$deps_str"
-        for dep_id in "${dep_arr[@]}"; do
-          [[ -z "$dep_id" ]] && continue
-          local dep_status="${_task_status_map[$dep_id]:-}"
-          if [[ "$dep_status" == "pending" || "$dep_status" == "in_progress" ]]; then
-            err "ERROR: status_inconsistency: task $tid is 'complete' but dependency $dep_id is '$dep_status'"
-          fi
-        done
+      if [[ "$ts" == "complete" ]]; then
+        if [[ -n "$deps_str" ]]; then
+          IFS=',' read -ra dep_arr <<< "$deps_str"
+          for dep_id in "${dep_arr[@]}"; do
+            [[ -z "$dep_id" ]] && continue
+            local dep_status="${_task_status_map[$dep_id]:-}"
+            if [[ "$dep_status" == "pending" || "$dep_status" == "in_progress" ]]; then
+              err "ERROR: status_inconsistency: task $tid is 'complete' but dependency $dep_id is '$dep_status'"
+            fi
+          done
+        fi
+        local _plan_dir_tr
+        _plan_dir_tr="$(cd "$(dirname "$plan_json")" && pwd)"
+        if [[ -f "$_plan_dir_tr/reviews.json" ]] && ! check_review_record "$_plan_dir_tr" "task-review" "$tid" > /dev/null 2>&1; then
+          err "ERROR: status_inconsistency: task $tid is 'complete' but no passing task-review record"
+        fi
       fi
     done
 
