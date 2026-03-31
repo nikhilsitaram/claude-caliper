@@ -58,7 +58,8 @@
         "./skills/pr-review",
         "./skills/pr-merge",
         "./skills/caliper-settings"
-      ]
+      ],
+      "hooks": "./hooks/hooks.json"
     },
     {
       "name": "claude-caliper-tooling",
