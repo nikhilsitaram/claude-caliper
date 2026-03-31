@@ -51,7 +51,7 @@ jq '.status = "In Development" | .phases[0].status = "Complete (2026-03-24)" | .
 mkdir -p "$TMPDIR/phase-a"
 echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
 echo "# A2 Completion" > "$TMPDIR/phase-a/a2-completion.md"
-echo '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+echo '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0},{"type":"task-review","scope":"A2","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_pass "phase complete with all tasks complete" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
@@ -70,7 +70,7 @@ mkdir -p "$TMPDIR/phase-a" "$TMPDIR/phase-b"
 echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
 echo "# A2 Completion" > "$TMPDIR/phase-a/a2-completion.md"
 echo "# B1 Completion" > "$TMPDIR/phase-b/b1-completion.md"
-echo '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-b","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+echo '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0},{"type":"task-review","scope":"A2","verdict":"pass","remaining":0},{"type":"task-review","scope":"B1","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-b","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_pass "plan complete with all phases complete" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 

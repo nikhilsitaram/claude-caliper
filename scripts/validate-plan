@@ -563,6 +563,9 @@ do_consistency() {
 
   ERRORS=()
 
+  local _plan_dir_cons
+  _plan_dir_cons="$(cd "$(dirname "$plan_json")" && pwd)"
+
   for ((p=0; p<phase_count; p++)); do
     local pbase=$((p * 3))
     local letter="${_cp[$pbase]}" phase_status="${_cp[$((pbase+1))]}"
@@ -606,9 +609,7 @@ do_consistency() {
             fi
           done
         fi
-        local _plan_dir_tr
-        _plan_dir_tr="$(cd "$(dirname "$plan_json")" && pwd)"
-        if [[ -f "$_plan_dir_tr/reviews.json" ]] && ! check_review_record "$_plan_dir_tr" "task-review" "$tid" > /dev/null 2>&1; then
+        if [[ -f "$_plan_dir_cons/reviews.json" ]] && ! check_review_record "$_plan_dir_cons" "task-review" "$tid" > /dev/null 2>&1; then
           err "ERROR: status_inconsistency: task $tid is 'complete' but no passing task-review record"
         fi
       fi
@@ -616,9 +617,7 @@ do_consistency() {
 
     if [[ "$phase_status" =~ ^Complete ]]; then
       local letter_lower="${letter,,}"
-      local plan_dir
-      plan_dir="$(cd "$(dirname "$plan_json")" && pwd)"
-      if ! check_review_record "$plan_dir" "impl-review" "phase-$letter_lower" > /dev/null 2>&1; then
+      if [[ -f "$_plan_dir_cons/reviews.json" ]] && ! check_review_record "$_plan_dir_cons" "impl-review" "phase-$letter_lower" > /dev/null 2>&1; then
         err "ERROR: status_inconsistency: phase $letter is '$phase_status' but no passing impl-review record for scope phase-$letter_lower"
       fi
     fi
@@ -693,8 +692,11 @@ do_check_base() {
   local json
   json=$(cat "$plan_json")
 
+  local plan_dir
+  plan_dir="$(cd "$(dirname "$plan_json")" && pwd)"
+
   local current_branch
-  current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+  current_branch=$(git -C "$plan_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
   if [[ -z "$current_branch" ]]; then
     echo "ERROR: not in a git repository" >&2
     exit 1
@@ -731,7 +733,7 @@ do_check_base() {
 do_render() {
   local plan_json="$1"
   local plan_dir
-  plan_dir="$(dirname "$(realpath "$plan_json")")"
+  plan_dir="$(cd "$(dirname "$plan_json")" && pwd)"
   local out="$plan_dir/plan.md"
   local tmp="${out}.tmp.$$"
 
@@ -815,9 +817,9 @@ do_update_status_task() {
     (.phases[].tasks[] | select(.id == $id)).status = $status
   ' "$plan_json" > "$tmp" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: jq update failed" >&2; exit 1; }
   mv "$tmp" "$plan_json" || { unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
+  do_render "$plan_json"
   unlock_plan "$plan_json"
   trap - EXIT
-  do_render "$plan_json"
 }
 
 do_update_status_phase() {
@@ -854,9 +856,9 @@ do_update_status_phase() {
     (.phases[] | select(.letter == $letter)).status = $status
   ' "$plan_json" > "$tmp" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: jq update failed" >&2; exit 1; }
   mv "$tmp" "$plan_json" || { unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
+  do_render "$plan_json"
   unlock_plan "$plan_json"
   trap - EXIT
-  do_render "$plan_json"
 }
 
 do_update_status_plan() {
@@ -870,6 +872,8 @@ do_update_status_plan() {
     echo "ERROR: invalid_plan_status: '$new_status' (expected Not Yet Started, In Development, or Complete)" >&2
     exit 1
   fi
+  lock_plan "$plan_json"
+  trap 'unlock_plan "'"$plan_json"'"' EXIT
   if [[ "$new_status" == "Complete" ]]; then
     local plan_dir
     plan_dir="$(cd "$(dirname "$plan_json")" && pwd)"
@@ -912,6 +916,8 @@ do_update_status_plan() {
     fi
 
     if [[ ${#gate_errors[@]} -gt 0 ]]; then
+      unlock_plan "$plan_json"
+      trap - EXIT
       echo "ERROR: cannot mark plan complete — missing review gates:" >&2
       for ge in "${gate_errors[@]}"; do
         echo "  - $ge" >&2
@@ -919,14 +925,12 @@ do_update_status_plan() {
       exit 1
     fi
   fi
-  lock_plan "$plan_json"
-  trap 'unlock_plan "'"$plan_json"'"' EXIT
   local tmp="${plan_json}.tmp.$$"
   jq --arg status "$new_status" '.status = $status' "$plan_json" > "$tmp" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: jq update failed" >&2; exit 1; }
   mv "$tmp" "$plan_json" || { unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
+  do_render "$plan_json"
   unlock_plan "$plan_json"
   trap - EXIT
-  do_render "$plan_json"
 }
 
 do_criteria() {
@@ -1090,6 +1094,11 @@ check_review_record() {
   local verdict remaining
   verdict=$(echo "$record" | jq -r '.verdict // "missing"')
   remaining=$(echo "$record" | jq -r '.remaining // 0')
+
+  if [[ ! "$remaining" =~ ^[0-9]+$ ]]; then
+    echo "review gate failed — type=$review_type scope=$review_scope remaining='$remaining' is not a valid integer"
+    return 1
+  fi
 
   if [[ "$verdict" == "pass" && "$remaining" -eq 0 ]]; then
     return 0
@@ -1259,50 +1268,38 @@ do_check_deps() {
   local json
   json=$(cat "$plan_json")
 
-  local phase_count
-  phase_count=$(echo "$json" | jq '.phases | length')
+  declare -A _status_map
+  local _deps_for_target=""
+  local _found=false
 
-  local deps_json=""
-  for ((p=0; p<phase_count; p++)); do
-    local task_count
-    task_count=$(echo "$json" | jq ".phases[$p].tasks | length")
-    for ((t=0; t<task_count; t++)); do
-      local tid
-      tid=$(echo "$json" | jq -r ".phases[$p].tasks[$t].id")
-      if [[ "$tid" == "$task_id" ]]; then
-        deps_json=$(echo "$json" | jq -c ".phases[$p].tasks[$t].depends_on // []")
-        break 2
-      fi
-    done
+  local _bulk=()
+  mapfile -d '' _bulk < <(echo "$json" | jq -j --arg tid "$task_id" '
+    [.phases[].tasks[] | [.id, .status, (if .id == $tid then (.depends_on // [] | join(",")) else "" end), (if .id == $tid then "FOUND" else "" end)]
+    | map(. + "\u0000") | join("")] | join("")')
+
+  local _count=$(( ${#_bulk[@]} / 4 ))
+  for ((i=0; i<_count; i++)); do
+    local base=$((i * 4))
+    _status_map["${_bulk[$base]}"]="${_bulk[$((base+1))]}"
+    if [[ "${_bulk[$((base+3))]}" == "FOUND" ]]; then
+      _deps_for_target="${_bulk[$((base+2))]}"
+      _found=true
+    fi
   done
 
-  if [[ -z "$deps_json" ]]; then
+  if [[ "$_found" != "true" ]]; then
     echo "ERROR: task '$task_id' not found in plan" >&2
     exit 1
   fi
 
-  local dep_count
-  dep_count=$(echo "$deps_json" | jq 'length')
-  if [[ "$dep_count" -eq 0 ]]; then
+  if [[ -z "$_deps_for_target" ]]; then
     exit 0
   fi
 
-  for ((d=0; d<dep_count; d++)); do
-    local dep_id
-    dep_id=$(echo "$deps_json" | jq -r ".[$d]")
-    local dep_status=""
-    for ((p2=0; p2<phase_count; p2++)); do
-      local tc2
-      tc2=$(echo "$json" | jq ".phases[$p2].tasks | length")
-      for ((t2=0; t2<tc2; t2++)); do
-        local tid2
-        tid2=$(echo "$json" | jq -r ".phases[$p2].tasks[$t2].id")
-        if [[ "$tid2" == "$dep_id" ]]; then
-          dep_status=$(echo "$json" | jq -r ".phases[$p2].tasks[$t2].status")
-          break 2
-        fi
-      done
-    done
+  IFS=',' read -ra dep_arr <<< "$_deps_for_target"
+  for dep_id in "${dep_arr[@]}"; do
+    [[ -z "$dep_id" ]] && continue
+    local dep_status="${_status_map[$dep_id]:-}"
     if [[ "$dep_status" != "complete" && "$dep_status" != "skipped" ]]; then
       echo "ERROR: dependency_not_complete: task $task_id depends on $dep_id which has status '$dep_status' (expected: complete or skipped)" >&2
       exit 1
