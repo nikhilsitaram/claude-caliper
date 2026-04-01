@@ -25,7 +25,9 @@ Skip if: single-module change or purely additive tasks with no interactions.
 
 ## How to Dispatch
 
-Use `./reviewer-prompt.md` template with these variables:
+Use `subagent_type: "claude-caliper:implementation-reviewer"` with the invocation template in `./reviewer-prompt.md`. The agent's static behavior (8-category cross-task checklist, output format) is in the agent definition.
+
+Template variables:
 
 | Variable | Value |
 |----------|-------|
