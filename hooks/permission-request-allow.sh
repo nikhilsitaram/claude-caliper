@@ -26,19 +26,22 @@ cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
 [[ -n "$cmd" ]] || exit 0
 
 extract_segments "$cmd"
-caliper_segments=("${SEGMENTS[@]+"${SEGMENTS[@]}"}")
-caliper_only=true
-for _seg in "${caliper_segments[@]+"${caliper_segments[@]}"}"; do
-  _seg="${_seg#"${_seg%%[![:space:]]*}"}"
-  [[ -z "$_seg" ]] && continue
-  if [[ "$_seg" != *"/.claude/claude-caliper/"* ]]; then
-    caliper_only=false
-    break
+segments=("${SEGMENTS[@]+"${SEGMENTS[@]}"}")
+
+if [[ ${#segments[@]} -gt 0 ]]; then
+  caliper_only=true
+  for _seg in "${segments[@]}"; do
+    _seg="${_seg#"${_seg%%[![:space:]]*}"}"
+    [[ -z "$_seg" ]] && continue
+    if [[ "$_seg" != *"/.claude/claude-caliper/"* ]]; then
+      caliper_only=false
+      break
+    fi
+  done
+  if [[ "$caliper_only" == "true" ]]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}\n'
+    exit 0
   fi
-done
-if [[ "$caliper_only" == "true" ]]; then
-  printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}\n'
-  exit 0
 fi
 
 BUNDLED_SAFE_FILE="$SCRIPT_DIR/safe-commands.txt"
@@ -54,9 +57,6 @@ else
 fi
 
 load_safe_commands "$SAFE_FILE"
-
-extract_segments "$cmd"
-segments=("${SEGMENTS[@]+"${SEGMENTS[@]}"}")
 
 count=0
 all_safe=1
