@@ -155,7 +155,7 @@ extract_command_words_from_segment() {
 
   local outer_cmd=""
   local pure_subshell_re='^\$\((.+)\)$'
-  local var_subshell_re='^[A-Za-z_][A-Za-z0-9_]*=\$\((.+)\)$'
+  local var_subshell_re='^[A-Za-z_][A-Za-z0-9_]*="?\$\((.+)\)"?$'
   local var_literal_re='^[A-Za-z_][A-Za-z0-9_]*=[^$]'
   if [[ "$seg" =~ $pure_subshell_re ]]; then
     local inner="${BASH_REMATCH[1]}"
@@ -166,10 +166,21 @@ extract_command_words_from_segment() {
     inner="${inner#"${inner%%[![:space:]]*}"}"
     outer_cmd="${inner%% *}"
   elif [[ "$seg" =~ $var_literal_re ]]; then
-    local after_assign="${seg#*=[^ ]* }"
-    if [[ "$after_assign" != "$seg" ]]; then
-      after_assign="${after_assign#"${after_assign%%[![:space:]]*}"}"
-      local trailing_word="${after_assign%% *}"
+    local val_start="${seg#*=}"
+    local after_val=""
+    if [[ "$val_start" == '"'* ]]; then
+      local after_open="${val_start#\"}"
+      after_val="${after_open#*\"}"
+    elif [[ "$val_start" == "'"* ]]; then
+      local after_open="${val_start#\'}"
+      after_val="${after_open#*\'}"
+    else
+      after_val="${val_start#[^ ]* }"
+      [[ "$after_val" == "$val_start" ]] && after_val=""
+    fi
+    after_val="${after_val#"${after_val%%[![:space:]]*}"}"
+    if [[ -n "$after_val" ]]; then
+      local trailing_word="${after_val%% *}"
       outer_cmd="${trailing_word##*/}"
     else
       outer_cmd=""

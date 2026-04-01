@@ -458,6 +458,29 @@ printf 'caliper-settings\n' > "$SAFE45"
 OUT45=$(run_hook "'/Users/nsitaram/.claude/plugins/marketplaces/claude-caliper/scripts/caliper-settings' get merge_strategy" "$SAFE45" "$LOG45")
 assert_output_contains "single-quoted absolute path allowed after stripping" "$OUT45" "allow"
 
+echo "Test 46: Quoted variable assignment VAR=\"\$(cmd)\" extracts subshell cmd"
+SAFE46="$TMPDIR_TEST/safe46.txt"
+LOG46="$TMPDIR_TEST/log46.txt"
+printf 'git\nhead\nsed\n' > "$SAFE46"
+# shellcheck disable=SC2016
+OUT46=$(run_hook 'MAIN_REPO="$(git worktree list --porcelain | head -1 | sed '"'"'s/^worktree //'"'"')"' "$SAFE46" "$LOG46")
+assert_output_contains "quoted var assignment with subshell allowed" "$OUT46" "allow"
+
+echo "Test 47: Compound with quoted var assignment allowed"
+SAFE47="$TMPDIR_TEST/safe47.txt"
+LOG47="$TMPDIR_TEST/log47.txt"
+cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE47"
+# shellcheck disable=SC2016
+OUT47=$(run_hook 'IS_WORKTREE=false && if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then IS_WORKTREE=true; fi && MAIN_REPO="$(git worktree list --porcelain | head -1 | sed '"'"'s/^worktree //'"'"')" && WORKTREE_PATH="$(pwd)" && echo "worktree=$IS_WORKTREE main=$MAIN_REPO cwd=$WORKTREE_PATH"' "$SAFE47" "$LOG47")
+assert_output_contains "worktree detection compound command allowed" "$OUT47" "allow"
+
+echo "Test 48: VAR=\"literal\" with trailing command extracts trailing cmd"
+SAFE48="$TMPDIR_TEST/safe48.txt"
+LOG48="$TMPDIR_TEST/log48.txt"
+printf 'echo\n' > "$SAFE48"
+OUT48=$(run_hook 'FOO="bar baz" echo hello' "$SAFE48" "$LOG48")
+assert_output_contains "quoted literal with trailing cmd allowed" "$OUT48" "allow"
+
 echo ""
 echo "$PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
