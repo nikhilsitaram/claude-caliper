@@ -481,6 +481,21 @@ printf 'echo\n' > "$SAFE48"
 OUT48=$(run_hook 'FOO="bar baz" echo hello' "$SAFE48" "$LOG48")
 assert_output_contains "quoted literal with trailing cmd allowed" "$OUT48" "allow"
 
+echo "Test 49: FOO= rm -rf / (empty env-assign) NOT auto-allowed"
+SAFE49="$TMPDIR_TEST/safe49.txt"
+LOG49="$TMPDIR_TEST/log49.txt"
+cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE49"
+OUT49=$(run_hook "FOO= rm -rf /" "$SAFE49" "$LOG49")
+assert_output_empty "empty env-assign bypass blocked" "$OUT49"
+assert_file_contains "rm logged as non-matching" "$LOG49" "rm"
+
+echo "Test 50: FOO=bar echo (unquoted value with trailing cmd) allowed"
+SAFE50="$TMPDIR_TEST/safe50.txt"
+LOG50="$TMPDIR_TEST/log50.txt"
+printf 'echo\n' > "$SAFE50"
+OUT50=$(run_hook "FOO=bar echo hello" "$SAFE50" "$LOG50")
+assert_output_contains "unquoted value with trailing safe cmd allowed" "$OUT50" "allow"
+
 echo ""
 echo "$PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

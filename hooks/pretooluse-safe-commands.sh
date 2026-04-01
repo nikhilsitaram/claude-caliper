@@ -170,13 +170,21 @@ extract_command_words_from_segment() {
     local after_val=""
     if [[ "$val_start" == '"'* ]]; then
       local after_open="${val_start#\"}"
-      after_val="${after_open#*\"}"
+      if [[ "$after_open" == *'"'* ]]; then
+        after_val="${after_open#*\"}"
+      fi
     elif [[ "$val_start" == "'"* ]]; then
       local after_open="${val_start#\'}"
-      after_val="${after_open#*\'}"
+      if [[ "$after_open" == *"'"* ]]; then
+        after_val="${after_open#*\'}"
+      fi
+    elif [[ "$val_start" == " "* || "$val_start" == "$( printf '\t' )"* ]]; then
+      after_val="${val_start}"
     else
-      after_val="${val_start#[^ ]* }"
-      [[ "$after_val" == "$val_start" ]] && after_val=""
+      local first_word="${val_start%% *}"
+      if [[ "$first_word" != "$val_start" ]]; then
+        after_val="${val_start#"$first_word" }"
+      fi
     fi
     after_val="${after_val#"${after_val%%[![:space:]]*}"}"
     if [[ -n "$after_val" ]]; then
