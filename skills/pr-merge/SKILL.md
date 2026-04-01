@@ -60,16 +60,16 @@ Never use `--delete-branch` — branch cleanup is handled in Step 3.
 ### Step 3: Clean Up
 
 **Integration branch** (`IS_INTEGRATION=true`):
-1. If `IN_WORKTREE`: call `ExitWorktree` with `action: "remove"` — atomic exit + delete + CWD reset
-   - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH"`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
+1. If `IN_WORKTREE`: call `ExitWorktree` with `action: "remove"` and `discard_changes: true` — the PR is already merged so local commits are safe to discard
+   - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH" --force`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
 2. Remove remaining phase worktrees: `git worktree remove .claude/worktrees/$FEATURE-phase-*` for each
 3. Delete phase branches: `git branch -D phase-a phase-b ...` (list from plan.json)
 4. `git branch -D $BRANCH_NAME`
 5. `git worktree prune && git pull --rebase && git remote prune origin`
 
 **Standard worktree** (`IN_WORKTREE=true`):
-1. Call `ExitWorktree` with `action: "remove"` — atomic exit + delete + CWD reset
-   - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH"`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
+1. Call `ExitWorktree` with `action: "remove"` and `discard_changes: true` — the PR is already merged so local commits are safe to discard
+   - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH" --force`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
 2. `git branch -D $BRANCH_NAME`
 3. `git worktree prune && git pull --rebase && git remote prune origin`
 
