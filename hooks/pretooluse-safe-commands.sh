@@ -19,6 +19,20 @@ esac
 cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
 [[ -n "$cmd" ]] || exit 0
 
+caliper_only=true
+while IFS= read -r _seg; do
+  _seg="${_seg#"${_seg%%[![:space:]]*}"}"
+  [[ -z "$_seg" ]] && continue
+  if [[ "$_seg" != *"/.claude/claude-caliper/"* ]]; then
+    caliper_only=false
+    break
+  fi
+done < <(printf '%s\n' "$cmd" | tr ';&|' '\n')
+if [[ "$caliper_only" == "true" ]]; then
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}\n'
+  exit 0
+fi
+
 BUNDLED_SAFE_FILE="$SCRIPT_DIR/safe-commands.txt"
 USER_SAFE_FILE="${CLAUDE_SAFE_COMMANDS_FILE:-$HOME/.claude/safe-commands.txt}"
 LOG_FILE="${CLAUDE_SAFE_CMDS_LOG:-${TMPDIR:-/tmp}/claude-safe-cmds-nonmatch.log}"

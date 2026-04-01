@@ -20,7 +20,6 @@ jobs:
         run: |
           bash tests/hooks/caliper-test_safe_commands.sh
           bash tests/hooks/caliper-test_permission_request.sh
-          bash tests/hooks/caliper-test_permission_request_safe_bash.sh
 
       - name: Validate-plan tests
         run: |
