@@ -270,6 +270,13 @@ printf 'git\n' > "$SAFE20B"
 OUT20B=$(run_hook "rm -rf /Users/me/project/src/important.py" "$SAFE20B" "$LOG20B")
 assert_output_empty "rm outside caliper dir not auto-allowed" "$OUT20B"
 
+echo "Test 20c: Injection via caliper path in non-target segment blocked"
+SAFE20C="$TMPDIR_TEST/safe20c.txt"
+LOG20C="$TMPDIR_TEST/log20c.txt"
+printf 'git\n' > "$SAFE20C"
+OUT20C=$(run_hook "rm -rf /important; echo /.claude/claude-caliper/trick" "$SAFE20C" "$LOG20C")
+assert_output_empty "injection with caliper path in second segment blocked" "$OUT20C"
+
 echo "Test 21: Hash comments in commands are skipped"
 SAFE21="$TMPDIR_TEST/safe21.txt"
 LOG21="$TMPDIR_TEST/log21.txt"
