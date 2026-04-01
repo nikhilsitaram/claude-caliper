@@ -9,7 +9,7 @@ For each task with no unmet dependencies (verified via `scripts/validate-plan --
 ```text
 Agent(
   subagent_type: "general-purpose",
-  model: "{IMPLEMENTER_MODEL}",
+  model: "{TASK_IMPLEMENTER_MODEL}",
   isolation: "worktree",
   run_in_background: true,
   prompt: "<substitute implementer-prompt.md with all {VARIABLES}>"
@@ -31,7 +31,7 @@ When a background agent completes (push notification — do not poll):
 ```text
 Agent(
   subagent_type: "general-purpose",
-  model: "{REVIEWER_MODEL}",
+  model: "{TASK_REVIEWER_MODEL}",
   prompt: "<substitute task-reviewer-prompt.md with all {VARIABLES}
     Use the worktree path from the implementer agent's result.>"
 )
@@ -53,7 +53,7 @@ Include in the prompt:
 ```text
 Agent(
   subagent_type: "general-purpose",
-  model: "{REVIEWER_MODEL}",
+  model: "{TASK_REVIEWER_MODEL}",
   prompt: "Working directory: <original worktree path>
 
     ## Worktree Isolation

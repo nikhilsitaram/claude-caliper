@@ -33,17 +33,17 @@ Complete in order:
 7. **Configure and approve** — single AskUserQuestion with 3 questions:
 
     **Q1 — Workflow** (header: "Workflow"):
-    Run `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings source workflow`.
-    - If `"user"`: skip this question. Get the value with `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get workflow` and message: "Using your configured workflow: <value>".
-    - If `"default"`: include in AskUserQuestion with recommended option marked "(Recommended)":
+    Run `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get workflow`.
+    - If a value is returned (e.g. `pr-create`): skip this question. Message: "Using your configured workflow: <value>".
+    - If `PROMPT_REQUIRED`: include in AskUserQuestion with recommended option marked "(Recommended)":
       - **Create PR** — Orchestrate → pr-create (Recommended)
       - **Merge PR** — Orchestrate → pr-create → pr-review → pr-merge
       - **Plan only** — Stop after plan is reviewed
 
     **Q2 — Execution mode** (header: "Exec mode"):
-    Run `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings source execution_mode`.
-    - If `"user"`: skip this question. Get the value with `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get execution_mode` and message: "Using your configured execution mode: <value>".
-    - If `"default"`: include in AskUserQuestion. Recommend based on design complexity:
+    Run `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get execution_mode`.
+    - If a value is returned (e.g. `subagents`): skip this question. Message: "Using your configured execution mode: <value>".
+    - If `PROMPT_REQUIRED`: include in AskUserQuestion. Recommend based on design complexity:
       - ≤10 tasks AND single phase → recommend `Subagents`
       - >10 tasks OR multi-phase → recommend `Agent teams`
 
@@ -75,12 +75,12 @@ Complete in order:
     For **Create PR** or **Merge PR**: invoke orchestrate.
     For **Plan only**: run `scripts/validate-plan --check-workflow plan.json` to verify design-review and plan-review passed. Report the plan file path and stop.
 
-Read the reviewer model: `REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get reviewer_model)`
+Read the design reviewer model: `DESIGN_REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get design_reviewer_model)`
 
 ```text
 Agent(
   subagent_type: "general-purpose",
-  model: "$REVIEWER_MODEL",
+  model: "$DESIGN_REVIEWER_MODEL",
   prompt: "Review the design doc at .claude/claude-caliper/<folder>/design-<topic>.md
     using the design-review skill.
     Working directory: .claude/worktrees/<feature>"
@@ -89,12 +89,12 @@ Agent(
 
 If design-review finds issues, present them to the user, collaboratively fix the design doc, and re-dispatch design-review until clean. Only dispatch draft-plan after design-review passes. After design-review passes, extract the `json review-summary` block from the final passing review and write a record to `{PLAN_DIR}/reviews.json` (initialize with `[]` if it doesn't exist): `jq --argjson entry '{"type":"design-review","scope":"design","iteration":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass","timestamp":"<ISO8601>"}' '. += [$entry]' reviews.json > tmp && mv tmp reviews.json`
 
-Read the implementer model: `IMPLEMENTER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get implementer_model)`
+Read the planner model: `PLANNER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get planner_model)`
 
 ```text
 Agent(
   subagent_type: "general-purpose",
-  model: "$IMPLEMENTER_MODEL",
+  model: "$PLANNER_MODEL",
   prompt: "Read the design doc at .claude/claude-caliper/<folder>/design-<topic>.md and write
     an implementation plan using the draft-plan skill.
     Working directory: .claude/worktrees/<feature>"
@@ -103,12 +103,12 @@ Agent(
 
 After draft-plan returns, dispatch plan-review with the same review loop protocol:
 
-Read the reviewer model: `REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get reviewer_model)`
+Read the plan reviewer model: `PLAN_REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get plan_reviewer_model)`
 
 ```text
 Agent(
   subagent_type: "general-purpose",
-  model: "$REVIEWER_MODEL",
+  model: "$PLAN_REVIEWER_MODEL",
   prompt: "Review the plan at .claude/claude-caliper/<folder>/plan.json
     using the plan-review skill.
     Design doc: .claude/claude-caliper/<folder>/design-<topic>.md

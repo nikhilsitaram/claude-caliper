@@ -30,7 +30,7 @@ Gather inputs:
 - **Design doc** — if one exists (or "None")
 - **Repo root** — the worktree the plan targets
 
-Dispatch with `model: "$REVIEWER_MODEL"` — consistency checking requires strong reasoning.
+Dispatch with `model: "$PLAN_REVIEWER_MODEL"` — consistency checking requires strong reasoning.
 
 **See:** reviewer-prompt.md
 

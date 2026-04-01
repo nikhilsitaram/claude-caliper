@@ -6,7 +6,7 @@ Dispatch a reviewer subagent to validate a design doc before planning begins.
 
 ```yaml
 Agent tool (general-purpose):
-  model: "{REVIEWER_MODEL}"
+  model: "{DESIGN_REVIEWER_MODEL}"
   description: "Design doc review"
   prompt: |
     You are reviewing a design doc BEFORE any planning or implementation begins.

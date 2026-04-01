@@ -49,7 +49,7 @@ Then the pipeline runs:
 | 8 | Implementation review does a cross-task holistic pass | Fresh subagent |
 | 9 | Create PR opens a PR | Automated |
 | 10 | You review the PR and run `/pr-review` | **You** |
-| 11 | Fresh-eyes review reads the diff cold before any external feedback | Fresh subagent |
+| 11 | PR reviewer reads the diff cold before any external feedback | Subagent |
 | 12 | Fixes applied, feedback addressed | Automated |
 | 13 | You run `/pr-merge` — squash merge, branch cleaned up | **You** |
 
@@ -157,7 +157,7 @@ These skills chain automatically. You trigger the first one by describing what t
 | **Execution** | [orchestrate](skills/orchestrate/) | Dispatches tasks via subagents or agent teams (parallel within phase, sequential phases); mode selected during design |
 | **Review Gate** | [implementation-review](skills/implementation-review/) | Cross-task holistic review — catches inconsistencies invisible to per-task reviewers |
 | **Create PR** | [pr-create](skills/pr-create/) | Commits, rebases, tests, pushes, opens PR with structured summary |
-| **Review PR** | [pr-review](skills/pr-review/) | Fresh-eyes review before reading external feedback, addresses comments, posts assessment |
+| **Review PR** | [pr-review](skills/pr-review/) | PR review before reading external feedback, addresses comments, posts assessment |
 | **Merge** | [pr-merge](skills/pr-merge/) | Confirms merge, squash merges, cleans up branches and worktrees |
 
 ### Standalone Tools

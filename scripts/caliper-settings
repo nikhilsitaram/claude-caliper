@@ -49,6 +49,8 @@ cmd_get() {
   validate_key "$key"
   if echo "$SETTINGS" | jq -e --arg k "$key" 'has($k)' > /dev/null 2>&1; then
     echo "$SETTINGS" | jq -r --arg k "$key" '.[$k] | tostring'
+  elif echo "$DEFAULTS" | jq -e --arg k "$key" '.[$k].prompt_required == true' > /dev/null 2>&1; then
+    echo "PROMPT_REQUIRED"
   else
     echo "$DEFAULTS" | jq -r --arg k "$key" '.[$k].default'
   fi
@@ -145,8 +147,12 @@ cmd_list() {
   printf "%-25s %-20s %-20s %s\n" "KEY" "CURRENT" "DEFAULT" "DESCRIPTION"
   printf "%-25s %-20s %-20s %s\n" "---" "-------" "-------" "-----------"
   for key in $(echo "$DEFAULTS" | jq -r 'keys[]'); do
-    local default description user_val current
-    default=$(echo "$DEFAULTS" | jq -r --arg k "$key" '.[$k].default')
+    local default description current
+    if echo "$DEFAULTS" | jq -e --arg k "$key" '.[$k].prompt_required == true' > /dev/null 2>&1; then
+      default="(prompt)"
+    else
+      default=$(echo "$DEFAULTS" | jq -r --arg k "$key" '.[$k].default')
+    fi
     description=$(echo "$DEFAULTS" | jq -r --arg k "$key" '.[$k].description')
     if echo "$SETTINGS" | jq -e --arg k "$key" 'has($k)' > /dev/null 2>&1; then
       current=$(echo "$SETTINGS" | jq -r --arg k "$key" '.[$k] | tostring')

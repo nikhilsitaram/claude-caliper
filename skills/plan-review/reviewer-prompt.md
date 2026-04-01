@@ -6,7 +6,7 @@ Dispatch a reviewer subagent to validate a plan before execution.
 
 ```yaml
 Agent tool (general-purpose):
-  model: "{REVIEWER_MODEL}"
+  model: "{PLAN_REVIEWER_MODEL}"
   description: "Plan consistency review"
   prompt: |
     You are reviewing an implementation plan BEFORE any code is written.

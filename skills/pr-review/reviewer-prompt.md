@@ -1,14 +1,14 @@
 # PR Review Prompt Template
 
-Dispatch a fresh-eyes subagent to review the full PR diff before reading external feedback.
+Dispatch a subagent to review the full PR diff before reading external feedback.
 
 ````text
 Agent tool (general-purpose):
-  model: "{REVIEWER_MODEL}"
+  model: "{PR_REVIEWER_MODEL}"
   mode: "auto"
-  description: "Fresh-eyes PR review"
+  description: "PR review"
   prompt: |
-    You are reviewing a PR diff with fresh eyes. You have NO context about
+    You are reviewing a PR diff. You have NO context about
     what this feature does or why — judge the code purely on its own merits.
 
     ## Diff

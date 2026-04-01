@@ -8,14 +8,14 @@
   "review_mode": {
     "type": "enum",
     "values": ["automated", "deliberate"],
-    "default": "deliberate",
-    "description": "Default PR review mode",
+    "prompt_required": true,
+    "description": "PR review mode (prompted each time unless explicitly set)",
     "used_by": ["pr-review"]
   },
   "skip_review": {
     "type": "bool",
     "default": false,
-    "description": "Skip fresh-eyes subagent review dispatch",
+    "description": "Skip PR reviewer subagent dispatch",
     "used_by": ["pr-review"]
   },
   "merge_strategy": {
@@ -28,27 +28,34 @@
   "workflow": {
     "type": "enum",
     "values": ["pr-create", "pr-merge", "plan-only"],
-    "default": "pr-create",
-    "description": "Default post-orchestration workflow",
+    "prompt_required": true,
+    "description": "Post-orchestration workflow (prompted each time unless explicitly set)",
     "used_by": ["design", "orchestrate"]
   },
   "execution_mode": {
     "type": "enum",
     "values": ["subagents", "agent-teams"],
-    "default": "subagents",
-    "description": "Default execution mode for plan dispatch",
+    "prompt_required": true,
+    "description": "Execution mode for plan dispatch (prompted each time unless explicitly set)",
     "used_by": ["design", "orchestrate"]
   },
-  "implementer_model": {
+  "planner_model": {
     "type": "enum",
     "values": ["opus", "sonnet", "haiku"],
     "default": "opus",
-    "description": "Model for task implementers and draft-plan dispatch",
-    "used_by": ["design", "orchestrate"]
+    "description": "Model for draft-plan writer",
+    "used_by": ["design"]
+  },
+  "task_implementer_model": {
+    "type": "enum",
+    "values": ["opus", "sonnet", "haiku"],
+    "default": "opus",
+    "description": "Model for task execution in orchestrate",
+    "used_by": ["orchestrate"]
   },
   "review_wait_minutes": {
     "type": "int",
-    "default": 10,
+    "default": 5,
     "description": "Poll timeout in minutes for external review bot comments (warm-up periods remain fixed)",
     "used_by": ["orchestrate", "pr-review"]
   },
@@ -58,12 +65,40 @@
     "description": "Issue count above which reviewer is re-dispatched after fixes",
     "used_by": ["design", "orchestrate", "design-review", "plan-review", "implementation-review"]
   },
-  "reviewer_model": {
+  "design_reviewer_model": {
+    "type": "enum",
+    "values": ["opus", "sonnet", "haiku"],
+    "default": "opus",
+    "description": "Model for design review",
+    "used_by": ["design", "design-review"]
+  },
+  "plan_reviewer_model": {
     "type": "enum",
     "values": ["opus", "sonnet", "haiku"],
     "default": "sonnet",
-    "description": "Model for all review dispatches and fix-cycle agents",
-    "used_by": ["design", "orchestrate", "design-review", "plan-review", "implementation-review", "pr-review"]
+    "description": "Model for plan review",
+    "used_by": ["design", "plan-review"]
+  },
+  "task_reviewer_model": {
+    "type": "enum",
+    "values": ["opus", "sonnet", "haiku"],
+    "default": "sonnet",
+    "description": "Model for per-task review in orchestrate",
+    "used_by": ["orchestrate"]
+  },
+  "implementation_reviewer_model": {
+    "type": "enum",
+    "values": ["opus", "sonnet", "haiku"],
+    "default": "sonnet",
+    "description": "Model for cross-task implementation review",
+    "used_by": ["orchestrate", "implementation-review"]
+  },
+  "pr_reviewer_model": {
+    "type": "enum",
+    "values": ["opus", "sonnet", "haiku"],
+    "default": "opus",
+    "description": "Model for PR review",
+    "used_by": ["pr-review"]
   },
   "bot_poll_timeout_minutes": {
     "type": "int",

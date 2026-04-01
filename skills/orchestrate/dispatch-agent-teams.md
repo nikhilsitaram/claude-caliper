@@ -42,7 +42,7 @@ Implementer teammates use the template in `./implementer-prompt.md`. Key spawn p
 
 ```yaml
 Teammate spawn:
-  model: "{IMPLEMENTER_MODEL}"
+  model: "{TASK_IMPLEMENTER_MODEL}"
   mode: "acceptEdits"
   description: "Implement {TASK_ID}: [task name]"
   prompt: <filled from implementer-prompt.md template>
@@ -52,7 +52,7 @@ Task reviewer teammates use the template in `./task-reviewer-prompt.md`. Key spa
 
 ```yaml
 Teammate spawn:
-  model: "{REVIEWER_MODEL}"
+  model: "{TASK_REVIEWER_MODEL}"
   mode: "auto"
   description: "Review Task {TASK_ID}"
   prompt: <filled from task-reviewer-prompt.md template>

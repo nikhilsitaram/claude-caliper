@@ -12,7 +12,7 @@ Per-task reviews verify each piece works. This review verifies the pieces work *
 - After all tasks complete in orchestrate (auto-dispatched)
 - Before merging any multi-task feature branch
 - Between phases of a multi-phase plan (auto-dispatched by orchestrate after each phase)
-- When asked to "review the whole thing" or "look at everything with fresh eyes"
+- When asked to "review the whole thing" or "review everything"
 
 ## Pre-Flight Checks
 
@@ -39,7 +39,7 @@ Use `./reviewer-prompt.md` template with these variables:
 | `{PHASE_CONTEXT}` | Phase letter and name (e.g., "Phase A of C: Core API"), and what downstream phases expect (interfaces, config, APIs). Empty string for final/single-phase reviews. |
 | `{DESIGN_DOC_PATH}` | Path to design doc (from plan frontmatter, or "None") |
 
-**Use `model: "$REVIEWER_MODEL"`** — fresh-eyes review requires the strongest reasoning to catch subtle cross-task issues.
+**Use `model: "$IMPL_REVIEWER_MODEL"`** — review requires strong reasoning to catch subtle cross-task issues.
 
 **Use the full diff range** — `BASE_SHA..HEAD_SHA` must cover ALL tasks, not just the last one.
 

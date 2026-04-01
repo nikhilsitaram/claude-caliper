@@ -1,14 +1,14 @@
 # Implementation Review Prompt Template
 
-Dispatch a fresh-eyes reviewer subagent for the entire feature. Only dispatch after all tasks are complete and per-task reviews have passed.
+Dispatch a reviewer subagent for the entire feature. Only dispatch after all tasks are complete and per-task reviews have passed.
 
 ```text
 Agent tool (general-purpose):
-  model: "{REVIEWER_MODEL}"
+  model: "{IMPL_REVIEWER_MODEL}"
   mode: "auto"
-  description: "Fresh-eyes implementation review"
+  description: "Implementation review"
   prompt: |
-    You are performing a fresh-eyes review of an entire feature implementation.
+    You are performing a review of an entire feature implementation.
     Per-task reviews have passed. Your job: find issues that only become visible
     when looking at ALL tasks together.
 

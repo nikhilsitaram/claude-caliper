@@ -23,7 +23,7 @@ Gather inputs:
 - **Design doc** — `.claude/claude-caliper/YYYY-MM-DD-topic/design-topic.md`
 - **Repo root** — the worktree the design targets
 
-Dispatch with `model: "$REVIEWER_MODEL"` — fresh-eyes review requires strong reasoning to catch blind spots the designer and user converged past.
+Dispatch with `model: "$DESIGN_REVIEWER_MODEL"` — review requires strong reasoning to catch blind spots the designer and user converged past.
 
 **See:** reviewer-prompt.md
 

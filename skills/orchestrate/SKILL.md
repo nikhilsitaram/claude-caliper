@@ -31,9 +31,10 @@ Before first phase:
 - Read workflow: `WORKFLOW=$(jq -r '.workflow' "$PLAN_JSON")`
 - Read execution mode: `EXEC_MODE=$(jq -r '.execution_mode' "$PLAN_JSON")`
 Note: `workflow` and `execution_mode` are read from plan.json (set by the design skill based on user selection and caliper-settings defaults), not from caliper-settings at runtime. This avoids two sources of truth — the plan is the single source once created.
-- Read implementer model: `IMPLEMENTER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get implementer_model)`
-- Read reviewer model: `REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get reviewer_model)`
-Note: `IMPLEMENTER_MODEL` and `REVIEWER_MODEL` are substituted into dispatch template variables `{IMPLEMENTER_MODEL}` and `{REVIEWER_MODEL}` when dispatching implementers, reviewers, and fix-cycle agents.
+- Read task implementer model: `TASK_IMPLEMENTER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get task_implementer_model)`
+- Read task reviewer model: `TASK_REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get task_reviewer_model)`
+- Read implementation reviewer model: `IMPL_REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get implementation_reviewer_model)`
+Note: These model settings are substituted into dispatch template variables `{TASK_IMPLEMENTER_MODEL}`, `{TASK_REVIEWER_MODEL}`, and `{IMPL_REVIEWER_MODEL}` when dispatching implementers, reviewers, and fix-cycle agents.
 - Count phases: `PHASE_COUNT=$(jq '.phases | length' "$PLAN_JSON")`
 - Validate schema: `scripts/validate-plan --schema "$PLAN_JSON"`
 - Validate entry gate: `scripts/validate-plan --check-entry "$PLAN_JSON" --stage execution`
@@ -70,7 +71,7 @@ The dispatch file specifies how tasks are dispatched (teammates vs subagents), h
 ### Phase Wrap-Up
 
 After all tasks complete and branches merged:
-1. Dispatch implementation-review with `PHASE_BASE_SHA..HEAD` using `model: "$REVIEWER_MODEL"`, run Review Loop Protocol (scope: `phase-{letter_lower}`)
+1. Dispatch implementation-review with `PHASE_BASE_SHA..HEAD` using `model: "$IMPL_REVIEWER_MODEL"`, run Review Loop Protocol (scope: `phase-{letter_lower}`)
 2. `scripts/validate-plan --check-review "$PLAN_JSON" --type impl-review --scope phase-{letter_lower}`
 3. Append review changes to `${PHASE_DIR}/completion.md`
 4. Run phase criteria: `scripts/validate-plan --criteria "$PLAN_JSON" --phase {LETTER}`

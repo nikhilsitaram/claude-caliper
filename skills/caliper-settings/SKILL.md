@@ -35,15 +35,21 @@ Removes a user override so the setting falls back to its shipped default. With n
 | Key | Type | Default | Used by |
 |-----|------|---------|---------|
 | `skip_tests` | bool | `false` | pr-create |
-| `review_mode` | enum | `deliberate` | pr-review |
+| `review_mode` | enum | *(prompt)* | pr-review |
 | `skip_review` | bool | `false` | pr-review |
 | `merge_strategy` | enum | `squash` | pr-merge |
-| `workflow` | enum | `pr-create` | design, orchestrate |
-| `execution_mode` | enum | `subagents` | design, orchestrate |
-| `implementer_model` | enum | `opus` | design, orchestrate |
-| `review_wait_minutes` | int | `10` | orchestrate, pr-review |
+| `workflow` | enum | *(prompt)* | design, orchestrate |
+| `execution_mode` | enum | *(prompt)* | design, orchestrate |
+| `planner_model` | enum | `opus` | design |
+| `task_implementer_model` | enum | `opus` | orchestrate |
+| `design_reviewer_model` | enum | `opus` | design, design-review |
+| `plan_reviewer_model` | enum | `sonnet` | design, plan-review |
+| `task_reviewer_model` | enum | `sonnet` | orchestrate |
+| `implementation_reviewer_model` | enum | `sonnet` | orchestrate, implementation-review |
+| `pr_reviewer_model` | enum | `opus` | pr-review |
+| `review_wait_minutes` | int | `5` | orchestrate, pr-review |
 | `re_review_threshold` | int | `5` | design, orchestrate, review skills |
-| `reviewer_model` | enum | `sonnet` | design, orchestrate, review skills |
+| `bot_poll_timeout_minutes` | int | `10` | pr-review |
 
 ## How Settings Are Used
 

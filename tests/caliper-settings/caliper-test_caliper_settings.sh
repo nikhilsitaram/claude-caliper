@@ -55,9 +55,11 @@ assert_contains() {
 ALL_KEYS=$(jq -r 'keys[]' "$DEFAULTS_FILE")
 FIRST_BOOL_KEY=$(jq -r 'to_entries[] | select(.value.type == "bool") | .key' "$DEFAULTS_FILE" | head -1)
 FIRST_BOOL_DEFAULT=$(jq -r --arg k "$FIRST_BOOL_KEY" '.[$k].default' "$DEFAULTS_FILE")
-FIRST_ENUM_KEY=$(jq -r 'to_entries[] | select(.value.type == "enum") | .key' "$DEFAULTS_FILE" | head -1)
+FIRST_ENUM_KEY=$(jq -r 'to_entries[] | select(.value.type == "enum" and .value.default) | .key' "$DEFAULTS_FILE" | head -1)
 FIRST_ENUM_DEFAULT=$(jq -r --arg k "$FIRST_ENUM_KEY" '.[$k].default' "$DEFAULTS_FILE")
 FIRST_ENUM_ALT=$(jq -r --arg k "$FIRST_ENUM_KEY" '.[$k].values[1]' "$DEFAULTS_FILE")
+FIRST_PROMPT_KEY=$(jq -r 'to_entries[] | select(.value.prompt_required == true) | .key' "$DEFAULTS_FILE" | head -1)
+FIRST_PROMPT_ALT=$(jq -r --arg k "$FIRST_PROMPT_KEY" '.[$k].values[1]' "$DEFAULTS_FILE")
 FIRST_INT_KEY=$(jq -r 'to_entries[] | select(.value.type == "int") | .key' "$DEFAULTS_FILE" | head -1)
 FIRST_INT_DEFAULT=$(jq -r --arg k "$FIRST_INT_KEY" '.[$k].default' "$DEFAULTS_FILE")
 
@@ -228,6 +230,19 @@ bash "$SCRIPT" reset "$FIRST_ENUM_KEY"
 assert_eq "source returns default after reset" "default" "$(bash "$SCRIPT" source "$FIRST_ENUM_KEY")"
 check_fail "source unknown key fails" bash "$SCRIPT" source nonexistent_key
 check_fail "source with no key fails" bash "$SCRIPT" source
+teardown
+
+echo ""
+echo "=== prompt_required settings ==="
+
+setup
+assert_eq "get returns PROMPT_REQUIRED for prompt_required setting" "PROMPT_REQUIRED" "$(bash "$SCRIPT" get "$FIRST_PROMPT_KEY")"
+bash "$SCRIPT" set "$FIRST_PROMPT_KEY" "$FIRST_PROMPT_ALT" > /dev/null
+assert_eq "get returns user value after set" "$FIRST_PROMPT_ALT" "$(bash "$SCRIPT" get "$FIRST_PROMPT_KEY")"
+bash "$SCRIPT" reset "$FIRST_PROMPT_KEY"
+assert_eq "get returns PROMPT_REQUIRED after reset" "PROMPT_REQUIRED" "$(bash "$SCRIPT" get "$FIRST_PROMPT_KEY")"
+output=$(bash "$SCRIPT" list)
+assert_contains "list shows (prompt) for prompt_required setting" "$output" "(prompt)"
 teardown
 
 echo ""

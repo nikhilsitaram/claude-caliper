@@ -1,11 +1,11 @@
 ---
 name: pr-review
-description: Use when a PR has review feedback to address, needs fresh-eyes review, or when triggered by "/pr-review", "address review feedback", "review feedback ready".
+description: Use when a PR has review feedback to address, needs review, or when triggered by "/pr-review", "address review feedback", "review feedback ready".
 ---
 
 # Review PR
 
-Dispatch fresh-eyes review, address feedback, and comment on the PR.
+Dispatch PR review, address feedback, and comment on the PR.
 
 **Prerequisite:** A PR created by `/pr-create`.
 
@@ -25,14 +25,14 @@ If not on PR branch: use existing worktree if found (`cd` into it), otherwise `g
 
 If `--automated`/`-A` passed, use automated mode. `--automated` + `--skip-fixes` is invalid — fail fast.
 
-If no flag, check whether the user explicitly configured a preference:
+If no flag, read the user's preference:
 
 ```bash
-source=$("${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings" source review_mode)
+mode=$("${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings" get review_mode)
 ```
 
-- If `source` = `user`: use their configured value from `caliper-settings get review_mode` without prompting.
-- If `source` = `default`: prompt the user to choose — the default is just a fallback, not an explicit preference:
+- If a mode is returned (`automated` or `deliberate`): the user explicitly configured this. Use it.
+- If `PROMPT_REQUIRED`: no explicit preference — prompt the user to choose:
   - **Automated** — Fix all actionable findings without interaction.
   - **Deliberate** — Collect all feedback, present unified triage, choose what to fix.
 
@@ -52,7 +52,7 @@ If rebased, log it. If conflicts, stop and ask user. After force-push, only proc
 
 Skip if `--skip-review` passed or `caliper-settings get skip_review` returns `true`.
 
-Read reviewer model: `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get reviewer_model` — substitute into `reviewer-prompt.md`'s `model:` field.
+Read PR reviewer model: `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get pr_reviewer_model` — substitute into `reviewer-prompt.md`'s `model:` field.
 
 Read `reviewer-prompt.md` and dispatch with `run_in_background: true`:
 - `{DIFF_RANGE}` = `origin/$BASE_BRANCH..HEAD`
