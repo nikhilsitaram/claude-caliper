@@ -79,11 +79,11 @@ Read the design reviewer model: `DESIGN_REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/s
 
 ```text
 Agent(
-  subagent_type: "general-purpose",
+  subagent_type: "claude-caliper:design-reviewer",
   model: "$DESIGN_REVIEWER_MODEL",
   prompt: "Review the design doc at .claude/claude-caliper/<folder>/design-<topic>.md
-    using the design-review skill.
-    Working directory: .claude/worktrees/<feature>"
+
+    Codebase root: .claude/worktrees/<feature>"
 )
 ```
 
@@ -93,11 +93,13 @@ Read the planner model: `PLANNER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-s
 
 ```text
 Agent(
-  subagent_type: "general-purpose",
+  subagent_type: "claude-caliper:plan-drafter",
   model: "$PLANNER_MODEL",
   prompt: "Read the design doc at .claude/claude-caliper/<folder>/design-<topic>.md and write
-    an implementation plan using the draft-plan skill.
-    Working directory: .claude/worktrees/<feature>"
+    an implementation plan.
+
+    Working directory: .claude/worktrees/<feature>
+    Plan directory: .claude/claude-caliper/<folder>/"
 )
 ```
 
@@ -107,12 +109,12 @@ Read the plan reviewer model: `PLAN_REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scrip
 
 ```text
 Agent(
-  subagent_type: "general-purpose",
+  subagent_type: "claude-caliper:plan-reviewer",
   model: "$PLAN_REVIEWER_MODEL",
-  prompt: "Review the plan at .claude/claude-caliper/<folder>/plan.json
-    using the plan-review skill.
+  prompt: "Review the implementation plan at .claude/claude-caliper/<folder>/plan.json
+
     Design doc: .claude/claude-caliper/<folder>/design-<topic>.md
-    Working directory: .claude/worktrees/<feature>"
+    Codebase root: .claude/worktrees/<feature>"
 )
 ```
 
