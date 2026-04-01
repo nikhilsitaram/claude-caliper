@@ -22,8 +22,8 @@ Detect if CWD is inside a worktree:
 If inside a worktree, note `IN_WORKTREE=true` and capture paths for cleanup:
 
 ```bash
-MAIN_REPO=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
-WORKTREE_PATH=$(pwd)
+MAIN_REPO="$(git worktree list --porcelain | head -1 | sed 's/^worktree //')"
+WORKTREE_PATH="$(pwd)"
 ```
 
 Stay in the worktree — `gh pr merge` is a GitHub API call that works from any directory.
@@ -60,18 +60,18 @@ Never use `--delete-branch` — branch cleanup is handled in Step 3.
 ### Step 3: Clean Up
 
 **Integration branch** (`IS_INTEGRATION=true`):
-1. If `IN_WORKTREE`: call `ExitWorktree` with `action: "remove"` — atomic exit + delete + CWD reset. If no-op (cross-session worktree): `cd $MAIN_REPO && git worktree remove $WORKTREE_PATH`
-2. Remove remaining phase worktrees: `git worktree remove .claude/worktrees/$FEATURE-phase-*` for each (prefix with `cd $MAIN_REPO &&` if ExitWorktree was a no-op)
+1. If `IN_WORKTREE`: call `ExitWorktree` with `action: "remove"` — atomic exit + delete + CWD reset
+   - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH"`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
+2. Remove remaining phase worktrees: `git worktree remove .claude/worktrees/$FEATURE-phase-*` for each
 3. Delete phase branches: `git branch -D phase-a phase-b ...` (list from plan.json)
 4. `git branch -D $BRANCH_NAME`
 5. `git worktree prune && git pull --rebase && git remote prune origin`
 
 **Standard worktree** (`IN_WORKTREE=true`):
-1. Call `ExitWorktree` with `action: "remove"` — atomic exit + delete + CWD reset. If no-op (cross-session worktree): `cd $MAIN_REPO && git worktree remove $WORKTREE_PATH`
+1. Call `ExitWorktree` with `action: "remove"` — atomic exit + delete + CWD reset
+   - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH"`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
 2. `git branch -D $BRANCH_NAME`
 3. `git worktree prune && git pull --rebase && git remote prune origin`
-
-Steps 2+ after a no-op ExitWorktree: prefix each Bash call with `cd $MAIN_REPO &&` since CWD is invalidated.
 
 **No worktree:** `git checkout $DEFAULT_BRANCH && git branch -D $BRANCH_NAME && git pull --rebase && git remote prune origin`
 
@@ -91,7 +91,7 @@ Report: PR number/URL, merge status, cleanup status.
 
 | Mistake | Why |
 |---------|-----|
-| Skipping `ExitWorktree` when it's available | `cd` doesn't persist across Bash tool calls — only `ExitWorktree` resets CWD at the session level. Always try `ExitWorktree` first; the `cd $MAIN_REPO &&` fallback is for cross-session worktrees where ExitWorktree returns a no-op. |
+| Skipping `ExitWorktree` when it's available | `cd` doesn't persist across Bash tool calls — only `ExitWorktree` resets CWD at the session level. Always try `ExitWorktree` first; the `cd "$MAIN_REPO" &&` fallback is for cross-session worktrees where ExitWorktree returns a no-op. |
 | Deleting branch before removing worktree | Git refuses. Remove worktree first. |
 | Using `--delete-branch` on `gh pr merge` | Fails in worktree flows. Delete branch manually after. |
 

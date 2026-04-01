@@ -24,7 +24,7 @@ Complete in order:
 3. **Ask clarifying questions** — smart batches (see below)
 4. **Propose 2-3 approaches** — trade-offs and your recommendation
 5. **Present design** — sections scaled to complexity, approval after each
-6. **Set up worktree** — use `EnterWorktree` so `ExitWorktree` can reset session CWD during pr-merge cleanup:
+6. **Set up worktree** — `EnterWorktree` enables session-aware cleanup via `ExitWorktree`:
    - `EnterWorktree(name: "<feature>")` — creates `.claude/worktrees/<feature>` with branch `<feature>`
    - Multi-phase: rename to integration branch: `git branch -m integrate/<feature>` — phase worktrees created by orchestrate as siblings
    - Single-phase: branch name `<feature>` is correct as-is; orchestrate works here directly, PRs to main
