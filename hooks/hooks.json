@@ -1,7 +1,7 @@
 {
   "hooks": {
     "PreToolUse": [{
-      "matcher": "*",
+      "matcher": "Read|Glob|Grep|Skill|WebFetch|WebSearch|ToolSearch|Bash",
       "hooks": [{
         "type": "command",
         "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-safe-commands.sh"
@@ -13,13 +13,6 @@
         "hooks": [{
           "type": "command",
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/permission-request-accept-edits.sh"
-        }]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [{
-          "type": "command",
-          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/permission-request-safe-bash.sh"
         }]
       }
     ]

@@ -252,9 +252,23 @@ for tool in Read Glob Grep Skill WebFetch WebSearch ToolSearch; do
   assert_output_contains "$tool auto-approved" "$OUT19" "allow"
 done
 
-echo "Test 20: Non-safe built-in tools not auto-approved"
+echo "Test 20: Non-matching built-in tools pass through (no output)"
 OUT20=$(run_hook_tool "Edit")
 assert_output_empty "Edit not auto-approved" "$OUT20"
+
+echo "Test 20a: Bash commands targeting .claude/claude-caliper/ auto-allowed"
+SAFE20A="$TMPDIR_TEST/safe20a.txt"
+LOG20A="$TMPDIR_TEST/log20a.txt"
+printf 'git\n' > "$SAFE20A"
+OUT20A=$(run_hook "rm -rf /Users/me/project/.claude/claude-caliper/design-doc.md" "$SAFE20A" "$LOG20A")
+assert_output_contains "rm in .claude/claude-caliper/ auto-allowed" "$OUT20A" "allow"
+
+echo "Test 20b: Bash commands outside .claude/claude-caliper/ not auto-allowed by path check"
+SAFE20B="$TMPDIR_TEST/safe20b.txt"
+LOG20B="$TMPDIR_TEST/log20b.txt"
+printf 'git\n' > "$SAFE20B"
+OUT20B=$(run_hook "rm -rf /Users/me/project/src/important.py" "$SAFE20B" "$LOG20B")
+assert_output_empty "rm outside caliper dir not auto-allowed" "$OUT20B"
 
 echo "Test 21: Hash comments in commands are skipped"
 SAFE21="$TMPDIR_TEST/safe21.txt"
