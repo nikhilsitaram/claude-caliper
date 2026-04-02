@@ -107,11 +107,12 @@ For each issue:
 | Security | PASS/FAIL |
 | Simplicity | PASS/FAIL |
 
-**Issues:** [count] | **Critical:** [count] | **Important:** [count] | **Minor:** [count]
+**Issues:** [count] | **Critical:** [count] | **Important:** [count] | **Moderate:** [count] | **Minor:** [count]
 
 Severity guide:
 - Critical — bugs, security vulnerabilities, missing requirements
 - Important — test gaps, poor error handling, TDD violations
+- Moderate — inconsistencies, missing edge case handling
 - Minor — style, naming, minor simplification opportunities
 
 **Ready to proceed?** Yes / Yes after fixes / No, needs rework
@@ -120,9 +121,10 @@ Severity guide:
 
 After the human-readable output above, emit a fenced code block with the info string `json review-summary`. This block is parsed by the controlling agent to enforce review gates — if it is missing or malformed, the review is treated as failed and a fresh reviewer is dispatched.
 
-Severity mapping for task-reviewer (3 levels):
+Severity mapping for task-reviewer:
 - "Critical" -> critical
-- "Important" -> high (medium stays 0)
+- "Important" -> high
+- "Moderate" -> medium
 - "Minor" -> low
 
 ```json review-summary

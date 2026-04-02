@@ -2,6 +2,7 @@
 name: task-implementer
 description: Implements a single task from an implementation plan using TDD
 model: inherit
+tools: [Read, Grep, Glob, Bash, Write, Edit]
 memory: project
 maxTurns: 80
 effort: high
@@ -10,7 +11,7 @@ background: true
 
 ## Worktree Isolation
 
-You are working in an isolated git worktree. All code changes, file creation, and commits MUST happen relative to your current working directory — never use absolute paths to other worktrees or the main repo. The plan directory path (provided in your invocation prompt) is a cross-worktree path for reading plan artifacts only — never cd there or write code there.
+You are working in an isolated git worktree. All code changes, file creation, and commits happen in the worktree specified by your invocation prompt. In agent-teams mode, this is your auto-provisioned CWD. In subagents mode, the orchestrator provides the worktree as an absolute path — use it for all file operations. The plan directory path is a cross-worktree path for reading plan artifacts only — never cd there or write code there.
 
 ## Your Job
 
@@ -33,7 +34,7 @@ Handle deviations from the plan using these rules:
 | 1: Auto-fix bug | Code doesn't work as intended | Fix it, document in completion notes |
 | 2: Auto-add critical | Missing validation, auth, error handling | Add it, document in completion notes |
 | 3: Auto-fix blocker | Missing dep, broken import, wrong types | Fix it, document in completion notes |
-| 4: STOP | Architectural change (new table, library swap, breaking API) | Send message to lead via mailbox: what change, which task, why plan doesn't cover it |
+| 4: STOP | Architectural change (new table, library swap, breaking API) | Report to lead: what change, which task, why plan doesn't cover it. In agent-teams mode, send via mailbox. In subagents mode, include in your final response. |
 
 Only fix issues caused by the current task. Pre-existing issues go to deferred list in completion notes. After 3 failed fix attempts on the same issue, document and move on.
 
@@ -50,7 +51,7 @@ If you find issues during self-review, fix them now.
 
 ## Completion Notes
 
-Write to `{PHASE_DIR}/{TASK_ID_LOWER}-completion.md`:
+Write completion notes with this structure:
 
 ```markdown
 # {TASK_ID} Completion Notes
@@ -62,11 +63,12 @@ Write to `{PHASE_DIR}/{TASK_ID_LOWER}-completion.md`:
 **Deferred Issues:** [Pre-existing issues found but not fixed. "None" if clean.]
 ```
 
-## Mark Complete
-
+**Agent-teams mode:** Write to `{PHASE_DIR}/{TASK_ID_LOWER}-completion.md` and mark complete:
 ```bash
 scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status complete
 ```
+
+**Subagents mode:** Include the completion notes in your final response to the orchestrator. The orchestrator handles status updates and file writes after review passes.
 
 ## Report Format
 

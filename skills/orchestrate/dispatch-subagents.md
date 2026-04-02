@@ -45,13 +45,12 @@ Agent(
 
 ## Review Fix Cycle
 
-If fixes needed, the lead fixes directly in the task worktree using absolute paths — no fix agent needed. The orchestrator created the worktree and tracked the mapping, so it already knows the path.
+If fixes needed, dispatch a new `claude-caliper:task-implementer` agent into the same worktree to apply fixes — the lead coordinates, implementers touch code.
 
 1. Read the reviewer's findings
-2. Fix the code directly in the task worktree using absolute paths: `{WORKTREE_PATH}/path/to/file`
-3. Commit fixes in the worktree
-4. Re-dispatch reviewer with updated HEAD_SHA
-5. Repeat until review passes (max 3 cycles, then escalate to user)
+2. Dispatch a fix agent with the reviewer's findings and the task context, targeting the existing worktree path
+3. When the fix agent completes, re-dispatch reviewer with updated HEAD_SHA
+4. Repeat until review passes (max 3 cycles, then escalate to user)
 
 ## After Review Passes (or Skip)
 
@@ -75,7 +74,7 @@ For trivial tasks (one-liner, config change, rename) where a full reviewer dispa
 
 ## Key Differences from Agent Teams
 
-- No push-based idle notifications — use background agent completion events instead
-- No mailbox messaging — lead fixes directly using absolute paths
+- No mailbox idle notifications (agent-teams concept) — use background agent completion events instead
+- No mailbox messaging — lead dispatches fix agents into the existing worktree
 - Worktrees are created by the orchestrator via `git worktree add` from the feature branch
-- Lead fixes directly in the task worktree using absolute paths — no fix agent needed
+- Fix agents are dispatched into existing worktrees — the lead coordinates, implementers touch code

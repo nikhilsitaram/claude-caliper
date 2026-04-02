@@ -40,4 +40,4 @@ Agent(
 )
 ```
 
-Note: No `run_in_background` — `background: true` is in the agent definition frontmatter.
+Note: The agent definition sets `background: true` by default. In subagents mode, the dispatch explicitly overrides with `run_in_background: false` so the lead waits synchronously for results. In agent-teams mode, the default applies.

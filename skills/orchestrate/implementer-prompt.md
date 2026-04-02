@@ -30,7 +30,7 @@ Agent(
 
     Plan directory: {PLAN_DIR}
     Phase directory: {PHASE_DIR}
-    Working directory: {WORKTREE_PATH}
+    Working directory: {WORKTREE_PATH}  <!-- subagents mode only — omit this line in agent-teams mode -->
 
     ## Before You Begin
 

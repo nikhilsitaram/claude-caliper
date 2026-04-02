@@ -16,7 +16,7 @@ Write implementation plans assuming the executor has zero codebase context. Docu
 ## Workflow
 
 1. **Initialize** — `TaskList` to check for prior session context
-2. **Entry gate** — `scripts/validate-plan --check-entry $PLAN_DIR/plan.json --stage draft-plan` (exits early if design-review hasn't passed; the plan.json file need not exist yet — only reviews.json is read)
+2. **Entry gate** — `scripts/validate-plan --check-entry {PLAN_DIR}/plan.json --stage draft-plan` (exits early if design-review hasn't passed; the plan.json file need not exist yet — only reviews.json is read)
 3. **Explore codebase** — Understand patterns, find exact file paths
 4. **Decide phasing** — Single vs multi-phase (see Phasing below)
 5. **Write plan.json** — Structured manifest with all task metadata

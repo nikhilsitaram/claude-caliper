@@ -87,9 +87,10 @@ If nothing: "No handoff notes needed."
 
 After the human-readable output above, emit a fenced code block with the info string `json review-summary`. This block is parsed by the controlling agent to enforce review gates -- if it is missing or malformed, the review is treated as failed and a fresh reviewer is dispatched.
 
-Severity mapping for implementation-review (3 levels):
+Severity mapping for implementation-review:
 - "Critical" -> critical
-- "Important" -> high (medium stays 0)
+- "Important" -> high
+- "Moderate" -> medium
 - "Minor" -> low
 
 ```json review-summary
