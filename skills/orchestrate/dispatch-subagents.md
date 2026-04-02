@@ -80,9 +80,10 @@ For trivial tasks (one-liner, config change, rename) where a full reviewer dispa
 2. Mark task complete: `scripts/validate-plan --update-status plan.json --task {TASK_ID} --status complete`
 3. Validate criteria: `scripts/validate-plan --criteria plan.json --task {TASK_ID}`
 4. Merge and clean up the agent's worktree:
-   - Use `git -C <your worktree path> merge <agent-branch>` — the `-C` flag ensures the merge targets the integration/feature branch regardless of current shell CWD, which can drift after processing agent completions
-   - After merge: `git worktree remove <agent-worktree-path>` then `git branch -d <agent-branch>`
-   - Verify your CWD is still in the integration/feature worktree with `pwd`; if it drifted, `cd` back
+   - Never `cd` into an agent worktree — always use `git -C <agent-worktree-path>` for inspection commands (`git log`, `git status`, `git diff`). This prevents CWD from pointing at a path that gets deleted during cleanup.
+   - Merge: `git -C <your worktree path> merge <agent-branch>`
+   - Clean up: `git worktree remove <agent-worktree-path>` then `git branch -d <agent-branch>`
+   - Reset CWD after removal: `cd <feature-worktree-path> && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted
 5. Check if dependent tasks are now unblocked (`scripts/validate-plan --check-deps`)
 6. Dispatch newly unblocked tasks (same pattern as above)
 
