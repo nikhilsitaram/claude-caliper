@@ -813,15 +813,11 @@ do_update_status_task() {
     fi
     local incomplete_deps
     incomplete_deps=$(jq -r --arg id "$task_id" '
-      .phases[].tasks[] | select(.id == $id) | .depends_on // [] | .[]' "$plan_json" |
-      while read -r dep_id; do
-        [[ -z "$dep_id" ]] && continue
-        local dep_status
-        dep_status=$(jq -r --arg did "$dep_id" '.phases[].tasks[] | select(.id == $did) | .status' "$plan_json")
-        if [[ "$dep_status" != "complete" && "$dep_status" != "skipped" ]]; then
-          echo "$dep_id ($dep_status)"
-        fi
-      done)
+      (.phases[].tasks[] | select(.id == $id) | .depends_on // []) as $deps
+      | .phases[].tasks[] | select(.id as $tid | $deps | index($tid))
+      | select(.status != "complete" and .status != "skipped")
+      | "\(.id) (\(.status))"
+    ' "$plan_json")
     if [[ -n "$incomplete_deps" ]]; then
       unlock_plan "$plan_json"
       trap - EXIT
@@ -880,7 +876,7 @@ do_update_status_phase() {
     local plan_dir
     plan_dir="$(cd "$(dirname "$plan_json")" && pwd)"
     local phase_lower
-    phase_lower=$(echo "$phase_letter" | tr '[:upper:]' '[:lower:]')
+    phase_lower="${phase_letter,,}"
     local gate_errors=()
     local gate_result
     local task_data

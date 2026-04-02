@@ -58,6 +58,7 @@ Process phases in order (A, B, C...). For each phase:
 4. **Bootstrap dependencies** in the worktree. **See:** skills/design/dependency-bootstrap.md
 5. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure)
 6. Cross-phase handoff notes: lead writes handoff sections to task .md files for tasks consuming prior-phase output
+7. Set phase to "In Progress": `scripts/validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "In Progress"` — required before any task can be marked in_progress (transition gate rejects task advancement when parent phase is "Not Started")
 
 ### Dispatch, Complete, and Review Tasks
 

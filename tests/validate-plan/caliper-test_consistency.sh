@@ -103,11 +103,11 @@ echo "# A2 Completion" > "$TMPDIR/phase-a/a2-completion.md"
 assert_fail "plan complete but phase not complete via --consistency" "status_inconsistency" \
   "$VALIDATE" --consistency "$TMPDIR/plan.json"
 
-echo "Test 9: Rule 6 - Phase Complete without impl-review (isolated)"
+echo "Test 9: Rule 6 - Phase Complete without impl-review (now enforced at transition time, not consistency)"
 setup_valid_plan "$TMPDIR"
 jq '.status = "In Development" | .phases[0].status = "Complete (2026-03-24)" | .phases[0].tasks[0].status = "complete" | .phases[0].tasks[1].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
 echo '[]' > "$TMPDIR/reviews.json"
-assert_fail "phase complete without impl-review" "no passing impl-review record" \
+assert_pass "phase complete without impl-review passes consistency (gate moved to --update-status)" \
   "$VALIDATE" --consistency "$TMPDIR/plan.json"
 
 echo "Test 10: --schema still catches status_inconsistency (chains to consistency)"
