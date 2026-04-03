@@ -13,9 +13,9 @@ Execute plans via the configured execution mode. Phases run sequentially; task d
 
 | Template | Purpose |
 |----------|---------|
-| `./implementer-prompt.md` | Task implementer |
-| `./task-reviewer-prompt.md` | Per-task reviewer |
-| `skills/implementation-review/reviewer-prompt.md` | Cross-task reviewer (lead dispatches) |
+| `./implementer-prompt.md` | Invocation template for `claude-caliper:task-implementer` |
+| `./task-reviewer-prompt.md` | Invocation template for `claude-caliper:task-reviewer` |
+| `skills/implementation-review/reviewer-prompt.md` | Invocation template for `claude-caliper:implementation-reviewer` |
 | `./dispatch-subagents.md` | Subagents dispatch protocol |
 | `./dispatch-agent-teams.md` | Agent teams dispatch protocol |
 

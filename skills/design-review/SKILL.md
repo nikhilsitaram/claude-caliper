@@ -25,7 +25,7 @@ Gather inputs:
 
 Dispatch with `model: "$DESIGN_REVIEWER_MODEL"` — review requires strong reasoning to catch blind spots the designer and user converged past.
 
-**See:** reviewer-prompt.md
+Use `subagent_type: "claude-caliper:design-reviewer"`. **See:** reviewer-prompt.md for invocation template.
 
 ## 8-Point Checklist
 

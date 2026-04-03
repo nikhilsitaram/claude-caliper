@@ -9,7 +9,7 @@ Before dispatching any teammates, verify: `[[ "$CLAUDE_CODE_EXPERIMENTAL_AGENT_T
 ## Spawn Implementer Teammates
 
 Spawn implementer teammates for tasks with no unmet dependencies (verified via `scripts/validate-plan --check-deps`). Each teammate:
-- Receives task metadata + prose from `./implementer-prompt.md`
+- Uses `claude-caliper:task-implementer` agent with dynamic context from `./implementer-prompt.md`
 - Gets its own auto-provisioned worktree
 - Manages its own lifecycle (marks in-progress, writes completion notes, marks complete)
 
@@ -20,7 +20,7 @@ Spawn implementer teammates for tasks with no unmet dependencies (verified via `
 When an implementer teammate goes idle (push notification — no polling):
 
 1. Read the teammate's completion notes (`{PHASE_DIR}/{TASK_ID_LOWER}-completion.md`)
-2. Dispatch a reviewer teammate (`./task-reviewer-prompt.md`) with the task's branch-specific diff range (task worktree `BASE..HEAD`, not the phase-wide range)
+2. Dispatch a `claude-caliper:task-reviewer` teammate with dynamic context from `./task-reviewer-prompt.md`, using the task's branch-specific diff range (task worktree `BASE..HEAD`, not the phase-wide range)
 3. When reviewer goes idle, extract the last `json review-summary` block
 4. Triage issues: "fix" (send to implementer via mailbox) or "dismiss" (document reasoning)
 5. If fixes needed: send review feedback to the *original implementer* via mailbox messaging — the implementer still has context and files. Implementer fixes and goes idle again. Repeat until review passes.
@@ -42,16 +42,18 @@ Implementer teammates use the template in `./implementer-prompt.md`. Key spawn p
 
 ```yaml
 Teammate spawn:
+  subagent_type: "claude-caliper:task-implementer"
   model: "{TASK_IMPLEMENTER_MODEL}"
   mode: "acceptEdits"
   description: "Implement {TASK_ID}: [task name]"
-  prompt: <filled from implementer-prompt.md template>
+  prompt: <filled from implementer-prompt.md template, omitting {WORKTREE_PATH} — the teammate uses its auto-provisioned CWD>
 ```
 
 Task reviewer teammates use the template in `./task-reviewer-prompt.md`. Key spawn parameters:
 
 ```yaml
 Teammate spawn:
+  subagent_type: "claude-caliper:task-reviewer"
   model: "{TASK_REVIEWER_MODEL}"
   mode: "auto"
   description: "Review Task {TASK_ID}"

@@ -3,6 +3,8 @@ name: draft-plan
 description: Use when you have a spec or requirements for a multi-step task, before touching code
 ---
 
+> **Subagent dispatch:** Use `subagent_type: "claude-caliper:plan-drafter"`. The agent definition contains the full planning methodology. The invocation prompt needs only the design doc path, working directory, and plan directory.
+
 # Writing Plans
 
 Write implementation plans assuming the executor has zero codebase context. Document everything: which files to touch, exact code, how to test, what to avoid and why.
