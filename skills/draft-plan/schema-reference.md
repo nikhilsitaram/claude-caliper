@@ -235,7 +235,7 @@ The spec-reviewer receives the same `{TASK_METADATA}` + `{TASK_PROSE}` pair.
 
 ## Validation Hook
 
-A bash script at `scripts/validate-plan`, invoked with absolute path from any working directory. Depends on `jq` (assumed available).
+A bash script at `bin/validate-plan`, available on PATH when the plugin is enabled. Depends on `jq` (assumed available).
 
 ### Modes
 
@@ -294,7 +294,7 @@ A bash script at `scripts/validate-plan`, invoked with absolute path from any wo
 
 ## Implementation Approach
 
-**Phase A — Validation Script & Schema:** Write `scripts/validate-plan` with `--schema`, `--update-status`, and `--render` modes. Test against a sample plan directory structure.
+**Phase A — Validation Script & Schema:** Write `bin/validate-plan` with `--schema`, `--update-status`, and `--render` modes. Test against a sample plan directory structure.
 
 **Phase B — Skill Integration:** Update draft-plan, orchestrate, phase-dispatcher-prompt, implementer-prompt, plan-review, implementation-review, and spec-reviewer to produce and consume the new split-file format. All changes must be atomic — the pipeline requires all skills to use the same format.
 
