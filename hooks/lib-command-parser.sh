@@ -1,3 +1,6 @@
+# shellcheck shell=bash
+# Sourced by pretooluse/permission-request hooks — not executed directly.
+
 extract_segments() {
   local input_cmd="$1"
   local -a words=()
@@ -94,6 +97,8 @@ extract_segments() {
     words+=("$segment")
   fi
 
+  # Exported to caller via nameref-like convention (sourced library)
+  # shellcheck disable=SC2034
   SEGMENTS=("${words[@]+"${words[@]}"}")
 }
 
@@ -119,33 +124,47 @@ extract_command_words_from_segment() {
     inner="${inner#"${inner%%[![:space:]]*}"}"
     outer_cmd="${inner%% *}"
   elif [[ "$seg" =~ $var_literal_re ]]; then
-    local val_start="${seg#*=}"
-    local after_val=""
-    if [[ "$val_start" == '"'* ]]; then
-      local after_open="${val_start#\"}"
-      if [[ "$after_open" == *'"'* ]]; then
-        after_val="${after_open#*\"}"
+    local current="$seg"
+    outer_cmd=""
+    while true; do
+      local val_start="${current#*=}"
+      local after_val=""
+      if [[ "$val_start" == '"'* ]]; then
+        local after_open="${val_start#\"}"
+        if [[ "$after_open" == *'"'* ]]; then
+          after_val="${after_open#*\"}"
+        else
+          break
+        fi
+      elif [[ "$val_start" == "'"* ]]; then
+        local after_open="${val_start#\'}"
+        if [[ "$after_open" == *"'"* ]]; then
+          after_val="${after_open#*\'}"
+        else
+          break
+        fi
+      elif [[ "$val_start" == " "* || "$val_start" == "$( printf '\t' )"* ]]; then
+        after_val="${val_start}"
+      else
+        local first_word="${val_start%% *}"
+        if [[ "$first_word" != "$val_start" ]]; then
+          after_val="${val_start#"$first_word"}"
+        else
+          break
+        fi
       fi
-    elif [[ "$val_start" == "'"* ]]; then
-      local after_open="${val_start#\'}"
-      if [[ "$after_open" == *"'"* ]]; then
-        after_val="${after_open#*\'}"
+      after_val="${after_val#"${after_val%%[![:space:]]*}"}"
+      if [[ -z "$after_val" ]]; then
+        break
       fi
-    elif [[ "$val_start" == " "* || "$val_start" == "$( printf '\t' )"* ]]; then
-      after_val="${val_start}"
-    else
-      local first_word="${val_start%% *}"
-      if [[ "$first_word" != "$val_start" ]]; then
-        after_val="${val_start#"$first_word" }"
+      if [[ "$after_val" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+        current="$after_val"
+        continue
       fi
-    fi
-    after_val="${after_val#"${after_val%%[![:space:]]*}"}"
-    if [[ -n "$after_val" ]]; then
       local trailing_word="${after_val%% *}"
       outer_cmd="${trailing_word##*/}"
-    else
-      outer_cmd=""
-    fi
+      break
+    done
   else
     local word="${seg%% *}"
     outer_cmd="${word##*/}"

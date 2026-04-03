@@ -344,6 +344,22 @@ printf 'echo\n' > "$SAFE50"
 OUT50=$(run_allow "FOO=bar echo hello" "$SAFE50")
 assert_output_contains "unquoted value with trailing safe cmd allowed" "$OUT50" '"behavior":"allow"'
 
+echo "Test 52: Chained env var assignments with trailing command extracts trailing cmd"
+SAFE52="$TMPDIR_TEST/safe52.txt"
+printf 'uv\n' > "$SAFE52"
+# shellcheck disable=SC2016
+OUT52=$(run_allow 'MSSQL_AUTH_TYPE=sql MSSQL_SERVER="$SWYFFT_MSSQL_SERVER" MSSQL_DATABASE="$SWYFFT_MSSQL_DATABASE" MSSQL_USER="$SWYFFT_MSSQL_USER" MSSQL_PASSWORD="$SWYFFT_MSSQL_PASSWORD" uv run python -c "print(1)"' "$SAFE52")
+assert_output_contains "chained env vars with trailing safe cmd allowed" "$OUT52" '"behavior":"allow"'
+
+echo "Test 53: Chained env var assignments with unsafe trailing command blocked"
+SAFE53="$TMPDIR_TEST/safe53.txt"
+LOG53="$TMPDIR_TEST/log53.txt"
+printf 'git\n' > "$SAFE53"
+# shellcheck disable=SC2016
+OUT53=$(run_allow 'FOO=bar BAZ="qux" rm -rf /' "$SAFE53" "$LOG53")
+assert_output_empty "chained env vars with unsafe trailing cmd blocked" "$OUT53"
+assert_file_contains "rm logged as non-matching" "$LOG53" "rm"
+
 echo "Test 51: Safe command has updatedPermissions with session rule"
 SAFE51="$TMPDIR_TEST/safe51.txt"
 printf 'git\n' > "$SAFE51"
