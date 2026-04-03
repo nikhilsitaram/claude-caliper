@@ -143,12 +143,19 @@ extract_command_words_from_segment() {
         else
           break
         fi
-      elif [[ "$val_start" == " "* || "$val_start" == "$( printf '\t' )"* ]]; then
+      elif [[ "$val_start" == " "* || "$val_start" == $'\t'* ]]; then
         after_val="${val_start}"
       else
-        local first_word="${val_start%% *}"
+        local first_word="${val_start%%[[:space:]]*}"
         if [[ "$first_word" != "$val_start" ]]; then
           after_val="${val_start#"$first_word"}"
+        else
+          break
+        fi
+      fi
+      if [[ -n "$after_val" && "$after_val" != [[:space:]]* ]]; then
+        if [[ "$after_val" == *[[:space:]]* ]]; then
+          after_val="${after_val#*[[:space:]]}"
         else
           break
         fi
@@ -161,7 +168,7 @@ extract_command_words_from_segment() {
         current="$after_val"
         continue
       fi
-      local trailing_word="${after_val%% *}"
+      local trailing_word="${after_val%%[[:space:]]*}"
       outer_cmd="${trailing_word##*/}"
       break
     done

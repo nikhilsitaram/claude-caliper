@@ -344,6 +344,13 @@ printf 'echo\n' > "$SAFE50"
 OUT50=$(run_allow "FOO=bar echo hello" "$SAFE50")
 assert_output_contains "unquoted value with trailing safe cmd allowed" "$OUT50" '"behavior":"allow"'
 
+echo "Test 51: Safe command has updatedPermissions with session rule"
+SAFE51="$TMPDIR_TEST/safe51.txt"
+printf 'git\n' > "$SAFE51"
+OUT51=$(run_allow "git status" "$SAFE51")
+assert_output_contains "session rule present" "$OUT51" '"destination":"session"'
+assert_output_contains "rule has git pattern" "$OUT51" '"ruleContent":"git *"'
+
 echo "Test 52: Chained env var assignments with trailing command extracts trailing cmd"
 SAFE52="$TMPDIR_TEST/safe52.txt"
 printf 'uv\n' > "$SAFE52"
@@ -360,12 +367,13 @@ OUT53=$(run_allow 'FOO=bar BAZ="qux" rm -rf /' "$SAFE53" "$LOG53")
 assert_output_empty "chained env vars with unsafe trailing cmd blocked" "$OUT53"
 assert_file_contains "rm logged as non-matching" "$LOG53" "rm"
 
-echo "Test 51: Safe command has updatedPermissions with session rule"
-SAFE51="$TMPDIR_TEST/safe51.txt"
-printf 'git\n' > "$SAFE51"
-OUT51=$(run_allow "git status" "$SAFE51")
-assert_output_contains "session rule present" "$OUT51" '"destination":"session"'
-assert_output_contains "rule has git pattern" "$OUT51" '"ruleContent":"git *"'
+echo "Test 54: Quote concatenation bypass blocked (B=\"x\"uv is one word, rm is the command)"
+SAFE54="$TMPDIR_TEST/safe54.txt"
+LOG54="$TMPDIR_TEST/log54.txt"
+printf 'uv\n' > "$SAFE54"
+OUT54=$(run_allow 'A=1 B="x"uv rm -rf /' "$SAFE54" "$LOG54")
+assert_output_empty "quote concat bypass blocked" "$OUT54"
+assert_file_contains "rm logged as non-matching" "$LOG54" "rm"
 
 echo ""
 echo "=== PreToolUse Deny Tests ==="
