@@ -35,6 +35,6 @@ Agent(
     ## Before You Begin
 
     Mark your task in-progress:
-    scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status in_progress"
+    validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status in_progress"
 )
 ```

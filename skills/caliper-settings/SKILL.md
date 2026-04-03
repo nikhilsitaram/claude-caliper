@@ -12,10 +12,10 @@ View and manage persistent user preferences. Settings follow 3-tier precedence: 
 Run the settings script to manage preferences:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings list
-${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get <key>
-${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings set <key> <value>
-${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings reset [key]
+caliper-settings list
+caliper-settings get <key>
+caliper-settings set <key> <value>
+caliper-settings reset [key]
 ```
 
 ### List all settings

@@ -28,7 +28,7 @@ If `--automated`/`-A` passed, use automated mode. `--automated` + `--skip-fixes`
 If no flag, read the user's preference:
 
 ```bash
-mode=$("${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings" get review_mode)
+mode=$("caliper-settings" get review_mode)
 ```
 
 - If a mode is returned (`automated` or `deliberate`): the user explicitly configured this. Use it.
@@ -52,7 +52,7 @@ If rebased, log it. If conflicts, stop and ask user. After force-push, only proc
 
 Skip if `--skip-review` passed or `caliper-settings get skip_review` returns `true`.
 
-Read PR reviewer model: `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get pr_reviewer_model` — substitute into `reviewer-prompt.md`'s `model:` field.
+Read PR reviewer model: `caliper-settings get pr_reviewer_model` — substitute into `reviewer-prompt.md`'s `model:` field.
 
 Read `reviewer-prompt.md` and dispatch with `run_in_background: true`:
 - `{DIFF_RANGE}` = `origin/$BASE_BRANCH..HEAD`

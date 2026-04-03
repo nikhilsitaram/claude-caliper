@@ -33,7 +33,7 @@ Complete in order:
 7. **Configure and approve** — single AskUserQuestion with 3 questions:
 
     **Q1 — Workflow** (header: "Workflow"):
-    Run `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get workflow`.
+    Run `caliper-settings get workflow`.
     - If a value is returned (e.g. `pr-create`): skip this question. Message: "Using your configured workflow: <value>".
     - If `PROMPT_REQUIRED`: include in AskUserQuestion with recommended option marked "(Recommended)":
       - **Create PR** — Orchestrate → pr-create (Recommended)
@@ -41,7 +41,7 @@ Complete in order:
       - **Plan only** — Stop after plan is reviewed
 
     **Q2 — Execution mode** (header: "Exec mode"):
-    Run `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get execution_mode`.
+    Run `caliper-settings get execution_mode`.
     - If a value is returned (e.g. `subagents`): skip this question. Message: "Using your configured execution mode: <value>".
     - If `PROMPT_REQUIRED`: include in AskUserQuestion. Recommend based on design complexity:
       - ≤10 tasks AND single phase → recommend `Subagents`
@@ -73,9 +73,9 @@ Complete in order:
     `jq --arg ib "integrate/<feature>" '.integration_branch = $ib' plan.json > tmp && mv tmp plan.json`
 
     For **Create PR** or **Merge PR**: invoke orchestrate.
-    For **Plan only**: run `scripts/validate-plan --check-workflow plan.json` to verify design-review and plan-review passed. Report the plan file path and stop.
+    For **Plan only**: run `validate-plan --check-workflow plan.json` to verify design-review and plan-review passed. Report the plan file path and stop.
 
-Read the design reviewer model: `DESIGN_REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get design_reviewer_model)`
+Read the design reviewer model: `DESIGN_REVIEWER_MODEL=$(caliper-settings get design_reviewer_model)`
 
 ```text
 Agent(
@@ -89,7 +89,7 @@ Agent(
 
 If design-review finds issues, present them to the user, collaboratively fix the design doc, and re-dispatch design-review until clean. Only dispatch draft-plan after design-review passes. After design-review passes, extract the `json review-summary` block from the final passing review and write a record to `{PLAN_DIR}/reviews.json` (initialize with `[]` if it doesn't exist): `jq --argjson entry '{"type":"design-review","scope":"design","iteration":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass","timestamp":"<ISO8601>"}' '. += [$entry]' reviews.json > tmp && mv tmp reviews.json`
 
-Read the planner model: `PLANNER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get planner_model)`
+Read the planner model: `PLANNER_MODEL=$(caliper-settings get planner_model)`
 
 ```text
 Agent(
@@ -105,7 +105,7 @@ Agent(
 
 After draft-plan returns, dispatch plan-review with the same review loop protocol:
 
-Read the plan reviewer model: `PLAN_REVIEWER_MODEL=$(${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get plan_reviewer_model)`
+Read the plan reviewer model: `PLAN_REVIEWER_MODEL=$(caliper-settings get plan_reviewer_model)`
 
 ```text
 Agent(
@@ -118,7 +118,7 @@ Agent(
 )
 ```
 
-Extract the `json review-summary` block from the response. Triage issues (fix plan files or dismiss with reasoning). Read the threshold: `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get re_review_threshold`. If actionable issues exceed this threshold, fix and re-dispatch reviewer (max 3 iterations, then escalate to user). Write review record to `{PLAN_DIR}/reviews.json`: `{"type":"plan-review","scope":"plan","iteration":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass","timestamp":"ISO8601"}`
+Extract the `json review-summary` block from the response. Triage issues (fix plan files or dismiss with reasoning). Read the threshold: `caliper-settings get re_review_threshold`. If actionable issues exceed this threshold, fix and re-dispatch reviewer (max 3 iterations, then escalate to user). Write review record to `{PLAN_DIR}/reviews.json`: `{"type":"plan-review","scope":"plan","iteration":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass","timestamp":"ISO8601"}`
 
 
 ## Challenging Assumptions

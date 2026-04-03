@@ -65,7 +65,7 @@ Write completion notes with this structure:
 
 **Agent-teams mode:** Write to `{PHASE_DIR}/{TASK_ID_LOWER}-completion.md` and mark complete:
 ```bash
-scripts/validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status complete
+validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status complete
 ```
 
 **Subagents mode:** Include the completion notes in your final response to the orchestrator. The orchestrator handles status updates and file writes after review passes.
