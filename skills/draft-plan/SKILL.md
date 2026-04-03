@@ -14,14 +14,14 @@ Write implementation plans assuming the executor has zero codebase context. Docu
 ## Workflow
 
 1. **Initialize** — `TaskList` to check for prior session context
-2. **Entry gate** — `scripts/validate-plan --check-entry $PLAN_DIR/plan.json --stage draft-plan` (exits early if design-review hasn't passed; the plan.json file need not exist yet — only reviews.json is read)
+2. **Entry gate** — `validate-plan --check-entry $PLAN_DIR/plan.json --stage draft-plan` (exits early if design-review hasn't passed; the plan.json file need not exist yet — only reviews.json is read)
 3. **Explore codebase** — Understand patterns, find exact file paths
 4. **Decide phasing** — Single vs multi-phase (see Phasing below)
 5. **Write plan.json** — Structured manifest with all task metadata
 6. **Write task .md files** — Prose for each task (Avoid+WHY, Steps)
 7. **Create completion.md stubs** — Empty files, one per phase
-8. **Run scripts/validate-plan --schema** — Fix any structural errors
-9. **Run scripts/validate-plan --render** — Generates plan.md deterministically
+8. **Run validate-plan --schema** — Fix any structural errors
+9. **Run validate-plan --render** — Generates plan.md deterministically
 10. **Skip** — plan artifacts are under `.claude/claude-caliper/` (gitignored), no commit needed
 11. **Hand off** — Report plan path to caller. Plan-review is dispatched by the design skill after draft-plan returns.
 

@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-VP="$REPO_ROOT/scripts/validate-plan"
+VP="$REPO_ROOT/bin/validate-plan"
 PASS=0
 FAIL=0
 CLEANUP_DIRS=()

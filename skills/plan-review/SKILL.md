@@ -21,7 +21,7 @@ Dispatch a reviewer subagent to validate a plan before execution. Catches issues
 
 Two-stage review:
 
-**Stage 1: Structural validation** — Run `scripts/validate-plan --schema {PLAN_DIR}/plan.json`. If errors, report them and stop. No point dispatching LLM reviewer for structurally invalid plans.
+**Stage 1: Structural validation** — Run `validate-plan --schema {PLAN_DIR}/plan.json`. If errors, report them and stop. No point dispatching LLM reviewer for structurally invalid plans.
 
 **Stage 2: Prose + design review** — If schema passes, dispatch reviewer subagent.
 
@@ -91,7 +91,7 @@ Reviewer produces:
 **Pass:** Zero issues, or all issues fixed and confirmed clean
 **Fail:** Return to draft-plan to fix, then re-run plan-review
 
-**Re-review gate:** Read the threshold: `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get re_review_threshold` (default: 5). If the reviewer finds more issues than this threshold, after all fixes, dispatch a fresh reviewer with the same full scope to confirm clean. At or under the threshold, verify fixes and proceed.
+**Re-review gate:** Read the threshold: `caliper-settings get re_review_threshold` (default: 5). If the reviewer finds more issues than this threshold, after all fixes, dispatch a fresh reviewer with the same full scope to confirm clean. At or under the threshold, verify fixes and proceed.
 
 ## Integration
 

@@ -48,7 +48,7 @@ Reviewer produces:
 **Pass:** Zero issues, or all issues fixed and confirmed clean
 **Fail:** Return to design skill to fix, then re-run design-review
 
-**Re-review gate:** Read the threshold: `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get re_review_threshold` (default: 5). If the reviewer finds more issues than this threshold, after all fixes, dispatch a fresh reviewer with the same full scope to confirm clean.
+**Re-review gate:** Read the threshold: `caliper-settings get re_review_threshold` (default: 5). If the reviewer finds more issues than this threshold, after all fixes, dispatch a fresh reviewer with the same full scope to confirm clean.
 
 ## Integration
 

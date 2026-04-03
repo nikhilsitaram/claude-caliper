@@ -51,7 +51,7 @@ If behind (non-zero exit): rebase onto default branch, resolve conflicts, run te
 - Integration branches (`IS_INTEGRATION=true`): `gh pr merge $PR_NUMBER --rebase` — auto-detected, no flag needed
 - Phase PRs (base is `integrate/*`): `gh pr merge $PR_NUMBER --squash` — auto-detected, no flag needed
 - Explicit `--rebase` flag overrides for any non-auto-detected branch
-- Otherwise: check `${CLAUDE_PLUGIN_ROOT}/scripts/caliper-settings get merge_strategy` — use the returned value (`squash` or `rebase`) as the merge method
+- Otherwise: check `caliper-settings get merge_strategy` — use the returned value (`squash` or `rebase`) as the merge method
 
 Multi-phase plans produce one squash commit per phase on the integration branch. Rebase preserves this per-phase history on main. Single-phase plans use squash (one phase = one commit). Phase PRs (base is `integrate/*`) always use `--squash`.
 

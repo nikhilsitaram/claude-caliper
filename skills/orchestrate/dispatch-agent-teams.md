@@ -8,7 +8,7 @@ Before dispatching any teammates, verify: `[[ "$CLAUDE_CODE_EXPERIMENTAL_AGENT_T
 
 ## Spawn Implementer Teammates
 
-Spawn implementer teammates for tasks with no unmet dependencies (verified via `scripts/validate-plan --check-deps`). Each teammate:
+Spawn implementer teammates for tasks with no unmet dependencies (verified via `validate-plan --check-deps`). Each teammate:
 - Uses `claude-caliper:task-implementer` agent with dynamic context from `./implementer-prompt.md`
 - Gets its own auto-provisioned worktree
 - Manages its own lifecycle (marks in-progress, writes completion notes, marks complete)
@@ -24,11 +24,11 @@ When an implementer teammate goes idle (push notification — no polling):
 3. When reviewer goes idle, extract the last `json review-summary` block
 4. Triage issues: "fix" (send to implementer via mailbox) or "dismiss" (document reasoning)
 5. If fixes needed: send review feedback to the *original implementer* via mailbox messaging — the implementer still has context and files. Implementer fixes and goes idle again. Repeat until review passes.
-6. Validate with `scripts/validate-plan --criteria plan.json --task {TASK_ID}`
+6. Validate with `validate-plan --criteria plan.json --task {TASK_ID}`
 7. Kill teammate only after review passes and criteria met
 8. **Record task-review:** Write a passing record to `reviews.json` (in the plan directory): `jq '. += [{"type":"task-review","scope":"{TASK_ID}","verdict":"pass","remaining":0}]' "$PLAN_DIR/reviews.json" > "$PLAN_DIR/reviews.json.tmp" && mv "$PLAN_DIR/reviews.json.tmp" "$PLAN_DIR/reviews.json"`. Create the file (`echo '[]'`) if it doesn't exist. For trivial tasks where review is overhead, use `"verdict":"skip","reason":"<justification>"` instead.
 9. **Incremental merge:** Merge this task's branch into the feature/integration branch so dependent tasks see prerequisite code. Use `git -C <your worktree path> merge <task-branch>` — the `-C` flag prevents CWD drift that occurs after processing teammate completions. After merge: `git worktree remove <teammate-worktree-path>` then `git branch -d <task-branch>`. Verify CWD with `pwd`; if it drifted, `cd` back.
-10. **Dependency gate:** Check if any blocked tasks are now unblocked. For each candidate, run `scripts/validate-plan --check-deps plan.json --task {TASK_ID}`. If all dependencies are complete, spawn a new implementer teammate for that task (worktree created from the now-updated feature branch).
+10. **Dependency gate:** Check if any blocked tasks are now unblocked. For each candidate, run `validate-plan --check-deps plan.json --task {TASK_ID}`. If all dependencies are complete, spawn a new implementer teammate for that task (worktree created from the now-updated feature branch).
 
 **Phase completion gate:** Lead cannot advance until ALL teammates for this phase (implementers and reviewers) are terminated.
 

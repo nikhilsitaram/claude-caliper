@@ -4,7 +4,7 @@ Parallel task execution via Agent tool dispatches with worktree isolation. No ex
 
 ## Dispatch Implementers
 
-For each task with no unmet dependencies (verified via `scripts/validate-plan --check-deps`), create a worktree from the feature branch and dispatch an implementer:
+For each task with no unmet dependencies (verified via `validate-plan --check-deps`), create a worktree from the feature branch and dispatch an implementer:
 
 ```bash
 git worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
@@ -62,14 +62,14 @@ For trivial tasks (one-liner, config change, rename) where a full reviewer dispa
    ```
    To skip review: use `"verdict":"skip","reason":"<justification>"` instead of `"verdict":"pass"`.
    If `reviews.json` doesn't exist yet, create it: `echo '[]' > "$PLAN_DIR/reviews.json"` first.
-2. Mark task complete: `scripts/validate-plan --update-status plan.json --task {TASK_ID} --status complete`
-3. Validate criteria: `scripts/validate-plan --criteria plan.json --task {TASK_ID}`
+2. Mark task complete: `validate-plan --update-status plan.json --task {TASK_ID} --status complete`
+3. Validate criteria: `validate-plan --criteria plan.json --task {TASK_ID}`
 4. Merge and clean up the agent's worktree:
    - Never `cd` into an agent worktree — always use `git -C <agent-worktree-path>` for inspection commands (`git log`, `git status`, `git diff`). This prevents CWD from pointing at a path that gets deleted during cleanup.
    - Merge: `git -C <your worktree path> merge <agent-branch>`
    - Clean up: `git worktree remove <agent-worktree-path>` then `git branch -d <agent-branch>`
    - Reset CWD after removal: `cd <feature-worktree-path> && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted
-5. Check if dependent tasks are now unblocked (`scripts/validate-plan --check-deps`)
+5. Check if dependent tasks are now unblocked (`validate-plan --check-deps`)
 6. Dispatch newly unblocked tasks (same pattern as above)
 
 ## Key Differences from Agent Teams

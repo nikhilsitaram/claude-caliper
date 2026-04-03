@@ -302,12 +302,12 @@ assert_file_contains "non-matching command logged" "$LOG41" "test_schema.sh"
 echo "Test 42-45: Various safe command patterns"
 SAFE42="$TMPDIR_TEST/safe42.txt"
 printf 'validate-plan\n' > "$SAFE42"
-OUT42=$(run_allow "./scripts/validate-plan --schema plan.json" "$SAFE42")
+OUT42=$(run_allow "./bin/validate-plan --schema plan.json" "$SAFE42")
 assert_output_contains "exact match without glob works" "$OUT42" '"behavior":"allow"'
 
 SAFE44="$TMPDIR_TEST/safe44.txt"
 printf 'caliper-settings\n' > "$SAFE44"
-OUT44=$(run_allow '"/Users/nsitaram/.claude/plugins/marketplaces/claude-caliper/scripts/caliper-settings" get merge_strategy' "$SAFE44")
+OUT44=$(run_allow '"/path/to/plugin/bin/caliper-settings" get merge_strategy' "$SAFE44")
 assert_output_contains "quoted absolute path allowed" "$OUT44" '"behavior":"allow"'
 
 echo "Test 46: Quoted variable assignment VAR=\"\$(cmd)\" extracts subshell cmd"
@@ -378,17 +378,17 @@ assert_file_contains "rm logged as non-matching" "$LOG54" "rm"
 echo ""
 echo "=== PreToolUse Deny Tests ==="
 
-echo "Test 27: bash scripts/validate-plan denied with guidance"
-OUT27=$(run_deny "bash scripts/validate-plan --schema plan.json")
+echo "Test 27: bash bin/validate-plan denied with guidance"
+OUT27=$(run_deny "bash bin/validate-plan --schema plan.json")
 assert_output_contains_deny_with_reason "bash + script denied" "$OUT27" "Do not use"
 
-echo "Test 28: bash -e scripts/validate-plan denied with guidance"
-OUT28=$(run_deny "bash -e scripts/validate-plan --schema plan.json")
+echo "Test 28: bash -e bin/validate-plan denied with guidance"
+OUT28=$(run_deny "bash -e bin/validate-plan --schema plan.json")
 assert_output_contains_deny_with_reason "bash -e + script denied" "$OUT28" "Do not use"
 
 echo "Test 29: bash -euo pipefail denied with correct script name"
-OUT29=$(run_deny "bash -euo pipefail scripts/validate-plan")
-assert_output_contains_deny_with_reason "bash -euo pipefail denied" "$OUT29" "scripts/validate-plan"
+OUT29=$(run_deny "bash -euo pipefail bin/validate-plan")
+assert_output_contains_deny_with_reason "bash -euo pipefail denied" "$OUT29" "bin/validate-plan"
 
 echo "Test 30: bash with variable script arg denied"
 # shellcheck disable=SC2016
@@ -399,8 +399,8 @@ echo "Test 31: bare bash (no script) falls through"
 OUT31=$(run_deny "bash")
 assert_output_empty "bare bash not denied" "$OUT31"
 
-echo "Test 32: sh scripts/validate-plan denied"
-OUT32=$(run_deny "sh scripts/validate-plan --schema plan.json")
+echo "Test 32: sh bin/validate-plan denied"
+OUT32=$(run_deny "sh bin/validate-plan --schema plan.json")
 assert_output_contains_deny_with_reason "sh + script denied" "$OUT32" "Do not use"
 
 echo "Test 33: bash tests/hooks/caliper-test_safe_commands.sh denied"
@@ -431,8 +431,8 @@ echo "Test 38: bash -c denied"
 OUT38=$(run_deny "bash -c 'command -v foo'")
 assert_output_contains_deny_with_reason "bash -c denied" "$OUT38" "Do not use"
 
-echo "Test 39: bash -- scripts/validate-plan denied"
-OUT39=$(run_deny "bash -- scripts/validate-plan --schema plan.json")
+echo "Test 39: bash -- bin/validate-plan denied"
+OUT39=$(run_deny "bash -- bin/validate-plan --schema plan.json")
 assert_output_contains_deny_with_reason "bash -- + script denied" "$OUT39" "Do not use"
 
 echo "Test 40d: Safe command produces no output from deny hook"

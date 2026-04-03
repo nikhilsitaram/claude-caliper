@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SCRIPT="$REPO_ROOT/scripts/caliper-settings"
+SCRIPT="$REPO_ROOT/bin/caliper-settings"
 DEFAULTS_FILE="$REPO_ROOT/defaults.json"
 PASS=0
 FAIL=0

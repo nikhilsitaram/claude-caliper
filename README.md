@@ -330,7 +330,7 @@ Every task specifies exact files, a verification command, and a measurable end s
 
 ### Schema Validation
 
-Before an LLM reviewer ever sees the plan, `scripts/validate-plan --schema` runs structural checks:
+Before an LLM reviewer ever sees the plan, `validate-plan --schema` runs structural checks:
 
 - All required fields present at every level
 - Phase dependency graph is a valid DAG (BFS cycle detection)
