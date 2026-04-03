@@ -307,7 +307,7 @@ assert_output_contains "exact match without glob works" "$OUT42" '"behavior":"al
 
 SAFE44="$TMPDIR_TEST/safe44.txt"
 printf 'caliper-settings\n' > "$SAFE44"
-OUT44=$(run_allow '"/Users/nsitaram/.claude/plugins/marketplaces/claude-caliper/bin/caliper-settings" get merge_strategy' "$SAFE44")
+OUT44=$(run_allow '"/path/to/plugin/bin/caliper-settings" get merge_strategy' "$SAFE44")
 assert_output_contains "quoted absolute path allowed" "$OUT44" '"behavior":"allow"'
 
 echo "Test 46: Quoted variable assignment VAR=\"\$(cmd)\" extracts subshell cmd"
