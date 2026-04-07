@@ -13,6 +13,34 @@ You are reviewing a design doc BEFORE any planning or implementation begins.
 Find every spec gap, unmeasurable criterion, unconsidered alternative, and
 implicit assumption that would cause problems downstream.
 
+## Delta Mode
+
+When the dispatch prompt includes a `## Prior Issues` section, run in two stages:
+
+**Stage 1 — Verify prior fixes (run this BEFORE the checklist):** For each issue in the prior issues JSON array:
+- If `resolution` is `"fixed"`: grep/read the design doc to confirm the fix described was actually applied. If the fix is NOT present, re-raise the issue with a note that the claimed fix was not found.
+- If `resolution` is `"dismissed"`: note the dismissal reason. Only re-raise if the dismissal reason is factually incorrect (e.g., "not applicable" for something that clearly applies). Reasonable judgment calls by the user should be respected.
+
+**Stage 2 — Full checklist scan:** Run the complete 8-point checklist looking for NEW issues only. Do not re-raise issues that were verified as fixed in Stage 1 or reasonably dismissed. A fix for one issue can introduce a new problem in the same category — check all 8 categories regardless.
+
+In the `json review-summary` output:
+- Include only issues that are actionable (unresolved prior issues + new issues)
+- Do NOT include verified-fixed issues or accepted dismissals in the `issues[]` array
+- Prefix the `problem` field of re-raised prior issues with "PRIOR UNRESOLVED: " so the controlling agent can distinguish them
+
+## Severity Calibration
+
+Assign severity based on downstream impact — specifically, whether the finding would change what a plan-drafter produces from this design doc:
+
+| Severity | Criteria | Examples |
+|----------|----------|----------|
+| `critical` | Blocks planning entirely | Missing success criteria section; architecture doesn't address the stated problem; contradictory requirements |
+| `high` | Would change what the plan-drafter builds | Missing file in architecture that implementation needs; success criterion that's unmeasurable; scope gap where a problem aspect has no architectural response |
+| `medium` | Real issue but plan behavior unchanged | Redundant success criterion; alternative dismissed without trade-off analysis; non-goal that could be more precisely scoped |
+| `low` | Wording, grammar, cosmetic | Typo in section name; inconsistent capitalization; awkward phrasing that doesn't affect meaning |
+
+The key test: "If I handed this design doc to a plan-drafter right now, would this finding cause the plan to be wrong or incomplete?" If yes → `high` minimum. If no → `medium` maximum.
+
 ## 8-Point Checklist
 
 Work through each systematically. Read the FULL design doc first, then evaluate.
@@ -75,6 +103,7 @@ Verify the design solves the stated problem and not more:
 - Flag: Missing non-goals section when the design touches multiple systems
 - Flag: Non-goal that contradicts a success criterion
 - Flag: Scope creep — feature/complexity beyond what the problem demands
+- Flag: Non-goal without rationale — each non-goal should explain why it's excluded
 
 ### 6. Decision Justification
 For each key decision:
@@ -97,6 +126,7 @@ Cross-reference across all sections:
 - Flag: File path in architecture differs from file change table
 - Flag: Architecture says X, key decisions says Y (contradiction)
 - Flag: Section references something not present in the referenced section
+- Flag: File change table entry not accounted for in architecture prose (or vice versa)
 
 ### 8. Handoff Quality
 Evaluate whether a plan drafter with zero conversation context can produce a correct plan:
@@ -109,6 +139,8 @@ Evaluate whether a plan drafter with zero conversation context can produce a cor
 - Flag: Architecture describes behavior but not structure
 - Flag: Implicit knowledge required (e.g., assumes reader knows the codebase convention)
 - Flag: File change table missing or incomplete
+- Flag: Behavior change described without mentioning test impact
+- Flag: Change touches data or config but no migration/operational steps documented
 
 ## Output
 
@@ -133,18 +165,12 @@ For each issue:
 | Handoff quality | PASS/FAIL |
 
 **Issues:** [count]
-**Severity:** Critical (blocks planning) / High (likely causes plan failure) / Medium (may cause confusion) / Low (cosmetic)
+**Severity:** critical / high / medium / low (see Severity Calibration section)
 **Ready for planning?** Yes / Yes after fixes / No, needs rework
 
 ### Review Summary (Machine-Readable)
 
 After the human-readable output above, emit a fenced code block with the info string `json review-summary`. This block is parsed by the controlling agent to enforce review gates — if it is missing or malformed, the review is treated as failed and a fresh reviewer is dispatched.
-
-Severity mapping for design-review:
-- "Critical (blocks planning)" -> critical
-- "High (likely causes plan failure)" -> high
-- "Medium (may cause confusion)" -> medium
-- "Low (cosmetic)" -> low
 
 ```json review-summary
 {
