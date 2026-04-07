@@ -48,7 +48,12 @@ Reviewer produces:
 **Pass:** Zero issues, or all issues fixed and confirmed clean
 **Fail:** Return to design skill to fix, then re-run design-review
 
-**Re-review gate:** Read the threshold: `caliper-settings get re_review_threshold` (default: 5). If the reviewer finds more issues than this threshold, after all fixes, dispatch a fresh reviewer with the same full scope to confirm clean.
+**Re-review gate (design-review):** The design skill controls the review loop with these rules:
+- **Batch-fix discipline:** All issues from a review are triaged (fix or dismiss with reasoning) in one pass before re-dispatching
+- **Delta context (iter ≥2):** Follow-up reviewers receive the prior iteration's issues with resolution status, enabling verify-then-scan instead of full re-discovery
+- **Severity-gated termination (after iter 3):** Remaining `low` and `medium` issues are auto-dismissed; only `high` and `critical` issues block planning past iteration 3
+
+Note: Plan-review uses a separate gate — `caliper-settings get re_review_threshold` (max 3 iterations). That gate is unchanged.
 
 ## Integration
 
