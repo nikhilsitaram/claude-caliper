@@ -53,7 +53,7 @@ Reviewer produces:
 - **Delta context (iter ≥2):** Follow-up reviewers receive the prior iteration's issues with resolution status, enabling verify-then-scan instead of full re-discovery
 - **Severity-gated termination (after iter 3):** Remaining `low` and `medium` issues are auto-dismissed; only `high` and `critical` issues block planning past iteration 3
 
-Note: Plan-review uses a separate gate — `caliper-settings get re_review_threshold` (max 3 iterations). That gate is unchanged.
+Note: Plan-review uses a separate gate — `caliper-settings get re_review_threshold`. That gate is unchanged.
 
 ## Integration
 
