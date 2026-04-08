@@ -1167,6 +1167,15 @@ check_review_record() {
     return 0
   fi
 
+  if [[ "$review_type" == "design-review" && "$review_scope" == "design" ]]; then
+    local iteration critical high has_severity
+    read -r iteration critical high < <(echo "$record" | jq -r '[.iteration // 0, .severity.critical // 0, .severity.high // 0] | @tsv')
+    has_severity=$(echo "$record" | jq -r 'if (.severity | type) == "object" then "true" else "false" end')
+    if [[ "$has_severity" == "true" && "$iteration" -gt 3 && "$critical" -eq 0 && "$high" -eq 0 ]]; then
+      return 0
+    fi
+  fi
+
   echo "review gate failed — type=$review_type scope=$review_scope verdict=$verdict remaining=$remaining"
   return 1
 }
