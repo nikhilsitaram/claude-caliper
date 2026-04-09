@@ -4,20 +4,19 @@ Parallel task execution via Agent tool dispatches with worktree isolation. No ex
 
 ## Dispatch Implementers
 
-For each task with no unmet dependencies (verified via `validate-plan --check-deps`), create a worktree from the feature branch and dispatch an implementer:
+For each task in the phase, check deps: `validate-plan --check-deps "$PLAN_JSON" --task {TASK_ID}`. Collect all tasks that pass. For each ready task, create a worktree and extract metadata (strip `status` — orchestrator state not needed by implementer):
 
 ```bash
 git worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
+TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
 ```
 
-Then dispatch the agent, passing the worktree path in the prompt:
+Then dispatch **all ready implementers in a single message** with multiple Agent tool calls — one per task. Splitting them across turns breaks parallelism and forces cache reloads for each agent.
 
 ```text
-Agent(
-  subagent_type: "claude-caliper:task-implementer",
-  model: "{TASK_IMPLEMENTER_MODEL}",
-  prompt: "<substitute implementer-prompt.md with all {VARIABLES}, including {WORKTREE_PATH}>"
-)
+Agent(name: "impl-{TASK_ID_LOWER}", subagent_type: "claude-caliper:task-implementer", model: "{TASK_IMPLEMENTER_MODEL}", prompt: "...")
+Agent(name: "impl-{TASK_ID_LOWER}", subagent_type: "claude-caliper:task-implementer", model: "{TASK_IMPLEMENTER_MODEL}", prompt: "...")
+... (one per ready task)
 ```
 
 The agent runs in background automatically (defined in agent frontmatter). Track each agent's name mapped to its task ID and worktree path.
@@ -33,6 +32,7 @@ When a background agent completes (push notification — do not poll):
 
 ```text
 Agent(
+  name: "review-{TASK_ID_LOWER}",
   subagent_type: "claude-caliper:task-reviewer",
   model: "{TASK_REVIEWER_MODEL}",
   run_in_background: false,

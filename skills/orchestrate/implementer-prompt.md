@@ -5,7 +5,7 @@ Use this template when dispatching a task-implementer agent. The agent's static 
 **Variables:**
 - `{TASK_ID}` — the task ID (e.g., A1)
 - `{TASK_ID_LOWER}` — lowercase task ID (e.g., a1)
-- `{TASK_METADATA}` — JSON task object from plan.json
+- `{TASK_METADATA}` — JSON task object from plan.json (strip `status` before injecting — orchestrator tracking state, not implementer guidance; keep `depends_on` — implementer may need it for boundary integration tests)
 - `{TASK_PROSE}` — content of the task .md file
 - `{PLAN_DIR}` — absolute path to plan directory
 - `{PHASE_DIR}` — absolute path to phase directory

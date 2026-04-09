@@ -49,7 +49,7 @@
   "task_implementer_model": {
     "type": "enum",
     "values": ["opus", "sonnet", "haiku"],
-    "default": "opus",
+    "default": "sonnet",
     "description": "Model for task execution in orchestrate",
     "used_by": ["orchestrate"]
   },
@@ -89,7 +89,7 @@
   "implementation_reviewer_model": {
     "type": "enum",
     "values": ["opus", "sonnet", "haiku"],
-    "default": "sonnet",
+    "default": "opus",
     "description": "Model for cross-task implementation review",
     "used_by": ["orchestrate", "implementation-review"]
   },

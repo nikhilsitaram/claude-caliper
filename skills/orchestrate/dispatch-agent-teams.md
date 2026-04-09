@@ -8,7 +8,13 @@ Before dispatching any teammates, verify: `[[ "$CLAUDE_CODE_EXPERIMENTAL_AGENT_T
 
 ## Spawn Implementer Teammates
 
-Spawn implementer teammates for tasks with no unmet dependencies (verified via `validate-plan --check-deps`). Each teammate:
+For each task in the phase, check deps: `validate-plan --check-deps "$PLAN_JSON" --task {TASK_ID}`. Collect all tasks that pass. For each ready task, extract metadata (strip `status` — orchestrator state not needed by implementer):
+
+```bash
+TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
+```
+
+Spawn **all ready implementer teammates in a single message** — one TeamCreate per task, all in the same turn. Splitting spawns across turns breaks parallelism. Each teammate:
 - Uses `claude-caliper:task-implementer` agent with dynamic context from `./implementer-prompt.md`
 - Gets its own auto-provisioned worktree
 - Manages its own lifecycle (marks in-progress, writes completion notes, marks complete)
@@ -42,6 +48,7 @@ Implementer teammates use the template in `./implementer-prompt.md`. Key spawn p
 
 ```yaml
 Teammate spawn:
+  name: "impl-{TASK_ID_LOWER}"
   subagent_type: "claude-caliper:task-implementer"
   model: "{TASK_IMPLEMENTER_MODEL}"
   mode: "acceptEdits"
@@ -53,6 +60,7 @@ Task reviewer teammates use the template in `./task-reviewer-prompt.md`. Key spa
 
 ```yaml
 Teammate spawn:
+  name: "review-{TASK_ID_LOWER}"
   subagent_type: "claude-caliper:task-reviewer"
   model: "{TASK_REVIEWER_MODEL}"
   mode: "auto"

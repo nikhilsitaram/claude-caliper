@@ -3,7 +3,7 @@ name: task-reviewer
 description: Reviews a single task's implementation against its spec
 model: inherit
 tools: [Read, Grep, Glob, Bash]
-memory: project
+memory: none
 maxTurns: 30
 effort: medium
 background: true

@@ -3,7 +3,7 @@ name: task-implementer
 description: Implements a single task from an implementation plan using TDD
 model: inherit
 tools: [Read, Grep, Glob, Bash, Write, Edit]
-memory: project
+memory: none
 maxTurns: 80
 effort: high
 background: true
