@@ -48,6 +48,7 @@ Implementer teammates use the template in `./implementer-prompt.md`. Key spawn p
 
 ```yaml
 Teammate spawn:
+  name: "impl-{TASK_ID_LOWER}"
   subagent_type: "claude-caliper:task-implementer"
   model: "{TASK_IMPLEMENTER_MODEL}"
   mode: "acceptEdits"
