@@ -38,6 +38,7 @@ Check commit history within the diff range.
 
 - Flag: Implementation commit with no preceding test commit
 - Flag: All code in a single commit (no TDD cycle visible)
+- **Exception:** Consolidated mechanical tasks (renames, imports, config updates) may use a single commit with suite-level verification instead of per-change TDD cycles. Check the task prose — if it specifies lighter verification, evaluate against that standard instead.
 
 ### 3. Test Quality
 Read every test file in the diff.

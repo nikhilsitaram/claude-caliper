@@ -110,6 +110,15 @@ Phase boundaries = meaningful "run full suite" points. Each phase gets `phase-{l
 
 Inherit phases from design doc if approved.
 
+## Task Consolidation
+
+Each task carries fixed overhead: worktree creation, subagent dispatch, and a review cycle. Trivial tasks (single-line changes, import additions, config updates) don't justify that cost individually. Before finalizing tasks, scan for consolidation opportunities:
+
+- **Bundle mechanical changes:** If multiple files each need small, mechanical edits (renaming an export, adding an import, updating a config value), combine them into one task. A single task can span many files as long as the changes are cohesive and the verification is straightforward.
+- **Keep substantive tasks separate:** Changes that require design decisions, new logic, or non-trivial testing should remain their own task — consolidation is for rote work, not for collapsing genuinely independent features.
+- **Rule of thumb:** If a task's prose would be shorter than its plan.json metadata, it's too small — look for neighbors to merge with.
+- **TDD for consolidated tasks:** Mechanical changes don't need per-file red/green cycles. In the task prose, specify a single verification pass (e.g., "run the full test suite and confirm no regressions") rather than step-by-step TDD. The implementer follows whatever discipline the task prose prescribes.
+
 ## Task Structure
 
 Every task splits metadata (plan.json) and prose (task .md file).
