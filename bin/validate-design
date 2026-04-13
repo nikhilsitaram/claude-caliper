@@ -23,9 +23,6 @@ do_check() {
     exit 1
   fi
 
-  local content
-  content="$(cat "$doc")"
-
   # ----------------------------------------------------------------
   # Check 1: Section presence
   # ----------------------------------------------------------------
@@ -105,22 +102,27 @@ do_check() {
     impl_next="$(awk -v start="$impl_line" 'NR > start && /^## / { print NR; exit }' "$doc")"
     impl_next="${impl_next:-$((total_lines + 1))}"
 
+    # Extract only backticked file paths — markdown convention for file refs.
+    # Exclude: URLs, shebangs, template placeholders (YYYY-MM-DD, <placeholder>),
+    # and non-path strings (must contain / and a file-like segment).
     extract_paths() {
       local start="$1"
       local end="$2"
       awk -v s="$start" -v e="$end" 'NR > s && NR < e' "$doc" \
-        | grep -oE '`[^`]*`|[^[:space:]"'"'"'()[\]{}<>]+' \
-        | grep '/' \
+        | grep -oE '`[^`]+`' \
+        | sed 's/^`//;s/`$//' \
+        | grep -E '^[a-zA-Z0-9_.][a-zA-Z0-9_./-]*/[a-zA-Z0-9_./-]+$' \
         | grep -vE '^https?://' \
-        | grep -vE '\.claude/claude-caliper/[0-9]{4}-[0-9]{2}-[0-9]{2}' \
+        | grep -vE 'YYYY-MM-DD' \
+        | grep -vE '<[^>]+>' \
         | sort -u
     }
 
     local arch_paths
-    arch_paths="$(extract_paths "$arch_line" "$arch_next" | sed 's/^`//;s/`$//')"
+    arch_paths="$(extract_paths "$arch_line" "$arch_next")"
 
     local impl_paths
-    impl_paths="$(extract_paths "$impl_line" "$impl_next" | sed 's/^`//;s/`$//')"
+    impl_paths="$(extract_paths "$impl_line" "$impl_next")"
 
     while IFS= read -r path; do
       [[ -z "$path" ]] && continue
