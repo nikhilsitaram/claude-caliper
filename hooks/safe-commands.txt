@@ -38,6 +38,7 @@ uv
 uvx
 caliper-test_*
 caliper-settings
+validate-design
 validate-plan
 wc
 which

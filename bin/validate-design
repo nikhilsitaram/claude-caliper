@@ -1,0 +1,255 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  validate-design --check <path>
+
+Checks a design doc for structural compliance.
+Exit 0 (silent) on success. Exit 1 with ERROR lines on stderr on failure.
+USAGE
+  exit 1
+}
+
+ERRORS=()
+err() { ERRORS+=("$1"); }
+
+do_check() {
+  local doc="$1"
+
+  if [[ ! -f "$doc" ]]; then
+    echo "ERROR: file not found: $doc" >&2
+    exit 1
+  fi
+
+  # ----------------------------------------------------------------
+  # Check 1: Section presence
+  # ----------------------------------------------------------------
+  local REQUIRED_SECTIONS=(
+    "Problem"
+    "Goal"
+    "Success Criteria"
+    "Architecture"
+    "Key Decisions"
+    "Non-Goals"
+    "Implementation Approach"
+    "Scope Estimate"
+  )
+
+  local missing_sections=()
+  for section in "${REQUIRED_SECTIONS[@]}"; do
+    if ! grep -qE "^## ${section}$" "$doc"; then
+      err "missing_section: '## ${section}' not found"
+      missing_sections+=("$section")
+    fi
+  done
+
+  # ----------------------------------------------------------------
+  # Check 2: Section ordering (only for sections that exist)
+  # ----------------------------------------------------------------
+  local prev_line=0
+  local prev_name=""
+  for section in "${REQUIRED_SECTIONS[@]}"; do
+    local line
+    line="$(grep -nE "^## ${section}$" "$doc" | head -1 | cut -d: -f1 || true)"
+    if [[ -n "$line" ]]; then
+      if [[ -n "$prev_name" && "$line" -lt "$prev_line" ]]; then
+        err "section_order: '## ${section}' must come after '## ${prev_name}'"
+      fi
+      prev_line="$line"
+      prev_name="$section"
+    fi
+  done
+
+  # ----------------------------------------------------------------
+  # Check 3: Empty section detection
+  # ----------------------------------------------------------------
+  local total_lines
+  total_lines="$(wc -l < "$doc")"
+
+  for section in "${REQUIRED_SECTIONS[@]}"; do
+    local section_line
+    section_line="$(grep -nE "^## ${section}$" "$doc" | head -1 | cut -d: -f1 || true)"
+    [[ -z "$section_line" ]] && continue
+
+    local next_heading_line
+    next_heading_line="$(awk -v start="$section_line" 'NR > start && /^## / { print NR; exit }' "$doc")"
+    local end_line="${next_heading_line:-$((total_lines + 1))}"
+
+    local has_content
+    has_content="$(awk -v start="$section_line" -v end="$end_line" \
+      'NR > start && NR < end && /[^[:space:]]/ { found=1; exit } END { print (found ? "yes" : "no") }' "$doc")"
+
+    if [[ "$has_content" == "no" ]]; then
+      err "empty_section: '## ${section}' has no content"
+    fi
+  done
+
+  # ----------------------------------------------------------------
+  # Check 4: Cross-references between Architecture and Implementation Approach
+  # ----------------------------------------------------------------
+  local arch_line impl_line
+  arch_line="$(grep -nE "^## Architecture$" "$doc" | head -1 | cut -d: -f1 || true)"
+  impl_line="$(grep -nE "^## Implementation Approach$" "$doc" | head -1 | cut -d: -f1 || true)"
+
+  if [[ -n "$arch_line" && -n "$impl_line" ]]; then
+    local arch_next impl_next
+
+    arch_next="$(awk -v start="$arch_line" 'NR > start && /^## / { print NR; exit }' "$doc")"
+    arch_next="${arch_next:-$((total_lines + 1))}"
+
+    impl_next="$(awk -v start="$impl_line" 'NR > start && /^## / { print NR; exit }' "$doc")"
+    impl_next="${impl_next:-$((total_lines + 1))}"
+
+    # Extract only backticked file paths — markdown convention for file refs.
+    # Exclude: URLs, shebangs, template placeholders (YYYY-MM-DD, <placeholder>),
+    # and non-path strings (must contain / and a file-like segment).
+    extract_paths() {
+      local start="$1"
+      local end="$2"
+      awk -v s="$start" -v e="$end" 'NR > s && NR < e' "$doc" \
+        | grep -oE '`[^`]+`' \
+        | sed 's/^`//;s/`$//' \
+        | grep -E '^[a-zA-Z0-9_.][a-zA-Z0-9_./-]*(\.[a-zA-Z0-9]+|/[a-zA-Z0-9_./-]+)$' \
+        | grep -vE '^https?://' \
+        | grep -vE 'YYYY-MM-DD' \
+        | grep -vE '<[^>]+>' \
+        | sort -u \
+        || true
+    }
+
+    local arch_paths
+    arch_paths="$(extract_paths "$arch_line" "$arch_next")"
+
+    local impl_paths
+    impl_paths="$(extract_paths "$impl_line" "$impl_next")"
+
+    while IFS= read -r path; do
+      [[ -z "$path" ]] && continue
+      if ! echo "$impl_paths" | grep -qFx "$path"; then
+        err "cross_ref_mismatch: '${path}' appears in Architecture but not Implementation Approach"
+      fi
+    done <<< "$arch_paths"
+
+    while IFS= read -r path; do
+      [[ -z "$path" ]] && continue
+      if ! echo "$arch_paths" | grep -qFx "$path"; then
+        err "cross_ref_mismatch: '${path}' appears in Implementation Approach but not Architecture"
+      fi
+    done <<< "$impl_paths"
+  fi
+
+  # ----------------------------------------------------------------
+  # Check 5: Non-goals rationale (each item needs 10+ words)
+  # ----------------------------------------------------------------
+  local nongoals_line nongoals_next
+  nongoals_line="$(grep -nE "^## Non-Goals$" "$doc" | head -1 | cut -d: -f1 || true)"
+
+  if [[ -n "$nongoals_line" ]]; then
+    nongoals_next="$(awk -v start="$nongoals_line" 'NR > start && /^## / { print NR; exit }' "$doc")"
+    nongoals_next="${nongoals_next:-$((total_lines + 1))}"
+
+    # Group each bullet with its continuation lines (until next bullet or blank line)
+    # so multi-line rationales are counted correctly.
+    local item_num=0
+    local current_item=""
+    check_item() {
+      if [[ -n "$current_item" ]]; then
+        local word_count
+        word_count="$(echo "$current_item" | wc -w | tr -d ' ')"
+        if [[ "$word_count" -lt 10 ]]; then
+          err "non_goal_rationale: Non-Goals item ${item_num} has no rationale (needs at least 10 words)"
+        fi
+      fi
+    }
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^[-*] ]]; then
+        check_item
+        item_num=$((item_num + 1))
+        current_item="$line"
+      elif [[ -n "$current_item" && "$line" =~ [^[:space:]] ]]; then
+        current_item="$current_item $line"
+      elif [[ -z "$line" || ! "$line" =~ [^[:space:]] ]]; then
+        check_item
+        current_item=""
+      fi
+    done < <(awk -v s="$nongoals_line" -v e="$nongoals_next" 'NR > s && NR < e' "$doc")
+    check_item
+  fi
+
+  # ----------------------------------------------------------------
+  # Check 6: Scope Estimate mentions "phase" and "task"
+  # ----------------------------------------------------------------
+  local scope_line scope_next
+  scope_line="$(grep -nE "^## Scope Estimate$" "$doc" | head -1 | cut -d: -f1 || true)"
+
+  if [[ -n "$scope_line" ]]; then
+    scope_next="$(awk -v start="$scope_line" 'NR > start && /^## / { print NR; exit }' "$doc")"
+    scope_next="${scope_next:-$((total_lines + 1))}"
+
+    local scope_content
+    scope_content="$(awk -v s="$scope_line" -v e="$scope_next" 'NR > s && NR < e' "$doc")"
+
+    if ! echo "$scope_content" | grep -iqE 'phase'; then
+      err "missing_scope_estimate: '## Scope Estimate' does not mention phase count"
+    fi
+    if ! echo "$scope_content" | grep -iqE 'task'; then
+      err "missing_scope_estimate: '## Scope Estimate' does not mention task count"
+    fi
+  fi
+
+  # ----------------------------------------------------------------
+  # Output
+  # ----------------------------------------------------------------
+  if [[ "${#ERRORS[@]}" -gt 0 ]]; then
+    for e in "${ERRORS[@]}"; do
+      echo "ERROR: $e" >&2
+    done
+    exit 1
+  fi
+}
+
+# ----------------------------------------------------------------
+# Argument parsing
+# ----------------------------------------------------------------
+if [[ $# -eq 0 ]]; then
+  usage
+fi
+
+MODE=""
+DOC_PATH=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --check)
+      MODE="check"
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --check requires a path argument" >&2
+        exit 1
+      fi
+      DOC_PATH="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      ;;
+  esac
+done
+
+case "$MODE" in
+  check)
+    if [[ -z "$DOC_PATH" ]]; then
+      echo "ERROR: --check requires a path argument" >&2
+      exit 1
+    fi
+    do_check "$DOC_PATH"
+    ;;
+  *)
+    usage
+    ;;
+esac

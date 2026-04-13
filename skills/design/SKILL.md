@@ -68,6 +68,8 @@ Complete in order:
    - Every file mentioned in the implementation approach is covered in the architecture section (and vice versa)
    - Test impact is noted for every behavior change
    - Migration/operational steps are captured if the change touches data or config
+
+   Run `validate-design --check <path>` and fix any errors before proceeding to self-review.
 9. **Self-review pass** — before dispatching the external reviewer, read through the design doc yourself against the 8-point checklist in `agents/design-reviewer.md`. Fix any issues you find. Goal: catch obvious gaps so the external reviewer surfaces only non-obvious ones. This is an inline check, not a subagent dispatch — no output format required, just fix what you find.
 10. **Dispatch design-review subagent** — fresh reviewer agent validates design before planning (hard gate)
 11. **Dispatch draft-plan subagent** — fresh implementer agent with design doc path and worktree path (zero design context)
@@ -106,7 +108,7 @@ After each reviewer dispatch, extract the `json review-summary` block from the r
 **If reviewer finds issues:**
 
 1. **Extract ALL issues** from the `json review-summary` `issues[]` array
-2. **Present all issues to the user** for triage — the user decides fix vs dismiss for each, with a reason for dismissals
+2. **Present all issues** for visibility, then make triage decisions (fix vs dismiss with reasoning) autonomously — do not stop to ask the user. The user sees the issues and your decisions but the workflow continues without blocking on user input during review triage.
 3. **Apply all fixes and dismissals in a single editing pass** — do not dispatch a reviewer between individual fixes
 4. **Apply severity-gated termination:**
    - **Iterations 1–3, only `medium`/`low` remain:** if all remaining issues are `medium` or `low` (no `critical` or `high`), you may fix all issues, write verdict `"pass"`, and proceed directly to step 11 — or fix all issues and re-dispatch for another pass if there are many issues or you want more confidence.
@@ -198,8 +200,6 @@ Use AskUserQuestion with "Looks good" / "Adjust phases" options.
 
 ## Design Doc Contents
 
-When writing the design doc (`.claude/claude-caliper/YYYY-MM-DD-<topic>/design-<topic>.md`):
-- Sections in order: Problem, Goal, Success Criteria, Architecture, Key Decisions, Non-Goals, Implementation Approach
-- **Problem** — what's broken, who's affected, consequences of not solving
-- **Success Criteria** — human-verifiable behavioral statements (not "tests pass"); collectively complete (all pass = goal met), individually necessary
-- If multi-phase: **Implementation Approach** includes phase rationale
+**See:** ./design-spec.md
+
+That file is the authoritative format definition. Required sections in order: Problem, Goal, Success Criteria, Architecture, Key Decisions, Non-Goals, Implementation Approach, Scope Estimate.
