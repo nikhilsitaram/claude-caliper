@@ -111,7 +111,7 @@ do_check() {
       awk -v s="$start" -v e="$end" 'NR > s && NR < e' "$doc" \
         | grep -oE '`[^`]+`' \
         | sed 's/^`//;s/`$//' \
-        | grep -E '^[a-zA-Z0-9_.][a-zA-Z0-9_./-]*/[a-zA-Z0-9_./-]+$' \
+        | grep -E '^[a-zA-Z0-9_.][a-zA-Z0-9_./-]*(\.[a-zA-Z0-9]+|/[a-zA-Z0-9_./-]+)$' \
         | grep -vE '^https?://' \
         | grep -vE 'YYYY-MM-DD' \
         | grep -vE '<[^>]+>' \
@@ -127,14 +127,14 @@ do_check() {
 
     while IFS= read -r path; do
       [[ -z "$path" ]] && continue
-      if ! echo "$impl_paths" | grep -qF "$path"; then
+      if ! echo "$impl_paths" | grep -qFx "$path"; then
         err "cross_ref_mismatch: '${path}' appears in Architecture but not Implementation Approach"
       fi
     done <<< "$arch_paths"
 
     while IFS= read -r path; do
       [[ -z "$path" ]] && continue
-      if ! echo "$arch_paths" | grep -qF "$path"; then
+      if ! echo "$arch_paths" | grep -qFx "$path"; then
         err "cross_ref_mismatch: '${path}' appears in Implementation Approach but not Architecture"
       fi
     done <<< "$impl_paths"
@@ -150,17 +150,32 @@ do_check() {
     nongoals_next="$(awk -v start="$nongoals_line" 'NR > start && /^## / { print NR; exit }' "$doc")"
     nongoals_next="${nongoals_next:-$((total_lines + 1))}"
 
+    # Group each bullet with its continuation lines (until next bullet or blank line)
+    # so multi-line rationales are counted correctly.
     local item_num=0
-    while IFS= read -r line; do
-      if [[ "$line" =~ ^[-*] ]]; then
-        item_num=$((item_num + 1))
+    local current_item=""
+    check_item() {
+      if [[ -n "$current_item" ]]; then
         local word_count
-        word_count="$(echo "$line" | wc -w | tr -d ' ')"
-        if [[ "$word_count" -le 10 ]]; then
-          err "non_goal_rationale: Non-Goals item ${item_num} has no rationale (needs more than a bare phrase)"
+        word_count="$(echo "$current_item" | wc -w | tr -d ' ')"
+        if [[ "$word_count" -lt 10 ]]; then
+          err "non_goal_rationale: Non-Goals item ${item_num} has no rationale (needs at least 10 words)"
         fi
       fi
+    }
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^[-*] ]]; then
+        check_item
+        item_num=$((item_num + 1))
+        current_item="$line"
+      elif [[ -n "$current_item" && "$line" =~ [^[:space:]] ]]; then
+        current_item="$current_item $line"
+      elif [[ -z "$line" || ! "$line" =~ [^[:space:]] ]]; then
+        check_item
+        current_item=""
+      fi
     done < <(awk -v s="$nongoals_line" -v e="$nongoals_next" 'NR > s && NR < e' "$doc")
+    check_item
   fi
 
   # ----------------------------------------------------------------
@@ -209,7 +224,11 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --check)
       MODE="check"
-      DOC_PATH="${2:-}"
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --check requires a path argument" >&2
+        exit 1
+      fi
+      DOC_PATH="$2"
       shift 2
       ;;
     --help|-h)

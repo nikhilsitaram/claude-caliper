@@ -43,6 +43,8 @@ assert_fail "cross-reference mismatch detected" "cross_ref_mismatch" "$VALIDATE"
 assert_fail "non-goal without rationale detected" "non_goal_rationale" "$VALIDATE" --check "$FIXTURES/no-rationale.md"
 assert_fail "missing scope estimate phase count" "does not mention phase count" "$VALIDATE" --check "$FIXTURES/missing-scope.md"
 assert_fail "missing scope estimate task count" "does not mention task count" "$VALIDATE" --check "$FIXTURES/missing-task-count.md"
+assert_pass "multi-line non-goal rationale accepted" "$VALIDATE" --check "$FIXTURES/multiline-rationale.md"
+assert_fail "missing path after --check" "requires a path argument" "$VALIDATE" --check
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

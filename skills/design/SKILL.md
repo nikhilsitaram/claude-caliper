@@ -200,6 +200,6 @@ Use AskUserQuestion with "Looks good" / "Adjust phases" options.
 
 ## Design Doc Contents
 
-**See:** ./design-spec.md for the authoritative format definition.
+**See:** ./design-spec.md
 
-Required sections in order: Problem, Goal, Success Criteria, Architecture, Key Decisions, Non-Goals, Implementation Approach, Scope Estimate.
+That file is the authoritative format definition. Required sections in order: Problem, Goal, Success Criteria, Architecture, Key Decisions, Non-Goals, Implementation Approach, Scope Estimate.
