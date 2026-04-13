@@ -52,7 +52,7 @@ do_check() {
   local prev_name=""
   for section in "${REQUIRED_SECTIONS[@]}"; do
     local line
-    line="$(grep -nE "^## ${section}$" "$doc" | head -1 | cut -d: -f1)"
+    line="$(grep -nE "^## ${section}$" "$doc" | head -1 | cut -d: -f1 || true)"
     if [[ -n "$line" ]]; then
       if [[ -n "$prev_name" && "$line" -lt "$prev_line" ]]; then
         err "section_order: '## ${section}' appears before '## ${prev_name}'"
@@ -70,7 +70,7 @@ do_check() {
 
   for section in "${REQUIRED_SECTIONS[@]}"; do
     local section_line
-    section_line="$(grep -nE "^## ${section}$" "$doc" | head -1 | cut -d: -f1)"
+    section_line="$(grep -nE "^## ${section}$" "$doc" | head -1 | cut -d: -f1 || true)"
     [[ -z "$section_line" ]] && continue
 
     local next_heading_line
@@ -90,8 +90,8 @@ do_check() {
   # Check 4: Cross-references between Architecture and Implementation Approach
   # ----------------------------------------------------------------
   local arch_line impl_line
-  arch_line="$(grep -nE "^## Architecture$" "$doc" | head -1 | cut -d: -f1)"
-  impl_line="$(grep -nE "^## Implementation Approach$" "$doc" | head -1 | cut -d: -f1)"
+  arch_line="$(grep -nE "^## Architecture$" "$doc" | head -1 | cut -d: -f1 || true)"
+  impl_line="$(grep -nE "^## Implementation Approach$" "$doc" | head -1 | cut -d: -f1 || true)"
 
   if [[ -n "$arch_line" && -n "$impl_line" ]]; then
     local arch_next impl_next
@@ -115,7 +115,8 @@ do_check() {
         | grep -vE '^https?://' \
         | grep -vE 'YYYY-MM-DD' \
         | grep -vE '<[^>]+>' \
-        | sort -u
+        | sort -u \
+        || true
     }
 
     local arch_paths
@@ -143,7 +144,7 @@ do_check() {
   # Check 5: Non-goals rationale (each item needs 10+ words)
   # ----------------------------------------------------------------
   local nongoals_line nongoals_next
-  nongoals_line="$(grep -nE "^## Non-Goals$" "$doc" | head -1 | cut -d: -f1)"
+  nongoals_line="$(grep -nE "^## Non-Goals$" "$doc" | head -1 | cut -d: -f1 || true)"
 
   if [[ -n "$nongoals_line" ]]; then
     nongoals_next="$(awk -v start="$nongoals_line" 'NR > start && /^## / { print NR; exit }' "$doc")"
@@ -166,7 +167,7 @@ do_check() {
   # Check 6: Scope Estimate mentions "phase"
   # ----------------------------------------------------------------
   local scope_line scope_next
-  scope_line="$(grep -nE "^## Scope Estimate$" "$doc" | head -1 | cut -d: -f1)"
+  scope_line="$(grep -nE "^## Scope Estimate$" "$doc" | head -1 | cut -d: -f1 || true)"
 
   if [[ -n "$scope_line" ]]; then
     scope_next="$(awk -v start="$scope_line" 'NR > start && /^## / { print NR; exit }' "$doc")"
