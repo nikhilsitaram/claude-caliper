@@ -37,7 +37,7 @@ assert_fail() {
 
 assert_pass "valid design passes all checks" "$VALIDATE" --check "$FIXTURES/valid-design.md"
 assert_fail "missing section detected" "missing_section" "$VALIDATE" --check "$FIXTURES/missing-section.md"
-assert_fail "out-of-order sections detected" "section_order" "$VALIDATE" --check "$FIXTURES/bad-order.md"
+assert_fail "out-of-order sections detected" "must come after" "$VALIDATE" --check "$FIXTURES/bad-order.md"
 assert_fail "empty section detected" "empty_section" "$VALIDATE" --check "$FIXTURES/empty-section.md"
 assert_fail "cross-reference mismatch detected" "cross_ref_mismatch" "$VALIDATE" --check "$FIXTURES/cross-ref-mismatch.md"
 assert_fail "non-goal without rationale detected" "non_goal_rationale" "$VALIDATE" --check "$FIXTURES/no-rationale.md"

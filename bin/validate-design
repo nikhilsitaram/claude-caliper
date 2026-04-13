@@ -55,7 +55,7 @@ do_check() {
     line="$(grep -nE "^## ${section}$" "$doc" | head -1 | cut -d: -f1 || true)"
     if [[ -n "$line" ]]; then
       if [[ -n "$prev_name" && "$line" -lt "$prev_line" ]]; then
-        err "section_order: '## ${section}' appears before '## ${prev_name}'"
+        err "section_order: '## ${section}' must come after '## ${prev_name}'"
       fi
       prev_line="$line"
       prev_name="$section"
