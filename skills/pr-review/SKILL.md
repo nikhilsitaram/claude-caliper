@@ -23,7 +23,7 @@ If not on PR branch: use existing worktree if found (`cd` into it), otherwise `g
 
 ### Step 2: Mode Selection
 
-If `--automated`/`-A` passed, use automated mode. `--automated` + `--skip-fixes` is invalid — fail fast.
+If `--automated-fix`/`-A` passed, use automated-fix mode. If `--automated-merge`/`-M` passed, use automated-merge mode. Both flags together is invalid — fail fast. Either automated flag + `--skip-fixes` is also invalid — fail fast.
 
 If no flag, read the user's preference:
 
@@ -31,9 +31,10 @@ If no flag, read the user's preference:
 mode=$(caliper-settings get review_mode)
 ```
 
-- If a mode is returned (`automated` or `deliberate`): the user explicitly configured this. Use it.
+- If a mode is returned (`automated-fix`, `automated-merge`, or `deliberate`): the user explicitly configured this. Use it.
 - If `PROMPT_REQUIRED`: no explicit preference — use AskUserQuestion to ask:
-  - **Automated** — Fix all actionable findings without interaction.
+  - **Automated fix** — Fix all actionable findings without interaction.
+  - **Automated merge** — Fix all actionable findings, then auto-merge the PR.
   - **Deliberate** — Collect all feedback, present unified triage, choose what to fix.
 
 ### Step 3: Rebase onto Base Branch
@@ -64,8 +65,8 @@ Subagent posts findings as `gh pr comment`, then returns them for Step 6.
 ### Step 5: External Feedback
 
 **Wait for bots:**
-- `--automated` from orchestrate: wait 90s, then poll `gh pr checks` every 30s (timeout: 5 min).
-- User-selected automated: wait 60s warm-up, then poll every 60s.
+- `--automated-merge` from orchestrate: wait 90s, then poll `gh pr checks` every 30s (timeout: 5 min).
+- User-selected automated (fix or merge): wait 60s warm-up, then poll every 60s.
 - Deliberate: no warm-up, poll every 60s.
 - Poll until all checks complete and no "processing"/"in progress" indicators in comments.
 - Bot rate-limit warning = treat as ready.
@@ -87,7 +88,7 @@ All three required — bots post to sources 2-3.
 | **Informational** — praise, explanation | Acknowledge |
 | **False positive** | Dismiss with reasoning |
 
-**Automated:** Fix actionable items, run tests. If `--skip-review` (no wave 2): commit and push. Otherwise: commit locally only (wave 2 may touch same files).
+**Automated (fix or merge):** Fix actionable items, run tests. If `--skip-review` (no wave 2): commit and push. Otherwise: commit locally only (wave 2 may touch same files).
 
 **Deliberate:** Collect and report. No fixes yet.
 
@@ -95,7 +96,7 @@ All three required — bots post to sources 2-3.
 
 Wait for background subagent (Step 4). Skip if `--skip-review`.
 
-**Automated:** Dismiss findings already fixed in wave 1. Fix remaining actionable items, run tests, commit and push (covers both waves).
+**Automated (fix or merge):** Dismiss findings already fixed in wave 1. Fix remaining actionable items, run tests, commit and push (covers both waves).
 
 **Deliberate:** Merge with Step 5 findings into unified set. Proceed to Step 7.
 
@@ -115,7 +116,7 @@ Skip if `--skip-fixes`. Fix each item, run tests (fail = stop), commit and push.
 
 Post `gh pr comment`: what was fixed, dismissed (with reasons), no-action. Omit empty sections.
 
-Report PR URL and item counts. Automated mode: invoke pr-merge. Deliberate mode: offer merge or tell user to run `/pr-merge` when ready.
+Report PR URL and item counts. Automated-merge mode: invoke pr-merge. Automated-fix mode: tell user to run `/pr-merge` when ready. Deliberate mode: offer merge or tell user to run `/pr-merge` when ready.
 
 ## Arguments
 
@@ -124,8 +125,9 @@ Report PR URL and item counts. Automated mode: invoke pr-merge. Deliberate mode:
 | `<PR number>` | Target specific PR |
 | *(none)* | Detect from current branch |
 | `--skip-review` / `-R` | Skip subagent review (Steps 4, 6) |
-| `--skip-fixes` / `-S` | Skip fixing — just comment (invalid with `--automated`) |
-| `--automated` / `-A` | Fix all actionable, no interaction |
+| `--skip-fixes` / `-S` | Skip fixing — just comment (invalid with automated modes) |
+| `--automated-fix` / `-A` | Fix all actionable, no interaction |
+| `--automated-merge` / `-M` | Fix all actionable, then auto-merge |
 
 ## Pitfalls
 

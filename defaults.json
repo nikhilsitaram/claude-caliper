@@ -7,7 +7,7 @@
   },
   "review_mode": {
     "type": "enum",
-    "values": ["automated", "deliberate"],
+    "values": ["automated-fix", "automated-merge", "deliberate"],
     "prompt_required": true,
     "description": "PR review mode (prompted each time unless explicitly set)",
     "used_by": ["pr-review"]

@@ -48,7 +48,19 @@ cmd_get() {
   local key="${1:?get requires a key}"
   validate_key "$key"
   if echo "$SETTINGS" | jq -e --arg k "$key" 'has($k)' > /dev/null 2>&1; then
-    echo "$SETTINGS" | jq -r --arg k "$key" '.[$k] | tostring'
+    local value type
+    value=$(echo "$SETTINGS" | jq -r --arg k "$key" '.[$k] | tostring')
+    type=$(echo "$DEFAULTS" | jq -r --arg k "$key" '.[$k].type')
+    if [[ "$type" == "enum" ]] && ! echo "$DEFAULTS" | jq -e --arg k "$key" --arg v "$value" '.[$k].values | index($v)' > /dev/null 2>&1; then
+      echo "WARNING: stored value '$value' for $key is no longer valid, ignoring" >&2
+      if echo "$DEFAULTS" | jq -e --arg k "$key" '.[$k].prompt_required == true' > /dev/null 2>&1; then
+        echo "PROMPT_REQUIRED"
+      else
+        echo "$DEFAULTS" | jq -r --arg k "$key" '.[$k].default'
+      fi
+    else
+      echo "$value"
+    fi
   elif echo "$DEFAULTS" | jq -e --arg k "$key" '.[$k].prompt_required == true' > /dev/null 2>&1; then
     echo "PROMPT_REQUIRED"
   else
