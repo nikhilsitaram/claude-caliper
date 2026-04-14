@@ -38,6 +38,7 @@ Complete in order:
     - If `PROMPT_REQUIRED`: include in AskUserQuestion with recommended option marked "(Recommended)":
       - **Create PR** — Orchestrate → pr-create (Recommended)
       - **Merge PR** — Orchestrate → pr-create → pr-review → pr-merge
+      - **Orchestrate only** — Orchestrate → stop after implementation review (work stays in worktree)
       - **Plan only** — Stop after plan is reviewed
 
     **Q2 — Execution mode** (header: "Exec mode"):
@@ -74,7 +75,7 @@ Complete in order:
 10. **Dispatch design-review subagent** — fresh reviewer agent validates design before planning (hard gate)
 11. **Dispatch draft-plan subagent** — fresh implementer agent with design doc path and worktree path (zero design context)
 12. **Route workflow** — Map step 7 choices to schema values:
-    - Workflow: `Create PR` → `pr-create`, `Merge PR` → `pr-merge`, `Plan only` → `plan-only`
+    - Workflow: `Create PR` → `pr-create`, `Merge PR` → `pr-merge`, `Orchestrate only` → `orchestrate`, `Plan only` → `plan-only`
     - Exec mode: `Subagents` → `subagents`, `Agent teams` → `agent-teams`
 
     Write both: `jq --arg w "<workflow>" --arg e "<exec-mode>" '.workflow = $w | .execution_mode = $e' plan.json > tmp && mv tmp plan.json`
@@ -82,7 +83,7 @@ Complete in order:
     For multi-phase plans, also write the integration branch name:
     `jq --arg ib "integrate/<feature>" '.integration_branch = $ib' plan.json > tmp && mv tmp plan.json`
 
-    For **Create PR** or **Merge PR**: invoke orchestrate.
+    For **Create PR**, **Merge PR**, or **Orchestrate only**: invoke orchestrate.
     For **Plan only**: run `validate-plan --check-workflow plan.json` to verify design-review and plan-review passed. Report the plan file path and stop.
 
 Read the design reviewer model: `DESIGN_REVIEWER_MODEL=$(caliper-settings get design_reviewer_model)`

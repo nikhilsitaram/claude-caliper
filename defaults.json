@@ -27,7 +27,7 @@
   },
   "workflow": {
     "type": "enum",
-    "values": ["pr-create", "pr-merge", "plan-only"],
+    "values": ["pr-create", "pr-merge", "orchestrate", "plan-only"],
     "prompt_required": true,
     "description": "Post-orchestration workflow (prompted each time unless explicitly set)",
     "used_by": ["design", "orchestrate"]

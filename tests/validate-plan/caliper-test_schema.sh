@@ -239,6 +239,14 @@ jq '. + {"workflow": "plan-only"} | .phases[0] += {"depends_on": []} | .phases[1
 assert_pass "valid workflow plan-only passes" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
+echo "Test 23b: Valid workflow orchestrate passes"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '. + {"workflow": "orchestrate"} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]}' \
+  "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_pass "valid workflow orchestrate passes" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

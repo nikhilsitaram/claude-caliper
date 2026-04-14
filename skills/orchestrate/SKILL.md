@@ -104,6 +104,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 4. Run plan criteria: `validate-plan --criteria "$PLAN_JSON" --plan`
 5. `validate-plan --update-status "$PLAN_JSON" --plan --status Complete`
 6. Route on workflow:
+   - `"orchestrate"`: `validate-plan --check-workflow "$PLAN_JSON"`, report worktree path, stop
    - `"pr-create"`: invoke pr-create (targets main), `validate-plan --check-workflow "$PLAN_JSON"`, stop
    - `"pr-merge"`: invoke pr-create, read `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`, poll checks + pr-review --automated-merge (skip if $REVIEW_WAIT is 0; if skipped, invoke pr-merge directly), `validate-plan --check-workflow "$PLAN_JSON"`
 
@@ -114,6 +115,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 3. `validate-plan --check-review "$PLAN_JSON" --type impl-review --scope final`
 4. `validate-plan --update-status "$PLAN_JSON" --plan --status Complete`
 5. Route on workflow:
+   - `"orchestrate"`: `validate-plan --check-workflow "$PLAN_JSON"`, report worktree path, stop
    - `"pr-merge"`: create final PR, poll checks, pr-review --automated-merge, `validate-plan --check-workflow "$PLAN_JSON"`, clean up
    - `"pr-create"`: create final PR, `validate-plan --check-workflow "$PLAN_JSON"`, stop
 

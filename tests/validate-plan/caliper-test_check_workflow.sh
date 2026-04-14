@@ -167,6 +167,44 @@ assert_fail "plan-only missing reviews.json exits 1" "reviews.json not found" \
   "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
 
 echo ""
+echo "=== orchestrate workflow ==="
+
+echo "Test 4a: orchestrate passes with all reviews and plan Complete"
+setup_plan_dir
+write_single_phase_plan "orchestrate" "Complete"
+printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+assert_pass "orchestrate with all reviews and Complete exits 0" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo "Test 4b: orchestrate fails when plan not Complete"
+setup_plan_dir
+write_single_phase_plan "orchestrate" "In Development"
+printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+assert_fail "orchestrate with plan In Development exits 1" "plan status is" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo "Test 4c: orchestrate fails missing impl-review"
+setup_plan_dir
+write_single_phase_plan "orchestrate" "Complete"
+printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+assert_fail "orchestrate missing impl-review exits 1" "impl-review phase-a" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo "Test 4d: orchestrate does not require PR (no gh calls)"
+setup_plan_dir
+write_single_phase_plan "orchestrate" "Complete"
+printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+GH_MOCK_PR_COUNT=0 assert_pass "orchestrate passes without any PR" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo "Test 4e: multi-phase orchestrate requires final impl-review"
+setup_plan_dir
+write_two_phase_plan "orchestrate" "Complete"
+printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-b","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+assert_fail "orchestrate two-phase without final impl-review exits 1" "impl-review final" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo ""
 echo "=== pr-create workflow ==="
 
 echo "Test 5: pr-create fails when plan not Complete"
