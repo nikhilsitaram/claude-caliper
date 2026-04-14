@@ -66,6 +66,8 @@ Write implementation plans assuming the executor has zero codebase context. Docu
           "name": "Setup route handlers",
           "status": "pending",
           "depends_on": [],
+          "complexity": "medium",
+          "reviewer_needed": true,
           "files": {
             "create": ["src/routes.ts"],
             "modify": [],
@@ -131,6 +133,8 @@ Every task splits metadata (plan.json) and prose (task .md file).
 | **verification** | Runnable command, <60s | `pytest tests/auth/ -v` |
 | **done_when** | Measurable end state | `login returns JWT, 4/4 tests pass` |
 | **depends_on** | Task IDs this consumes | `["A1", "A2"]` (same phase for semantic ordering, prior phase for cross-phase deps) |
+| **complexity** | Enum: low, medium, high | `"medium"` |
+| **reviewer_needed** | Bool — false only for low-complexity mechanical tasks | `true` |
 
 **Task .md file content:**
 

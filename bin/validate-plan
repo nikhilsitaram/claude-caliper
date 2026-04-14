@@ -171,7 +171,7 @@ do_schema() {
   _phase_criteria_json=$(echo "$json" | jq -c '[(.phases // [])[] | (.success_criteria // [])]')
 
   # --- Level 4: Bulk extract task scalars via NUL-delimited (1 jq call) ---
-  # Stride: 11 fields per task (pi, ti, id, name, status, verification, done_when, has_files, has_create, has_modify, has_test)
+  # Stride: 13 fields per task (pi, ti, id, name, status, verification, done_when, has_files, has_create, has_modify, has_test, complexity, reviewer_needed)
   local _ts=()
   mapfile -d '' _ts < <(echo "$json" | jq -j '
     [.phases // [] | to_entries[] | .key as $pi |
@@ -183,9 +183,11 @@ do_schema() {
       (.value | has("files") | tostring),
       ((.value.files // {}) | has("create") | tostring),
       ((.value.files // {}) | has("modify") | tostring),
-      ((.value.files // {}) | has("test") | tostring)
+      ((.value.files // {}) | has("test") | tostring),
+      (.value.complexity // ""),
+      (if .value | has("reviewer_needed") then (.value.reviewer_needed | tostring) else "" end)
     ] | map(. + "\u0000") | join("")] | join("")')
-  local _total_tasks=$(( ${#_ts[@]} / 11 ))
+  local _total_tasks=$(( ${#_ts[@]} / 13 ))
 
   # --- Level 4b: Task arrays as per-task JSON lines (1 jq call, no per-task jq) ---
   local _task_arrays=()
@@ -288,7 +290,7 @@ do_schema() {
     local _phase_file_paths=()
     local _phase_file_tids=()
     for ((ti=0; ti<_total_tasks; ti++)); do
-      local tbase=$((ti * 11))
+      local tbase=$((ti * 13))
       local _tp="${_ts[$tbase]}"
       [[ "$_tp" != "$p" ]] && continue
 
@@ -327,6 +329,27 @@ do_schema() {
         case "$task_status" in
           pending|in_progress|complete|skipped) ;;
           *) err "ERROR: invalid_task_status: task $id status='$task_status' (expected: pending, in_progress, complete, or skipped)" ;;
+        esac
+      fi
+
+      local complexity="${_ts[$((tbase+11))]}"
+      local reviewer_needed="${_ts[$((tbase+12))]}"
+
+      if [[ -z "$complexity" ]]; then
+        err "ERROR: missing_field: phases[$p].tasks[$t].complexity"
+      else
+        case "$complexity" in
+          low|medium|high) ;;
+          *) err "ERROR: invalid_complexity: task $id complexity='$complexity' (expected: low, medium, or high)" ;;
+        esac
+      fi
+
+      if [[ -z "$reviewer_needed" ]]; then
+        err "ERROR: missing_field: phases[$p].tasks[$t].reviewer_needed"
+      else
+        case "$reviewer_needed" in
+          true|false) ;;
+          *) err "ERROR: invalid_reviewer_needed: task $id reviewer_needed='$reviewer_needed' (expected: true or false)" ;;
         esac
       fi
 

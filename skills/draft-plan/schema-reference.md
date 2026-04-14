@@ -63,6 +63,8 @@ Plans are currently single `.md` files where all structure (phases, tasks, statu
           "name": "Setup route handlers",
           "status": "pending",
           "depends_on": [],
+          "complexity": "medium",
+          "reviewer_needed": true,
           "files": {
             "create": ["src/routes.ts"],
             "modify": [],
@@ -100,6 +102,11 @@ Plans are currently single `.md` files where all structure (phases, tasks, statu
 - `phases[].success_criteria` (array, optional): Phase-level criteria. Same structure as plan-level. Not enforced yet.
 - `phases[].tasks[].status` (string, required): `pending` | `in_progress` | `complete` | `skipped`.
 - `phases[].tasks[].depends_on` (array of strings): Task IDs this task consumes output from. Must reference same or prior phase only.
+- `phases[].tasks[].complexity` (string, required): `"low"` | `"medium"` | `"high"`. Estimation heuristic:
+  - `low`: mechanical/rote — rename, config update, import addition, single-line edits
+  - `medium`: standard implementation with clear boundaries — new function, endpoint, or component following existing patterns
+  - `high`: multi-system integration, complex logic, novel patterns, or architectural decisions
+- `phases[].tasks[].reviewer_needed` (boolean, required): Defaults to `true`. Set `false` only for `low`-complexity tasks that are purely mechanical with no logic risk.
 - `phases[].tasks[].files` (object, required): `create`, `modify`, `test` — arrays of file paths. File paths must be unique across all tasks in the plan (duplicate creates are a bug).
 - `phases[].tasks[].success_criteria` (array, optional): Task-level criteria. Same structure. Not enforced yet.
 

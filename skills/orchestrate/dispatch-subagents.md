@@ -9,13 +9,23 @@ For each task in the phase, check deps: `validate-plan --check-deps "$PLAN_JSON"
 ```bash
 git worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
 TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
+TASK_COMPLEXITY=$(echo "$TASK_METADATA" | jq -r '.complexity')
+REVIEWER_NEEDED=$(echo "$TASK_METADATA" | jq -r '.reviewer_needed')
+case "$TASK_COMPLEXITY" in
+  low)    COMPLEXITY_GUIDANCE="Be efficient -- minimal implementation, avoid over-engineering." ;;
+  medium) COMPLEXITY_GUIDANCE="Standard thoroughness -- test the happy path and key edge cases." ;;
+  high)   COMPLEXITY_GUIDANCE="Think carefully -- consider edge cases, failure modes, and long-term maintainability." ;;
+  *)      COMPLEXITY_GUIDANCE="Standard thoroughness -- test the happy path and key edge cases." ;;
+esac
 ```
+
+`TASK_COMPLEXITY` and `COMPLEXITY_GUIDANCE` are substituted into `{TASK_COMPLEXITY}` and `{COMPLEXITY_GUIDANCE}` in the implementer and reviewer prompts. `REVIEWER_NEEDED` gates reviewer dispatch in "Process Completions".
 
 Then dispatch **all ready implementers in a single message** with multiple Agent tool calls — one per task. Splitting them across turns breaks parallelism and forces cache reloads for each agent.
 
 ```text
-Agent(name: "impl-{TASK_ID_LOWER}", subagent_type: "claude-caliper:task-implementer", mode: "acceptEdits", model: "{TASK_IMPLEMENTER_MODEL}", prompt: "...")
-Agent(name: "impl-{TASK_ID_LOWER}", subagent_type: "claude-caliper:task-implementer", mode: "acceptEdits", model: "{TASK_IMPLEMENTER_MODEL}", prompt: "...")
+Agent(name: "impl-{TASK_ID_LOWER}", subagent_type: "claude-caliper:task-implementer", model: "{TASK_IMPLEMENTER_MODEL}", mode: "acceptEdits", prompt: "<substitute implementer-prompt.md, filling {TASK_COMPLEXITY}, {COMPLEXITY_GUIDANCE}, and all other {VARIABLES}>")
+Agent(name: "impl-{TASK_ID_LOWER}", subagent_type: "claude-caliper:task-implementer", model: "{TASK_IMPLEMENTER_MODEL}", mode: "acceptEdits", prompt: "<substitute implementer-prompt.md, filling {TASK_COMPLEXITY}, {COMPLEXITY_GUIDANCE}, and all other {VARIABLES}>")
 ... (one per ready task)
 ```
 
@@ -28,7 +38,9 @@ The agent runs in background automatically (defined in agent frontmatter). Track
 When a background agent completes (push notification — do not poll):
 
 1. Read the agent's return message for completion notes and task summary
-2. Dispatch a reviewer (synchronous — override background with `run_in_background: false` so the lead waits for results):
+2. Check `REVIEWER_NEEDED`:
+   - If `"false"`: record a skip in reviews.json (`"verdict":"skip","reason":"reviewer_needed: false"`) and proceed directly to step 2 of "After Review Passes" (skip step 1 — verdict already recorded). Skip steps 3-4.
+   - If `"true"`: dispatch a reviewer (synchronous — override background with `run_in_background: false` so the lead waits for results):
 
 ```text
 Agent(
@@ -37,7 +49,7 @@ Agent(
   model: "{TASK_REVIEWER_MODEL}",
   mode: "acceptEdits",
   run_in_background: false,
-  prompt: "<substitute task-reviewer-prompt.md with all {VARIABLES}>"
+  prompt: "<substitute task-reviewer-prompt.md, filling {TASK_COMPLEXITY}, {COMPLEXITY_GUIDANCE}, and all other {VARIABLES}>"
 )
 ```
 
@@ -55,13 +67,12 @@ If fixes needed, dispatch a new `claude-caliper:task-implementer` agent (with `m
 
 ## After Review Passes (or Skip)
 
-For trivial tasks (one-liner, config change, rename) where a full reviewer dispatch is overhead, you may skip the review and record a skip with justification instead. The consistency check accepts both `pass` and `skip` verdicts.
+When `REVIEWER_NEEDED` was `"false"`, skip step 1 — the skip verdict was already recorded in step 2 of Process Completions. Start at step 2.
 
 1. Record the task-review in `reviews.json` (in the plan directory alongside plan.json):
    ```bash
    jq '. += [{"type":"task-review","scope":"{TASK_ID}","verdict":"pass","remaining":0}]' "$PLAN_DIR/reviews.json" > "$PLAN_DIR/reviews.json.tmp" && mv "$PLAN_DIR/reviews.json.tmp" "$PLAN_DIR/reviews.json"
    ```
-   To skip review: use `"verdict":"skip","reason":"<justification>"` instead of `"verdict":"pass"`.
    If `reviews.json` doesn't exist yet, create it: `echo '[]' > "$PLAN_DIR/reviews.json"` first.
 2. Mark task complete: `validate-plan --update-status plan.json --task {TASK_ID} --status complete`
 3. Validate criteria: `validate-plan --criteria plan.json --task {TASK_ID}`

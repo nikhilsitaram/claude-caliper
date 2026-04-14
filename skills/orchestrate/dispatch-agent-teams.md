@@ -16,7 +16,17 @@ For each task in the phase, check deps: `validate-plan --check-deps "$PLAN_JSON"
 
 ```bash
 TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
+TASK_COMPLEXITY=$(echo "$TASK_METADATA" | jq -r '.complexity')
+REVIEWER_NEEDED=$(echo "$TASK_METADATA" | jq -r '.reviewer_needed')
+case "$TASK_COMPLEXITY" in
+  low)    COMPLEXITY_GUIDANCE="Be efficient -- minimal implementation, avoid over-engineering." ;;
+  medium) COMPLEXITY_GUIDANCE="Standard thoroughness -- test the happy path and key edge cases." ;;
+  high)   COMPLEXITY_GUIDANCE="Think carefully -- consider edge cases, failure modes, and long-term maintainability." ;;
+  *)      COMPLEXITY_GUIDANCE="Standard thoroughness -- test the happy path and key edge cases." ;;
+esac
 ```
+
+`TASK_COMPLEXITY` and `COMPLEXITY_GUIDANCE` are passed to both implementer and reviewer prompts. `REVIEWER_NEEDED` gates reviewer dispatch (see Process Completions step 2).
 
 Spawn **all ready implementer teammates in a single message** — one Agent call per task, all in the same turn. Splitting spawns across turns breaks parallelism. Each teammate:
 - Uses `claude-caliper:task-implementer` agent with dynamic context from `./implementer-prompt.md`
@@ -30,13 +40,13 @@ Spawn **all ready implementer teammates in a single message** — one Agent call
 When an implementer teammate goes idle (push notification — no polling):
 
 1. Read the teammate's completion notes (`{PHASE_DIR}/{TASK_ID_LOWER}-completion.md`)
-2. Dispatch a `claude-caliper:task-reviewer` teammate with dynamic context from `./task-reviewer-prompt.md`, using the task's branch-specific diff range (task worktree `BASE..HEAD`, not the phase-wide range)
+2. If `REVIEWER_NEEDED` is `"false"`: record a skip in `reviews.json` (`"verdict":"skip","reason":"reviewer_needed: false"`) and jump to step 6 — skip steps 3–5 and step 8 (verdict already recorded). If `REVIEWER_NEEDED` is `"true"`: dispatch a `claude-caliper:task-reviewer` teammate with dynamic context from `./task-reviewer-prompt.md`, using the task's branch-specific diff range (task worktree `BASE..HEAD`, not the phase-wide range)
 3. When reviewer goes idle, extract the last `json review-summary` block. Shut down the reviewer: `SendMessage({to: "review-{TASK_ID_LOWER}", message: {type: "shutdown_request"}})` and wait for the idle notification confirming shutdown before proceeding — if step 5 re-dispatches a reviewer with the same name, the previous instance must be fully terminated to avoid name collisions.
 4. Triage issues: "fix" (send to implementer via mailbox) or "dismiss" (document reasoning)
 5. If fixes needed: send review feedback to the *original implementer* via mailbox messaging — the implementer still has context and files. Implementer fixes and goes idle again. Dispatch a new reviewer teammate, repeat until review passes.
 6. Validate with `validate-plan --criteria plan.json --task {TASK_ID}`
 7. Shut down implementer after review passes and criteria met: `SendMessage({to: "impl-{TASK_ID_LOWER}", message: {type: "shutdown_request"}})`. Wait for the teammate's idle notification confirming shutdown before proceeding — the teammate must fully terminate before its worktree can be removed.
-8. **Record task-review:** Write a passing record to `reviews.json` (in the plan directory): `jq '. += [{"type":"task-review","scope":"{TASK_ID}","verdict":"pass","remaining":0}]' "$PLAN_DIR/reviews.json" > "$PLAN_DIR/reviews.json.tmp" && mv "$PLAN_DIR/reviews.json.tmp" "$PLAN_DIR/reviews.json"`. Create the file (`echo '[]'`) if it doesn't exist. For trivial tasks where review is overhead, use `"verdict":"skip","reason":"<justification>"` instead.
+8. **Record task-review** (skip if `REVIEWER_NEEDED` was `"false"` — verdict already recorded as skip in step 2): Write a passing record to `reviews.json` (in the plan directory): `jq '. += [{"type":"task-review","scope":"{TASK_ID}","verdict":"pass","remaining":0}]' "$PLAN_DIR/reviews.json" > "$PLAN_DIR/reviews.json.tmp" && mv "$PLAN_DIR/reviews.json.tmp" "$PLAN_DIR/reviews.json"`. Create the file (`echo '[]'`) if it doesn't exist.
 9. **Incremental merge:** Merge this task's branch into the feature/integration branch so dependent tasks see prerequisite code. Use `git -C <your worktree path> merge <task-branch>` — the `-C` flag prevents CWD drift that occurs after processing teammate completions. After merge: `git worktree remove <teammate-worktree-path>` then `git branch -d <task-branch>`. Verify CWD with `pwd`; if it drifted, `cd` back.
 10. **Dependency gate:** Check if any blocked tasks are now unblocked. For each candidate, run `validate-plan --check-deps plan.json --task {TASK_ID}`. If all dependencies are complete, spawn a new implementer teammate for that task (worktree created from the now-updated feature branch).
 
@@ -60,7 +70,7 @@ Agent({
   model: "{TASK_IMPLEMENTER_MODEL}",
   mode: "acceptEdits",
   description: "Implement {TASK_ID}: [task name]",
-  prompt: <filled from implementer-prompt.md template, omitting {WORKTREE_PATH} — the teammate uses its auto-provisioned CWD>
+  prompt: <filled from implementer-prompt.md template, substituting {TASK_COMPLEXITY}, {COMPLEXITY_GUIDANCE}, and other variables; omit {WORKTREE_PATH} — the teammate uses its auto-provisioned CWD>
 })
 ```
 
@@ -74,7 +84,7 @@ Agent({
   model: "{TASK_REVIEWER_MODEL}",
   mode: "auto",
   description: "Review Task {TASK_ID}",
-  prompt: <filled from task-reviewer-prompt.md template>
+  prompt: <filled from task-reviewer-prompt.md template, substituting {TASK_COMPLEXITY}, {COMPLEXITY_GUIDANCE}, and other variables>
 })
 ```
 

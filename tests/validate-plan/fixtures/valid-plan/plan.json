@@ -33,6 +33,8 @@
           "name": "Create core module",
           "status": "pending",
           "depends_on": [],
+          "complexity": "medium",
+          "reviewer_needed": true,
           "files": {
             "create": ["src/core.ts"],
             "modify": [],
@@ -53,6 +55,8 @@
           "name": "Add validation layer",
           "status": "pending",
           "depends_on": ["A1"],
+          "complexity": "low",
+          "reviewer_needed": false,
           "files": {
             "create": ["src/validate.ts"],
             "modify": [],
@@ -76,6 +80,8 @@
           "name": "Build dashboard",
           "status": "pending",
           "depends_on": ["A2"],
+          "complexity": "high",
+          "reviewer_needed": true,
           "files": {
             "create": ["src/dashboard.ts"],
             "modify": [],

@@ -1,6 +1,6 @@
 # Implementer Invocation Template
 
-Use this template when dispatching a task-implementer agent. The agent's static behavior (test-driven workflow, deviation rules, self-review, completion notes) is defined in the `claude-caliper:task-implementer` agent definition. This template provides only the dynamic per-invocation context.
+Use this template when dispatching a task-implementer agent. The agent’s static behavior (test-driven workflow, deviation rules, self-review, completion notes) is defined in the `claude-caliper:task-implementer` agent definition. This template provides only the dynamic per-invocation context.
 
 **Variables:**
 - `{TASK_ID}` — the task ID (e.g., A1)
@@ -10,12 +10,15 @@ Use this template when dispatching a task-implementer agent. The agent's static 
 - `{PLAN_DIR}` — absolute path to plan directory
 - `{PHASE_DIR}` — absolute path to phase directory
 - `{TASK_IMPLEMENTER_MODEL}` — model for the implementer agent (from caliper-settings)
-- `{WORKTREE_PATH}` — absolute path to the task's worktree (subagents mode only — orchestrator creates via `git worktree add`). In agent-teams mode, omit this variable — the teammate uses its auto-provisioned CWD.
+- `{TASK_COMPLEXITY}` — the task’s complexity level (low, medium, or high)
+- `{COMPLEXITY_GUIDANCE}` — dispatcher-resolved string — the orchestrator maps `{TASK_COMPLEXITY}` to one of the three fixed guidance strings before building the prompt; this is not a raw template variable passed by the implementer.
+- `{WORKTREE_PATH}` — absolute path to the task’s worktree (subagents mode only — orchestrator creates via `git worktree add`). In agent-teams mode, omit this variable — the teammate uses its auto-provisioned CWD.
 
 ```text
 Agent(
   subagent_type: "claude-caliper:task-implementer",
   model: "{TASK_IMPLEMENTER_MODEL}",
+  # complexity: "{TASK_COMPLEXITY}"  # TODO: uncomment when Agent tool supports complexity/effort parameter
   prompt: "You are implementing {TASK_ID}: [task name]
 
     ## Task Metadata (from plan.json)
@@ -25,6 +28,10 @@ Agent(
     ## Task Instructions (from task file)
 
     {TASK_PROSE}
+
+    ## Complexity: {TASK_COMPLEXITY}
+
+    {COMPLEXITY_GUIDANCE}
 
     ## Paths
 
