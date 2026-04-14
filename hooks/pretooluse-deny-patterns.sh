@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=hooks/lib-command-parser.sh
 source "$SCRIPT_DIR/lib-command-parser.sh"
 
 input="$(cat)"
@@ -17,6 +18,7 @@ if [[ -z "$cmd" ]]; then
 fi
 
 extract_segments "$cmd"
+# shellcheck disable=SC2153
 segments=("${SEGMENTS[@]+"${SEGMENTS[@]}"}")
 
 for seg in "${segments[@]+"${segments[@]}"}"; do
@@ -48,12 +50,12 @@ for seg in "${segments[@]+"${segments[@]}"}"; do
         _rest="${_rest#"${_rest%%[![:space:]]*}"}"
         if [[ -n "$_rest" ]]; then
           _script="${_rest%% *}"
-          printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Do not use %s to run scripts. Ensure the script has a shebang (#!/usr/bin/env bash) and executable bit (chmod +x), then invoke it directly: ./%s"}}\n' "$_first_word" "$_script"
+          printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Do not use %s to run scripts. Ensure the script has a shebang (#!/usr/bin/env bash) and executable bit (chmod +x), then invoke it directly: %s/%s"}}\n' "$_first_word" "$PWD" "$_script"
           exit 0
         fi
         break
       else
-        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Do not use %s to run scripts. Ensure the script has a shebang (#!/usr/bin/env bash) and executable bit (chmod +x), then invoke it directly: ./%s"}}\n' "$_first_word" "$_token"
+        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Do not use %s to run scripts. Ensure the script has a shebang (#!/usr/bin/env bash) and executable bit (chmod +x), then invoke it directly: %s/%s"}}\n' "$_first_word" "$PWD" "$_token"
         exit 0
       fi
     done
