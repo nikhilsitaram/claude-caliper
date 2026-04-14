@@ -31,7 +31,7 @@ When an implementer teammate goes idle (push notification — no polling):
 
 1. Read the teammate's completion notes (`{PHASE_DIR}/{TASK_ID_LOWER}-completion.md`)
 2. Dispatch a `claude-caliper:task-reviewer` teammate with dynamic context from `./task-reviewer-prompt.md`, using the task's branch-specific diff range (task worktree `BASE..HEAD`, not the phase-wide range)
-3. When reviewer goes idle, extract the last `json review-summary` block. Shut down the reviewer immediately: `SendMessage({to: "review-{TASK_ID_LOWER}", message: {type: "shutdown_request"}})`
+3. When reviewer goes idle, extract the last `json review-summary` block. Shut down the reviewer: `SendMessage({to: "review-{TASK_ID_LOWER}", message: {type: "shutdown_request"}})` and wait for the idle notification confirming shutdown before proceeding — if step 5 re-dispatches a reviewer with the same name, the previous instance must be fully terminated to avoid name collisions.
 4. Triage issues: "fix" (send to implementer via mailbox) or "dismiss" (document reasoning)
 5. If fixes needed: send review feedback to the *original implementer* via mailbox messaging — the implementer still has context and files. Implementer fixes and goes idle again. Dispatch a new reviewer teammate, repeat until review passes.
 6. Validate with `validate-plan --criteria plan.json --task {TASK_ID}`
@@ -40,7 +40,7 @@ When an implementer teammate goes idle (push notification — no polling):
 9. **Incremental merge:** Merge this task's branch into the feature/integration branch so dependent tasks see prerequisite code. Use `git -C <your worktree path> merge <task-branch>` — the `-C` flag prevents CWD drift that occurs after processing teammate completions. After merge: `git worktree remove <teammate-worktree-path>` then `git branch -d <task-branch>`. Verify CWD with `pwd`; if it drifted, `cd` back.
 10. **Dependency gate:** Check if any blocked tasks are now unblocked. For each candidate, run `validate-plan --check-deps plan.json --task {TASK_ID}`. If all dependencies are complete, spawn a new implementer teammate for that task (worktree created from the now-updated feature branch).
 
-**Phase completion gate:** Lead cannot advance until ALL teammates for this phase (implementers and reviewers) are terminated. After the last teammate shuts down, call `TeamDelete()` to clean up team resources.
+**Phase completion gate:** Lead cannot advance until ALL teammates for this phase (implementers and reviewers) are terminated. After the final phase completes (not each phase), call `TeamDelete()` to clean up team resources — the team persists across phases so dependent tasks in later phases can be dispatched to new teammates without recreating the team.
 
 ## Handle Escalations
 
