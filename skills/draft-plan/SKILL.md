@@ -18,12 +18,13 @@ Write implementation plans assuming the executor has zero codebase context. Docu
 3. **Explore codebase** — Understand patterns, find exact file paths
 4. **Decide phasing** — Single vs multi-phase (see Phasing below)
 5. **Write plan.json** — Structured manifest with all task metadata
-6. **Write task .md files** — Prose for each task (Avoid+WHY, Steps)
+6. **Write task .md files** — Prose for each task (Avoid+WHY, Steps). Each step shows complete code, not verbs like "add X" or "handle Y". Avoid sections explain *why*, not just *what*.
 7. **Create completion.md stubs** — Empty files, one per phase
 8. **Run validate-plan --schema** — Fix any structural errors
 9. **Run validate-plan --render** — Generates plan.md deterministically
-10. **Skip** — plan artifacts are under `.claude/claude-caliper/` (gitignored), no commit needed
-11. **Hand off** — Report plan path to caller. Plan-review is dispatched by the design skill after draft-plan returns.
+10. **Self-review** — Re-read every task file and check against the Self-Review Gate below. Fix findings before handoff.
+11. **Skip** — plan artifacts are under `.claude/claude-caliper/` (gitignored), no commit needed
+12. **Hand off** — Report plan path to caller. Plan-review is dispatched by the design skill after draft-plan returns.
 
 ## Plan Structure
 
@@ -151,5 +152,23 @@ Write complete code in each step — not "add validation" or "implement the hand
 
 **Handoff notes:** The lead writes handoff sections to cross-phase task files between phases. Draft-plan doesn't write these.
 
-**Fresh Claude Test:** Could a fresh Claude with zero context execute this task without clarifying questions? Exact paths and measurable done_when = pass.
+## Self-Review Gate
+
+Before handoff, re-read every task file and the plan.json. The plan-reviewer downstream applies a 7-point checklist; catch the prose-level items here so review is pass/fail, not an editing pass. Goal at handoff: zero or one remaining issues.
+
+**Per task:**
+
+- **Different Claude Test** — Could a fresh Claude with zero context execute this unambiguously? No "the handler" or "the config" without a file path.
+- **Measurable `done_when`** — "4/4 tests pass" or "endpoint returns 200", not "auth works" or "feature complete".
+- **Complete code in steps** — Actual code, not "add validation" or "implement the handler".
+- **Avoid + WHY** — Every avoid section gives the reason, not just the prohibition.
+- **Artifact consistency** — Same file/function name everywhere. Every path in `plan.json` matches its prose references; every function referenced in prose matches its declaration.
+- **Verification is runnable** — The command exists in this codebase's tooling (npm vs yarn vs pnpm, pytest vs unittest).
+
+**Across the plan:**
+
+- **Design criteria map to tasks** — Each success criterion from the design doc is covered by at least one task's `done_when`. Missing criterion → add a task.
+- **Consolidation sweep** — Any task whose prose is shorter than its plan.json metadata should merge with a neighbor (see Task Consolidation).
+- **Complexity gates** — 8+ tasks single-phase or 7+ per phase → split.
+- **Interface-first ordering** — Tasks defining contracts precede tasks consuming them.
 
