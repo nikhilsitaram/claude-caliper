@@ -1316,7 +1316,7 @@ do_check_workflow() {
   }
 
   local current_branch
-  current_branch=$(git -C "$plan_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+  current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
   if [[ "$current_branch" == integrate/* ]]; then
     for ((p=0; p<phase_count; p++)); do
