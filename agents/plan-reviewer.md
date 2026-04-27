@@ -4,7 +4,6 @@ description: Reviews an implementation plan before execution begins
 model: inherit
 tools: [Read, Grep, Glob, Bash]
 memory: project
-maxTurns: 30
 effort: medium
 background: true
 ---

@@ -4,7 +4,6 @@ description: Writes implementation plans from design docs with structured plan.j
 model: inherit
 tools: [Read, Grep, Glob, Bash, Write, Edit]
 memory: project
-maxTurns: 50
 effort: high
 background: true
 ---

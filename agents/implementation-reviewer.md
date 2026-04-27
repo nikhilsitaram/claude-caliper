@@ -4,7 +4,6 @@ description: Reviews an entire feature implementation for cross-task issues
 model: inherit
 tools: [Read, Grep, Glob, Bash]
 memory: project
-maxTurns: 30
 effort: medium
 background: true
 ---

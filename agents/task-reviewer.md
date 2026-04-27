@@ -4,7 +4,6 @@ description: Reviews a single task's implementation against its spec
 model: inherit
 tools: [Read, Grep, Glob, Bash]
 memory: none
-maxTurns: 30
 effort: medium
 background: true
 ---

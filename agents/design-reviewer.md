@@ -4,7 +4,6 @@ description: Reviews a design doc before planning begins
 model: inherit
 tools: [Read, Grep, Glob, Bash]
 memory: project
-maxTurns: 30
 effort: medium
 background: true
 ---
