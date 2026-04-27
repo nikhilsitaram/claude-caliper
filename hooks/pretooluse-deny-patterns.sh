@@ -17,6 +17,11 @@ if [[ -z "$cmd" ]]; then
   exit 0
 fi
 
+if [[ "$cmd" == for\ * && "$cmd" == *'bash "$'* ]]; then
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"for-loop with bash \"%s\" detected. Invoke test scripts directly without bash: ./%s"}}\n' '$t' '$t'
+  exit 0
+fi
+
 extract_segments "$cmd"
 # shellcheck disable=SC2153
 segments=("${SEGMENTS[@]+"${SEGMENTS[@]}"}")
