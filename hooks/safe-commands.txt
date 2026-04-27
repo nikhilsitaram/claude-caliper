@@ -3,6 +3,7 @@ cat
 cd
 chmod
 cp
+date
 diff
 du
 echo

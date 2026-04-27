@@ -389,6 +389,13 @@ cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE56"
 OUT56=$(run_allow 'PLAN_DIR=/repo/.claude/caliper/plan; PLAN_JSON=$PLAN_DIR/plan.json; PHASE_DIR=$PLAN_DIR/phase-a; printf "## Review\n" >> "$PHASE_DIR/completion.md" && validate-plan --criteria "$PLAN_JSON" --plan && echo "DONE"' "$SAFE56")
 assert_output_contains "multi-level var refs with printf allowed" "$OUT56" '"behavior":"allow"'
 
+echo "Test 57: TS=\$(date ...); jq ...; validate-plan --update-status — phase-complete pattern"
+SAFE57="$TMPDIR_TEST/safe57.txt"
+cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE57"
+# shellcheck disable=SC2016
+OUT57=$(run_allow 'PLAN_DIR=/repo/.claude/caliper/plan; PLAN_JSON=$PLAN_DIR/plan.json; TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ"); jq --arg ts "$TS" ". += [{\"verdict\":\"pass\",\"timestamp\":\$ts}]" "$PLAN_DIR/reviews.json" > "$PLAN_DIR/reviews.json.tmp" && mv "$PLAN_DIR/reviews.json.tmp" "$PLAN_DIR/reviews.json"; TODAY=$(date +"%Y-%m-%d"); validate-plan --update-status "$PLAN_JSON" --phase A --status "Complete ($TODAY)"' "$SAFE57")
+assert_output_contains "phase-complete pattern with date allowed" "$OUT57" '"behavior":"allow"'
+
 echo ""
 echo "=== PreToolUse Deny Tests ==="
 
@@ -396,12 +403,14 @@ echo "Test 27a: for-loop with bash \"\$t\" denied; message uses extracted loop v
 # shellcheck disable=SC2016
 OUT27A=$(run_deny 'for t in $(find tests -maxdepth 3 -name "*.sh" -executable); do echo "=== $t ==="; bash "$t" 2>&1 | tail -3 || echo "FAIL: $t"; done 2>&1 | tail -40')
 assert_output_contains_deny_with_reason "for-loop bash \$t denied" "$OUT27A" 'for-loop with bash'
+# shellcheck disable=SC2016
 assert_output_contains_deny_with_reason "for-loop message uses var t" "$OUT27A" '$t'
 
 echo "Test 27b: for-loop with result=\$(bash \"\$f\") denied; message uses loop var f"
 # shellcheck disable=SC2016
 OUT27B=$(run_deny 'for f in $(find tests -maxdepth 3 -name "*.sh" -executable); do result=$(bash "$f" 2>&1 | tail -1); if echo "$result" | grep -qi "fail"; then echo "FAILED: $f"; fi; done')
 assert_output_contains_deny_with_reason "for-loop result=\$(bash \$f) denied" "$OUT27B" 'for-loop with bash'
+# shellcheck disable=SC2016
 assert_output_contains_deny_with_reason "for-loop message uses var f" "$OUT27B" '$f'
 
 echo "Test 27: bash bin/validate-plan denied with guidance"
