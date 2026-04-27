@@ -52,7 +52,9 @@ Process phases in order (A, B, C...). For each phase:
 
 ### Prepare Phase
 
-1. Create phase worktree from integration branch (multi-phase) or use feature worktree (single-phase)
+1. Determine phase resumption state (multi-phase only — single-phase: use feature worktree, no resumption check needed). Phase status is the primary signal because squash-merge in step 6 typically deletes the phase branch ref, making `git merge-base --is-ancestor` unreliable.
+   - If phase status starts with "Complete": run `gh pr list --base integrate/<feature> --head phase-<letter> --state merged --json number --jq 'length'`. If non-zero, the phase is fully merged — skip to next phase. If zero (status Complete but PR not yet merged), skip directly to Phase Wrap-Up step 6, reusing any open PR or creating one if absent.
+   - Otherwise (status "Not Started" or "In Progress"): create phase worktree from integration branch and continue with the remaining numbered steps below (`validate-plan --check-base`, etc.).
 2. Re-validate base branch: `validate-plan --check-base "$PLAN_JSON"` (multi-phase only — ensures dispatch happens from integration worktree, not main)
 3. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in worktree
 4. **Bootstrap dependencies** in the worktree. **See:** skills/design/dependency-bootstrap.md
@@ -77,7 +79,13 @@ After all tasks complete and branches merged:
 3. Append review changes to `${PHASE_DIR}/completion.md`
 4. Run phase criteria: `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}`
 5. Update status: `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
-6. (Multi-phase) Create phase PR, external review gate, merge, clean up worktree
+6. (Multi-phase) Merge phase PR into integration branch — runs unconditionally for every phase including the last, regardless of `workflow` setting. The final integrate->main PR is created separately in "After All Phases".
+   a. Open the phase PR: if one already exists and is open (`gh pr list --head phase-<letter> --state open --json url --jq '.[0].url'`), reuse it; otherwise run `pr-create --base integrate/<feature>`.
+   b. `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`
+   c. If `$REVIEW_WAIT` == 0: invoke `pr-merge` directly. Else: poll `gh pr checks` then invoke `pr-review --automated-merge` (which invokes `pr-merge` on pass)
+   d. Return to the integration worktree (the orchestrate lead's primary CWD established at Setup) and fast-forward local integrate to the merged tip: `cd .claude/worktrees/<feature> && git fetch origin && git reset --hard origin/integrate/<feature>`
+   e. Remove phase worktree if it still exists (pr-merge typically removes it during cleanup; on resumption it may already be gone): `git worktree list --porcelain | grep -q "phase-<letter>$" && git worktree remove .claude/worktrees/<feature>-phase-<letter> --force || true`
+   f. Continuity: only Rule 4 deviations stop the loop. Review feedback is auto-fixed by `pr-review --automated-merge`.
 
 ## Review Loop Protocol
 
