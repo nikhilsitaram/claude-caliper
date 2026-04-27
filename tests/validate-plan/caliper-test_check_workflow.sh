@@ -248,14 +248,15 @@ printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0
 GH_MOCK_PR_COUNT=0 assert_fail "single-phase pr-create fails on PR state not final impl-review" "no PR found\|no final PR found\|gh pr list failed" \
   "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
 
-echo "Test 9a: branch resolved from plan dir, not CWD (issue #158)"
+echo "Test 9a: branch resolved from CWD, not plan dir (PR #210)"
+CWD_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 GIT_PLAN_DIR=$(mktemp -d)
 git -C "$GIT_PLAN_DIR" init -b fix/my-feature >/dev/null 2>&1
 git -C "$GIT_PLAN_DIR" commit --allow-empty -m "init" >/dev/null 2>&1
 write_single_phase_plan "pr-create" "Complete"
 cp "$TMPDIR/plan.json" "$GIT_PLAN_DIR/plan.json"
 printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$GIT_PLAN_DIR/reviews.json"
-GH_MOCK_PR_COUNT=0 assert_fail "branch from plan dir not CWD" "no PR found for fix/my-feature" \
+GH_MOCK_PR_COUNT=0 assert_fail "branch from CWD not plan dir" "no PR found for $CWD_BRANCH" \
   "$VALIDATE" --check-workflow "$GIT_PLAN_DIR/plan.json"
 rm -rf "$GIT_PLAN_DIR"
 
