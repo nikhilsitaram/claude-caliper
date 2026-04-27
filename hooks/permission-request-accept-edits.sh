@@ -5,7 +5,10 @@ input=$(cat)
 
 cwd=$(echo "$input" | jq -r '.cwd // empty')
 
-[[ -n "$cwd" ]] || exit 0
+if [[ -z "$cwd" ]]; then
+  printf '{"continue": true}\n'
+  exit 0
+fi
 
 file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 is_caliper_file=0
@@ -65,6 +68,11 @@ if [[ $is_caliper_file -eq 1 ]]; then
   }
 }
 HOOKJSON
+  exit 0
 fi
 
+# Bug #12070: silent exit on PermissionRequest is treated as deny and bypasses
+# acceptEdits mode. Output {"continue": true} so the harness defers to the
+# session's permission mode and configured allow rules.
+printf '{"continue": true}\n'
 exit 0

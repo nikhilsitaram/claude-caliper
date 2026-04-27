@@ -42,14 +42,14 @@ assert_output_contains "sentinel exists returns allow behavior" "$OUTPUT1" '"beh
 assert_output_contains "sentinel exists returns acceptEdits mode" "$OUTPUT1" '"mode": "acceptEdits"'
 assert_output_contains "sentinel exists returns session destination" "$OUTPUT1" '"destination": "session"'
 
-echo "Test 1b: Sentinel consumed — second invocation produces no output"
+echo "Test 1b: Sentinel consumed — second invocation defers via continue:true"
 OUTPUT1B=$(echo "$INPUT1" | bash "$HOOK" 2>/dev/null)
-assert_output_empty "sentinel consumed, second call produces no output" "$OUTPUT1B"
+assert_output_contains "sentinel consumed, second call defers" "$OUTPUT1B" '"continue": true'
 
-echo "Test 2: No sentinel file produces no output (passthrough)"
+echo "Test 2: No sentinel file defers via continue:true (passthrough)"
 INPUT2=$(jq -n --arg cwd "$TMPDIR/no-sentinel-here" '{cwd: $cwd}')
 OUTPUT2=$(echo "$INPUT2" | bash "$HOOK" 2>/dev/null)
-assert_output_empty "missing sentinel produces no output" "$OUTPUT2"
+assert_output_contains "missing sentinel defers" "$OUTPUT2" '"continue": true'
 
 echo "Test 3: Worktree search path finds sentinel and consumes it"
 WORKTREE_SENTINEL="$TMPDIR/.claude/worktrees/my-branch/.claude/claude-caliper/2026-03-20-topic"
@@ -66,10 +66,10 @@ else
   ((PASS++)) || true
 fi
 
-echo "Test 4: Empty cwd produces no output"
+echo "Test 4: Empty cwd defers via continue:true"
 INPUT4=$(jq -n '{cwd: ""}')
 OUTPUT4=$(echo "$INPUT4" | bash "$HOOK" 2>/dev/null)
-assert_output_empty "empty cwd produces no output" "$OUTPUT4"
+assert_output_contains "empty cwd defers" "$OUTPUT4" '"continue": true'
 
 echo "Test 5: Auto-approve for .claude/claude-caliper/ file paths"
 INPUT5=$(jq -n --arg cwd "$TMPDIR" '{cwd: $cwd, tool_input: {file_path: "/some/project/.claude/claude-caliper/2026-03-20-topic/plan.md"}}')
@@ -96,6 +96,18 @@ if [[ -f "$SENTINEL_DIR5B/.design-approved" ]]; then
   ((FAIL++)) || true
 else
   echo "PASS: sentinel consumed even when file_path is in caliper dir"
+  ((PASS++)) || true
+fi
+
+echo "Test 5c: Non-caliper Edit/Write path defers via continue:true (bug #12070 — silent exit was treated as deny)"
+INPUT5C=$(jq -n --arg cwd "$TMPDIR" '{cwd: $cwd, tool_input: {file_path: "/some/project/src/foo.py"}}')
+OUTPUT5C=$(echo "$INPUT5C" | bash "$HOOK" 2>/dev/null)
+assert_output_contains "non-caliper file_path defers" "$OUTPUT5C" '"continue": true'
+if echo "$OUTPUT5C" | grep -qF '"behavior"'; then
+  echo "FAIL: non-caliper file should not emit a decision"
+  ((FAIL++)) || true
+else
+  echo "PASS: non-caliper file emits no decision"
   ((PASS++)) || true
 fi
 

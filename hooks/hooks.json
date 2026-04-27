@@ -14,6 +14,13 @@
           "type": "command",
           "command": "${CLAUDE_PLUGIN_ROOT}/hooks/permission-request-allow.sh"
         }]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/permission-request-accept-edits.sh"
+        }]
       }
     ]
   }
