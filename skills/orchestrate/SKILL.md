@@ -80,7 +80,7 @@ After all tasks complete and branches merged:
 4. Run phase criteria: `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}`
 5. Update status: `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
 6. (Multi-phase) Merge phase PR into integration branch — runs unconditionally for every phase including the last, regardless of `workflow` setting. The final integrate->main PR is created separately in "After All Phases".
-   a. `pr-create --base integrate/<feature>` to open the phase PR
+   a. Open the phase PR: if one already exists (`gh pr view phase-<letter> --json url 2>/dev/null`), reuse it; otherwise run `pr-create --base integrate/<feature>`.
    b. `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`
    c. If `$REVIEW_WAIT` == 0: invoke `pr-merge` directly. Else: poll `gh pr checks` then invoke `pr-review --automated-merge` (which invokes `pr-merge` on pass)
    d. In the integration worktree (`.claude/worktrees/<feature>` — the orchestrate lead's primary CWD established at Setup; cd back if currently in a phase worktree): `git fetch origin && git reset --hard origin/integrate/<feature>` to fast-forward local integrate to the merged tip
