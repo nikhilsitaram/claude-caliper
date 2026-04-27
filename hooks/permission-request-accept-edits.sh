@@ -8,16 +8,9 @@ cwd=$(echo "$input" | jq -r '.cwd // empty')
 [[ -n "$cwd" ]] || exit 0
 
 file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty')
+is_caliper_file=0
 if [[ -n "$file_path" && "$file_path" == *"/.claude/claude-caliper/"* ]]; then
-  cat << 'HOOKJSON'
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PermissionRequest",
-    "decision": { "behavior": "allow" }
-  }
-}
-HOOKJSON
-  exit 0
+  is_caliper_file=1
 fi
 
 git_common_dir=$(git -C "$cwd" rev-parse --git-common-dir 2>/dev/null || true)
@@ -57,6 +50,18 @@ if [[ -n "$sentinel" ]]; then
         { "type": "setMode", "mode": "acceptEdits", "destination": "session" }
       ]
     }
+  }
+}
+HOOKJSON
+  exit 0
+fi
+
+if [[ $is_caliper_file -eq 1 ]]; then
+  cat << 'HOOKJSON'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PermissionRequest",
+    "decision": { "behavior": "allow" }
   }
 }
 HOOKJSON

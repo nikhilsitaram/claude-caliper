@@ -83,6 +83,22 @@ else
   ((PASS++)) || true
 fi
 
+echo "Test 5b: Sentinel + caliper file_path — sentinel wins (consume + setMode)"
+SENTINEL_DIR5B="$TMPDIR/sentinel-with-caliper-edit/.claude/claude-caliper/2026-04-27-topic"
+mkdir -p "$SENTINEL_DIR5B"
+touch "$SENTINEL_DIR5B/.design-approved"
+INPUT5B=$(jq -n --arg cwd "$TMPDIR/sentinel-with-caliper-edit" '{cwd: $cwd, tool_input: {file_path: ($cwd + "/.claude/claude-caliper/2026-04-27-topic/design-topic.md")}}')
+OUTPUT5B=$(echo "$INPUT5B" | bash "$HOOK" 2>/dev/null)
+assert_output_contains "sentinel + caliper edit returns allow" "$OUTPUT5B" '"behavior": "allow"'
+assert_output_contains "sentinel + caliper edit returns acceptEdits mode" "$OUTPUT5B" '"mode": "acceptEdits"'
+if [[ -f "$SENTINEL_DIR5B/.design-approved" ]]; then
+  echo "FAIL: sentinel not consumed when file_path is in caliper dir"
+  ((FAIL++)) || true
+else
+  echo "PASS: sentinel consumed even when file_path is in caliper dir"
+  ((PASS++)) || true
+fi
+
 ALLOW_HOOK="$REPO_ROOT/hooks/permission-request-allow.sh"
 
 run_allow() {
