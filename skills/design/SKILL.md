@@ -142,6 +142,7 @@ Read the planner model: `PLANNER_MODEL=$(caliper-settings get planner_model)`
 Agent(
   subagent_type: "claude-caliper:plan-drafter",
   model: "$PLANNER_MODEL",
+  mode: "acceptEdits",
   prompt: "Read the design doc at .claude/claude-caliper/<folder>/design-<topic>.md and write
     an implementation plan.
 
