@@ -396,6 +396,21 @@ cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE57"
 OUT57=$(run_allow 'PLAN_DIR=/repo/.claude/caliper/plan; PLAN_JSON=$PLAN_DIR/plan.json; TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ"); jq --arg ts "$TS" ". += [{\"verdict\":\"pass\",\"timestamp\":\$ts}]" "$PLAN_DIR/reviews.json" > "$PLAN_DIR/reviews.json.tmp" && mv "$PLAN_DIR/reviews.json.tmp" "$PLAN_DIR/reviews.json"; TODAY=$(date +"%Y-%m-%d"); validate-plan --update-status "$PLAN_JSON" --phase A --status "Complete ($TODAY)"' "$SAFE57")
 assert_output_contains "phase-complete pattern with date allowed" "$OUT57" '"behavior":"allow"'
 
+echo "Test 58: VAR=(...) bash array literal allowed when body cmds are safe"
+SAFE58="$TMPDIR_TEST/safe58.txt"
+cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE58"
+# shellcheck disable=SC2016
+OUT58=$(run_allow 'PLAN_DIR=/repo/plan
+FILES=(
+  "$PLAN_DIR/a.md"
+  "$PLAN_DIR/b.md"
+)
+for f in "${FILES[@]}"; do
+  sed -i "" -e "s|x|y|g" "$f"
+done
+echo "done"' "$SAFE58")
+assert_output_contains "array literal + safe loop body allowed" "$OUT58" '"behavior":"allow"'
+
 echo ""
 echo "=== PreToolUse Deny Tests ==="
 
