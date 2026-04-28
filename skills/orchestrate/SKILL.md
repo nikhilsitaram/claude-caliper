@@ -26,8 +26,15 @@ TaskCreate one entry per task in plan.json (e.g. "Implement A1", "Implement A2",
 ## Setup
 
 Before first phase:
-- Resolve absolute path: `PLAN_JSON=$(realpath plan.json)` and `PLAN_DIR=$(dirname "$PLAN_JSON")`
-  Plan artifacts live in the main repo at `$MAIN_ROOT/.claude/claude-caliper/` (gitignored, decoupled from worktree lifetime so they survive cleanup). Phase worktrees don't have these files, so all references must use the absolute `$PLAN_JSON` / `$PLAN_DIR` paths.
+- Resolve main repo and plan paths. Plan artifacts live in the main repo at `$MAIN_ROOT/.claude/claude-caliper/` (gitignored, decoupled from worktree lifetime so they survive cleanup) — they are NOT in the worktree CWD, so `realpath plan.json` from the worktree will fail.
+
+  ```bash
+  MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+  PLAN_JSON="$(realpath -- "<absolute-path-passed-by-caller>")"
+  PLAN_DIR="$(dirname "$PLAN_JSON")"
+  ```
+
+  The caller (design skill or user) supplies the absolute plan.json path — typically `$MAIN_ROOT/.claude/claude-caliper/<folder>/plan.json`. All references downstream must use the absolute `$PLAN_JSON` / `$PLAN_DIR` paths since phase worktrees don't have these files.
 - Read workflow: `WORKFLOW=$(jq -r '.workflow' "$PLAN_JSON")`
 - Read execution mode: `EXEC_MODE=$(jq -r '.execution_mode' "$PLAN_JSON")`
 Note: `workflow` and `execution_mode` are read from plan.json (set by the design skill based on user selection and caliper-settings defaults), not from caliper-settings at runtime. This avoids two sources of truth — the plan is the single source once created.

@@ -92,7 +92,7 @@ Complete in order:
     For multi-phase plans, also write the integration branch name:
     `jq --arg ib "integrate/<feature>" '.integration_branch = $ib' "$PLAN_DIR/plan.json" > "$PLAN_DIR/plan.json.tmp" && mv "$PLAN_DIR/plan.json.tmp" "$PLAN_DIR/plan.json"`
 
-    For **Create PR**, **Merge PR**, or **Orchestrate only**: invoke orchestrate.
+    For **Create PR**, **Merge PR**, or **Orchestrate only**: invoke orchestrate, passing `$PLAN_DIR/plan.json` as the absolute plan path (orchestrate's CWD is the worktree, where plan.json does not exist).
     For **Plan only**: run `validate-plan --check-workflow "$PLAN_DIR/plan.json"` to verify design-review and plan-review passed. Report the plan file path and stop.
 
 Read the design reviewer model: `DESIGN_REVIEWER_MODEL=$(caliper-settings get design_reviewer_model)`
