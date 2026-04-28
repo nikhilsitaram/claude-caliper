@@ -1,12 +1,21 @@
 {
   "hooks": {
-    "PreToolUse": [{
-      "matcher": "Bash",
-      "hooks": [{
-        "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-deny-patterns.sh"
-      }]
-    }],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-deny-patterns.sh"
+        }]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-deny-plan-md.sh"
+        }]
+      }
+    ],
     "PermissionRequest": [
       {
         "matcher": "Read|Glob|Grep|Skill|WebFetch|WebSearch|ToolSearch|Bash",

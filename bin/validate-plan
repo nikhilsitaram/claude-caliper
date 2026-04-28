@@ -24,6 +24,8 @@ Usage:
   validate-plan --check-deps <plan.json> --task <ID>
   validate-plan --check-workflow <plan.json>
   validate-plan --add-dep <plan.json> --task <DOWNSTREAM_ID> --depends-on <SOURCE_ID>
+  validate-plan --add-file <plan.json> --task <ID> --kind <create|modify|test> --path <FILE>
+  validate-plan --remove-file <plan.json> --task <ID> --kind <create|modify|test> --path <FILE>
   validate-plan --check-handoffs <plan.json> --phase <LETTER>
 
   Valid types:  design-review, plan-review, task-review, impl-review
@@ -1452,6 +1454,147 @@ do_add_dep() {
   trap - EXIT
 }
 
+do_add_file() {
+  local plan_json="$1" task_id="$2" kind="$3" path="$4"
+
+  case "$kind" in
+    create|modify|test) ;;
+    *)
+      echo "ERROR: invalid_kind: '$kind' (expected: create, modify, or test)" >&2
+      exit 1
+      ;;
+  esac
+
+  lock_plan "$plan_json"
+  trap 'unlock_plan "'"$plan_json"'"' EXIT
+
+  local task_letter task_status
+  task_letter=$(jq -r --arg id "$task_id" '
+    [.phases[] | select(.tasks[] | .id == $id)][0] | .letter // ""
+  ' "$plan_json")
+  if [[ -z "$task_letter" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: task_not_found: '$task_id'" >&2
+    exit 1
+  fi
+
+  task_status=$(jq -r --arg id "$task_id" '.phases[].tasks[] | select(.id == $id) | .status' "$plan_json")
+  if [[ "$task_status" == "complete" || "$task_status" == "skipped" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: cannot_modify_files: task '$task_id' is '$task_status' — files can only be added to pending or in_progress tasks" >&2
+    exit 1
+  fi
+
+  local cross_kind
+  cross_kind=$(jq -r --arg id "$task_id" --arg kind "$kind" --arg p "$path" '
+    .phases[].tasks[] | select(.id == $id) |
+    [
+      (if $kind != "create" then (.files.create // [])[] else empty end),
+      (if $kind != "modify" then (.files.modify // [])[] else empty end),
+      (if $kind != "test"   then (.files.test   // [])[] else empty end)
+    ] | map(select(. == $p)) | first // ""
+  ' "$plan_json")
+  if [[ -n "$cross_kind" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: cross_kind_conflict: path '$path' already appears in another kind on task '$task_id'" >&2
+    exit 1
+  fi
+
+  local already
+  already=$(jq -r --arg id "$task_id" --arg kind "$kind" --arg p "$path" '
+    .phases[].tasks[] | select(.id == $id) | (.files[$kind] // []) | index($p) // ""
+  ' "$plan_json")
+  if [[ -n "$already" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    exit 0
+  fi
+
+  local phase_owner
+  phase_owner=$(jq -r --arg letter "$task_letter" --arg id "$task_id" --arg p "$path" '
+    .phases[] | select(.letter == $letter) | .tasks[] |
+    select(.id != $id) |
+    select(((.files.create // []) + (.files.modify // []) + (.files.test // [])) | index($p)) |
+    .id
+  ' "$plan_json" | head -n 1)
+  if [[ -n "$phase_owner" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: fileset_overlap_add: path '$path' already claimed by task '$phase_owner' in phase $task_letter" >&2
+    exit 1
+  fi
+
+  if [[ "$kind" == "create" ]]; then
+    local global_owner
+    global_owner=$(jq -r --arg id "$task_id" --arg p "$path" '
+      .phases[].tasks[] | select(.id != $id) |
+      select((.files.create // []) | index($p)) | .id
+    ' "$plan_json" | head -n 1)
+    if [[ -n "$global_owner" ]]; then
+      unlock_plan "$plan_json"; trap - EXIT
+      echo "ERROR: duplicate_create_path_add: path '$path' already in create[] of task '$global_owner'" >&2
+      exit 1
+    fi
+  fi
+
+  local tmp="${plan_json}.tmp.$$"
+  jq --arg id "$task_id" --arg kind "$kind" --arg p "$path" '
+    (.phases[].tasks[] | select(.id == $id) | .files[$kind]) |= ((. // []) + [$p])
+  ' "$plan_json" > "$tmp" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: jq update failed" >&2; exit 1; }
+  mv "$tmp" "$plan_json" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
+  do_render "$plan_json"
+  unlock_plan "$plan_json"
+  trap - EXIT
+}
+
+do_remove_file() {
+  local plan_json="$1" task_id="$2" kind="$3" path="$4"
+
+  case "$kind" in
+    create|modify|test) ;;
+    *)
+      echo "ERROR: invalid_kind: '$kind' (expected: create, modify, or test)" >&2
+      exit 1
+      ;;
+  esac
+
+  lock_plan "$plan_json"
+  trap 'unlock_plan "'"$plan_json"'"' EXIT
+
+  local task_found task_status
+  task_found=$(jq -r --arg id "$task_id" '
+    [.phases[] | select(.tasks[] | .id == $id)] | length
+  ' "$plan_json")
+  if [[ "$task_found" -eq 0 ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: task_not_found: '$task_id'" >&2
+    exit 1
+  fi
+
+  task_status=$(jq -r --arg id "$task_id" '.phases[].tasks[] | select(.id == $id) | .status' "$plan_json")
+  if [[ "$task_status" == "complete" || "$task_status" == "skipped" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: cannot_modify_files: task '$task_id' is '$task_status' — files can only be removed from pending or in_progress tasks" >&2
+    exit 1
+  fi
+
+  local present
+  present=$(jq -r --arg id "$task_id" --arg kind "$kind" --arg p "$path" '
+    .phases[].tasks[] | select(.id == $id) | (.files[$kind] // []) | index($p) // ""
+  ' "$plan_json")
+  if [[ -z "$present" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    exit 0
+  fi
+
+  local tmp="${plan_json}.tmp.$$"
+  jq --arg id "$task_id" --arg kind "$kind" --arg p "$path" '
+    (.phases[].tasks[] | select(.id == $id) | .files[$kind]) |= ((. // []) | map(select(. != $p)))
+  ' "$plan_json" > "$tmp" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: jq update failed" >&2; exit 1; }
+  mv "$tmp" "$plan_json" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
+  do_render "$plan_json"
+  unlock_plan "$plan_json"
+  trap - EXIT
+}
+
 do_check_handoffs() {
   local plan_json="$1" phase_letter="$2"
   local plan_dir
@@ -1528,6 +1671,8 @@ UPDATE_STATUS=""
 CHECK_REVIEW_TYPE=""
 CHECK_REVIEW_SCOPE=""
 DEPENDS_ON_ID=""
+ADD_FILE_KIND=""
+ADD_FILE_PATH=""
 # shellcheck disable=SC2034
 CHECK_ENTRY_STAGE=""
 
@@ -1648,6 +1793,22 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
+    --add-file)
+      MODE="add-file"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --remove-file)
+      MODE="remove-file"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
     --check-handoffs)
       MODE="check-handoffs"
       shift
@@ -1660,6 +1821,20 @@ while [[ $# -gt 0 ]]; do
       shift
       if [[ $# -gt 0 ]]; then
         DEPENDS_ON_ID="$1"
+        shift
+      fi
+      ;;
+    --kind)
+      shift
+      if [[ $# -gt 0 ]]; then
+        ADD_FILE_KIND="$1"
+        shift
+      fi
+      ;;
+    --path)
+      shift
+      if [[ $# -gt 0 ]]; then
+        ADD_FILE_PATH="$1"
         shift
       fi
       ;;
@@ -1742,6 +1917,20 @@ case "$MODE" in
       exit 2
     fi
     do_add_dep "$PLAN_JSON" "$UPDATE_ID" "$DEPENDS_ON_ID"
+    ;;
+  add-file)
+    if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" || -z "$ADD_FILE_KIND" || -z "$ADD_FILE_PATH" ]]; then
+      echo "ERROR: --add-file requires --task <ID> --kind <create|modify|test> --path <FILE>" >&2
+      exit 2
+    fi
+    do_add_file "$PLAN_JSON" "$UPDATE_ID" "$ADD_FILE_KIND" "$ADD_FILE_PATH"
+    ;;
+  remove-file)
+    if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" || -z "$ADD_FILE_KIND" || -z "$ADD_FILE_PATH" ]]; then
+      echo "ERROR: --remove-file requires --task <ID> --kind <create|modify|test> --path <FILE>" >&2
+      exit 2
+    fi
+    do_remove_file "$PLAN_JSON" "$UPDATE_ID" "$ADD_FILE_KIND" "$ADD_FILE_PATH"
     ;;
   check-handoffs)
     if [[ "$UPDATE_TARGET" != "phase" || -z "$UPDATE_ID" ]]; then
