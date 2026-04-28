@@ -32,9 +32,10 @@ Complete in order:
      MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
      PLAN_DIR="$MAIN_ROOT/.claude/claude-caliper/YYYY-MM-DD-<topic>"
      WORKTREE="$MAIN_ROOT/.claude/worktrees/<feature>"
+     mkdir -p "$WORKTREE/.claude" && jq -n --arg d "$MAIN_ROOT" '{permissions:{additionalDirectories:[$d]}}' > "$WORKTREE/.claude/settings.local.json"
      ```
 
-     `$PLAN_DIR` lives in the main repo (gitignored) so plan artifacts survive worktree cleanup. Use `$PLAN_DIR` and `$WORKTREE` — not relative paths — in every dispatch prompt and `jq` write below; subagents inherit worktree CWD and relative `.claude/claude-caliper/...` won't resolve.
+     `$PLAN_DIR` lives in the main repo (gitignored) so plan artifacts survive worktree cleanup. Use `$PLAN_DIR` and `$WORKTREE` — not relative paths — in every dispatch prompt and `jq` write below; subagents inherit worktree CWD and relative `.claude/claude-caliper/...` won't resolve. The `settings.local.json` write registers `$MAIN_ROOT` as an additional directory so future sessions started inside the worktree (e.g. a fresh `claude` launched there) don't trigger per-command permission prompts when reading/writing `$PLAN_DIR`.
    - Multi-phase: rename to integration branch: `git branch -m integrate/<feature>` — phase worktrees created by orchestrate as siblings
    - Single-phase: branch name `<feature>` is correct as-is; orchestrate works here directly, PRs to main
    1. Bootstrap dependencies per **See:** ./dependency-bootstrap.md
