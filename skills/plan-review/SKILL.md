@@ -26,7 +26,7 @@ Two-stage review:
 **Stage 2: Prose + design review** — If schema passes, dispatch reviewer subagent.
 
 Gather inputs:
-- **Plan directory** — `.claude/claude-caliper/YYYY-MM-DD-topic/` (containing plan.json + task .md files)
+- **Plan directory** — absolute path under `$MAIN_ROOT/.claude/claude-caliper/YYYY-MM-DD-topic/` (containing plan.json + task .md files; main repo, not worktree)
 - **Design doc** — if one exists (or "None")
 - **Repo root** — the worktree the plan targets
 

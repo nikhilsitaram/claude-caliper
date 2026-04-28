@@ -33,6 +33,11 @@ assert_eq() {
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+( cd "$TMPDIR" && git init -q 2>/dev/null ) || true
+mkdir -p "$TMPDIR/src" "$TMPDIR/tests"
+touch "$TMPDIR/src/core.ts" "$TMPDIR/src/validate.ts" "$TMPDIR/src/dashboard.ts"
+touch "$TMPDIR/tests/core.test.ts" "$TMPDIR/tests/validate.test.ts" "$TMPDIR/tests/dashboard.test.ts"
+cd "$TMPDIR"
 
 check "initial schema validation" "$VALIDATE" --schema "$TMPDIR/plan.json"
 

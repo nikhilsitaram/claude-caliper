@@ -9,7 +9,7 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 Write implementation plans assuming the executor has zero codebase context. Document everything: which files to touch, exact code, how to test, what to avoid and why.
 
-**Save to:** `.claude/claude-caliper/YYYY-MM-DD-<topic>/` directory
+**Save to:** the absolute `$PLAN_DIR` injected by the dispatcher (resolves to `$MAIN_ROOT/.claude/claude-caliper/YYYY-MM-DD-<topic>/` in the main repo, not the worktree). Plans are gitignored but persist across worktree cleanup.
 
 ## Workflow
 
@@ -23,7 +23,7 @@ Write implementation plans assuming the executor has zero codebase context. Docu
 8. **Run validate-plan --schema** — Fix any structural errors
 9. **Run validate-plan --render** — Generates plan.md deterministically
 10. **Self-review** — Re-read every task file and check against the Self-Review Gate below. Fix findings before handoff.
-11. **Skip** — plan artifacts are under `.claude/claude-caliper/` (gitignored), no commit needed
+11. **Skip** — plan artifacts are under `$MAIN_ROOT/.claude/claude-caliper/` (main repo root, gitignored), no commit needed
 12. **Hand off** — Report plan path to caller. Plan-review is dispatched by the design skill after draft-plan returns.
 
 ## Plan Structure

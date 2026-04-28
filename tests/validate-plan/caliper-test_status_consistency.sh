@@ -40,10 +40,15 @@ setup_valid_plan() {
   rm -rf "${dir:?}/"*
   cp -r "$FIXTURES/valid-plan/"* "$dir/"
   cp "$FIXTURES/valid-plan/plan.json" "$dir/plan.json"
+  ( cd "$dir" && git init -q 2>/dev/null ) || true
+  mkdir -p "$dir/src" "$dir/tests"
+  touch "$dir/src/core.ts" "$dir/src/validate.ts" "$dir/src/dashboard.ts"
+  touch "$dir/tests/core.test.ts" "$dir/tests/validate.test.ts" "$dir/tests/dashboard.test.ts"
 }
 
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
+cd "$TMPDIR"
 
 echo "Test 1: Phase marked Complete with all tasks complete passes"
 setup_valid_plan "$TMPDIR"
@@ -118,10 +123,11 @@ assert_pass "files.create exist on disk for complete task" \
 
 echo "Test 9: Files listed in files.create missing on disk when task is complete fails"
 setup_valid_plan "$TMPDIR"
-jq '.phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
+jq '.status = "In Development" | .phases[0].status = "In Progress" | .phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
 mkdir -p "$TMPDIR/phase-a"
 echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
-git -C "$TMPDIR" init -q 2>/dev/null || true
+echo '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+rm -f "$TMPDIR/src/core.ts"
 assert_fail "files.create missing on disk for complete task" "missing_created_file" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 

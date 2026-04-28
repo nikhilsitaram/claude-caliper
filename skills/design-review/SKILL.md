@@ -20,7 +20,7 @@ Dispatch a reviewer subagent to validate a design doc before planning. Catches s
 ## Dispatch
 
 Gather inputs:
-- **Design doc** — `.claude/claude-caliper/YYYY-MM-DD-topic/design-topic.md`
+- **Design doc** — absolute path under `$MAIN_ROOT/.claude/claude-caliper/YYYY-MM-DD-topic/design-topic.md` (main repo, not worktree)
 - **Repo root** — the worktree the design targets
 
 Dispatch with `model: "$DESIGN_REVIEWER_MODEL"` — review requires strong reasoning to catch blind spots the designer and user converged past.

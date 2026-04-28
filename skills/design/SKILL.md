@@ -26,6 +26,15 @@ Complete in order:
 5. **Present design** — sections scaled to complexity, approval after each
 6. **Set up worktree** — `EnterWorktree` enables session-aware cleanup via `ExitWorktree`:
    - `EnterWorktree(name: "<feature>")` — creates `.claude/worktrees/<feature>` with branch `<feature>`
+   - Resolve persistent path variables (plans live in main repo, code work happens in worktree):
+
+     ```bash
+     MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+     PLAN_DIR="$MAIN_ROOT/.claude/claude-caliper/YYYY-MM-DD-<topic>"
+     WORKTREE="$MAIN_ROOT/.claude/worktrees/<feature>"
+     ```
+
+     `$PLAN_DIR` lives in the main repo (gitignored) so plan artifacts survive worktree cleanup. Use `$PLAN_DIR` and `$WORKTREE` — not relative paths — in every dispatch prompt and `jq` write below; subagents inherit worktree CWD and relative `.claude/claude-caliper/...` won't resolve.
    - Multi-phase: rename to integration branch: `git branch -m integrate/<feature>` — phase worktrees created by orchestrate as siblings
    - Single-phase: branch name `<feature>` is correct as-is; orchestrate works here directly, PRs to main
    1. Bootstrap dependencies per **See:** ./dependency-bootstrap.md
@@ -60,8 +69,8 @@ Complete in order:
 
     **Agent teams fallback:** If user picks "Agent teams", check `$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`. If not `1`, use AskUserQuestion to explain: "Agent teams requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`. To enable: run `echo 'export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1' >> ~/.zshrc && source ~/.zshrc`, then restart Claude Code." Offer: "Continue with subagents" or "Stop (I'll restart with agent teams)". If they choose subagents, override the Q2 answer to `Subagents` before step 11 writes plan.json. If they stop, tell them the exact command to resume: `claude --continue` in the worktree directory.
 
-    On approval, create sentinel: `mkdir -p <plan-dir> && touch <plan-dir>/.design-approved`
-8. **Write design doc** — `.claude/claude-caliper/YYYY-MM-DD-<topic>/design-<topic>.md` (no commit — gitignored transient state)
+    On approval, create sentinel: `mkdir -p "$PLAN_DIR" && touch "$PLAN_DIR/.design-approved"`
+8. **Write design doc** — `$PLAN_DIR/design-<topic>.md` (no commit — gitignored transient state, lives in main repo)
 
    Before dispatching design-review, verify the doc satisfies this quality checklist (catches the most common reviewer findings on first pass):
    - Success criteria are behavioral outcomes, not implementation details ("users can log in" not "tests pass" or "middleware installed")
@@ -78,13 +87,13 @@ Complete in order:
     - Workflow: `Create PR` → `pr-create`, `Merge PR` → `pr-merge`, `Orchestrate only` → `orchestrate`, `Plan only` → `plan-only`
     - Exec mode: `Subagents` → `subagents`, `Agent teams` → `agent-teams`
 
-    Write both: `jq --arg w "<workflow>" --arg e "<exec-mode>" '.workflow = $w | .execution_mode = $e' plan.json > tmp && mv tmp plan.json`
+    Write both: `jq --arg w "<workflow>" --arg e "<exec-mode>" '.workflow = $w | .execution_mode = $e' "$PLAN_DIR/plan.json" > "$PLAN_DIR/plan.json.tmp" && mv "$PLAN_DIR/plan.json.tmp" "$PLAN_DIR/plan.json"`
 
     For multi-phase plans, also write the integration branch name:
-    `jq --arg ib "integrate/<feature>" '.integration_branch = $ib' plan.json > tmp && mv tmp plan.json`
+    `jq --arg ib "integrate/<feature>" '.integration_branch = $ib' "$PLAN_DIR/plan.json" > "$PLAN_DIR/plan.json.tmp" && mv "$PLAN_DIR/plan.json.tmp" "$PLAN_DIR/plan.json"`
 
-    For **Create PR**, **Merge PR**, or **Orchestrate only**: invoke orchestrate.
-    For **Plan only**: run `validate-plan --check-workflow plan.json` to verify design-review and plan-review passed. Report the plan file path and stop.
+    For **Create PR**, **Merge PR**, or **Orchestrate only**: invoke orchestrate, passing `$PLAN_DIR/plan.json` as the absolute plan path (orchestrate's CWD is the worktree, where plan.json does not exist).
+    For **Plan only**: run `validate-plan --check-workflow "$PLAN_DIR/plan.json"` to verify design-review and plan-review passed. Report the plan file path and stop.
 
 Read the design reviewer model: `DESIGN_REVIEWER_MODEL=$(caliper-settings get design_reviewer_model)`
 
@@ -92,9 +101,9 @@ Read the design reviewer model: `DESIGN_REVIEWER_MODEL=$(caliper-settings get de
 Agent(
   subagent_type: "claude-caliper:design-reviewer",
   model: "$DESIGN_REVIEWER_MODEL",
-  prompt: "Review the design doc at .claude/claude-caliper/<folder>/design-<topic>.md
+  prompt: "Review the design doc at $PLAN_DIR/design-<topic>.md
 
-    Codebase root: .claude/worktrees/<feature>"
+    Codebase root: $WORKTREE"
 )
 ```
 
@@ -125,9 +134,9 @@ After each reviewer dispatch, extract the `json review-summary` block from the r
    Agent(
      subagent_type: "claude-caliper:design-reviewer",
      model: "$DESIGN_REVIEWER_MODEL",
-     prompt: "Review the design doc at .claude/claude-caliper/<folder>/design-<topic>.md
+     prompt: "Review the design doc at $PLAN_DIR/design-<topic>.md
 
-       Codebase root: .claude/worktrees/<feature>
+       Codebase root: $WORKTREE
 
        ## Prior Issues
        <json array: id, severity, category, problem, fix, resolution, dismissal_reason?>"
@@ -143,11 +152,11 @@ Agent(
   subagent_type: "claude-caliper:plan-drafter",
   model: "$PLANNER_MODEL",
   mode: "acceptEdits",
-  prompt: "Read the design doc at .claude/claude-caliper/<folder>/design-<topic>.md and write
+  prompt: "Read the design doc at $PLAN_DIR/design-<topic>.md and write
     an implementation plan.
 
-    Working directory: .claude/worktrees/<feature>
-    Plan directory: .claude/claude-caliper/<folder>/"
+    Working directory: $WORKTREE
+    Plan directory: $PLAN_DIR/"
 )
 ```
 
@@ -159,10 +168,10 @@ Read the plan reviewer model: `PLAN_REVIEWER_MODEL=$(caliper-settings get plan_r
 Agent(
   subagent_type: "claude-caliper:plan-reviewer",
   model: "$PLAN_REVIEWER_MODEL",
-  prompt: "Review the implementation plan at .claude/claude-caliper/<folder>/plan.json
+  prompt: "Review the implementation plan at $PLAN_DIR/plan.json
 
-    Design doc: .claude/claude-caliper/<folder>/design-<topic>.md
-    Codebase root: .claude/worktrees/<feature>"
+    Design doc: $PLAN_DIR/design-<topic>.md
+    Codebase root: $WORKTREE"
 )
 ```
 

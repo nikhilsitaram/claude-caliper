@@ -15,7 +15,7 @@ Read `skills/draft-plan/SKILL.md` for the full planning methodology — workflow
 ## Agent-Specific Context
 
 Template variables available in your invocation prompt:
-- `{PLAN_DIR}` — absolute path to the plan directory (e.g., `.claude/claude-caliper/2026-04-02-feature/`)
+- `{PLAN_DIR}` — absolute path to the plan directory (e.g., `/Users/you/repo/.claude/claude-caliper/2026-04-02-feature/` — main repo root, not the worktree)
 - `{DESIGN_DOC}` — path to the approved design document
 - `{REPO_PATH}` — repository root
 

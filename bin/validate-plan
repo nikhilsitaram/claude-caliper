@@ -453,7 +453,7 @@ do_schema() {
         fi
 
         local repo_root
-        repo_root=$(cd "$plan_dir" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null || echo "")
+        repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
         if [[ -n "$repo_root" ]]; then
           while IFS= read -r fc_path; do
             [[ -z "$fc_path" ]] && continue

@@ -44,7 +44,7 @@ docs/reviews/     — Codebase review reports
 .claude-plugin/   — Plugin manifest and marketplace config
 ```
 
-Plan artifacts (design docs, plan.json, task briefs) are created by the design/draft-plan skills under `.claude/claude-caliper/` and gitignored — they're transient working state, not permanent repo content.
+Plan artifacts (design docs, plan.json, task briefs) are created by the design/draft-plan skills under `$MAIN_ROOT/.claude/claude-caliper/` (main repo root, gitignored). They live in the main checkout — not the worktree — so they persist across worktree cleanup as a local record of design decisions and execution history.
 
 ## Testing
 
