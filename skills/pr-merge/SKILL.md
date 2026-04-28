@@ -41,9 +41,11 @@ If branch protection requires human approval and the PR lacks it, tell the user 
 **Pre-merge rebase check:** Verify the PR branch is up-to-date with the base branch:
 
 ```bash
-git fetch origin $DEFAULT_BRANCH
+git fetch origin
 git merge-base --is-ancestor origin/$DEFAULT_BRANCH HEAD
 ```
+
+Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/$DEFAULT_BRANCH` actually advances. `git fetch origin $DEFAULT_BRANCH` only updates `FETCH_HEAD` — the `is-ancestor` check then compares against a stale ref and reports up-to-date when the branch is actually behind.
 
 If behind (non-zero exit): rebase onto default branch, resolve conflicts, run tests, push with `git push -u origin HEAD --force-with-lease`. Comment on PR with conflict resolution details. Complex conflicts → stop and ask user.
 
