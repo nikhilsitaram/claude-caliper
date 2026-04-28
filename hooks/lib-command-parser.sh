@@ -130,10 +130,12 @@ extract_command_words_from_segment() {
     local inner="${BASH_REMATCH[1]}"
     inner="${inner#"${inner%%[![:space:]]*}"}"
     outer_cmd="${inner%% *}"
+    outer_cmd="${outer_cmd##*/}"
   elif [[ "$seg" =~ $var_subshell_re ]]; then
     local inner="${BASH_REMATCH[1]}"
     inner="${inner#"${inner%%[![:space:]]*}"}"
     outer_cmd="${inner%% *}"
+    outer_cmd="${outer_cmd##*/}"
   elif [[ "$seg" =~ $var_ref_re ]]; then
     : # VAR=$other/path — variable reference assignment, not a command
   elif [[ "$seg" =~ $array_assign_re ]]; then

@@ -396,6 +396,20 @@ cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE57"
 OUT57=$(run_allow 'PLAN_DIR=/repo/.claude/caliper/plan; PLAN_JSON=$PLAN_DIR/plan.json; TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ"); jq --arg ts "$TS" ". += [{\"verdict\":\"pass\",\"timestamp\":\$ts}]" "$PLAN_DIR/reviews.json" > "$PLAN_DIR/reviews.json.tmp" && mv "$PLAN_DIR/reviews.json.tmp" "$PLAN_DIR/reviews.json"; TODAY=$(date +"%Y-%m-%d"); validate-plan --update-status "$PLAN_JSON" --phase A --status "Complete ($TODAY)"' "$SAFE57")
 assert_output_contains "phase-complete pattern with date allowed" "$OUT57" '"behavior":"allow"'
 
+echo "Test 57b: VAR=\$(/abs/path/cmd args) — absolute path inside subshell assignment"
+SAFE57B="$TMPDIR_TEST/safe57b.txt"
+printf 'caliper-settings\n' > "$SAFE57B"
+# shellcheck disable=SC2016
+OUT57B=$(run_allow 'PR_REVIEWER_MODEL=$(/Users/me/repo/bin/caliper-settings get pr_reviewer_model)' "$SAFE57B")
+assert_output_contains "VAR=\$(/abs/path/cmd) basename-stripped and allowed" "$OUT57B" '"behavior":"allow"'
+
+echo "Test 57c: \$(/abs/path/cmd args) — absolute path inside pure subshell"
+SAFE57C="$TMPDIR_TEST/safe57c.txt"
+printf 'caliper-settings\n' > "$SAFE57C"
+# shellcheck disable=SC2016
+OUT57C=$(run_allow '$(/Users/me/repo/bin/caliper-settings get pr_reviewer_model)' "$SAFE57C")
+assert_output_contains "\$(/abs/path/cmd) basename-stripped and allowed" "$OUT57C" '"behavior":"allow"'
+
 echo "Test 58: VAR=(...) bash array literal allowed when body cmds are safe"
 SAFE58="$TMPDIR_TEST/safe58.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE58"
