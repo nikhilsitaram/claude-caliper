@@ -23,6 +23,8 @@ Usage:
   validate-plan --check-base <plan.json>
   validate-plan --check-deps <plan.json> --task <ID>
   validate-plan --check-workflow <plan.json>
+  validate-plan --add-dep <plan.json> --task <DOWNSTREAM_ID> --depends-on <SOURCE_ID>
+  validate-plan --check-handoffs <plan.json> --phase <LETTER>
 
   Valid types:  design-review, plan-review, task-review, impl-review
   Valid scopes: design, plan, task-{ID}, phase-{letter}, final
@@ -451,7 +453,7 @@ do_schema() {
         fi
 
         local repo_root
-        repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+        repo_root=$(cd "$plan_dir" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null || echo "")
         if [[ -n "$repo_root" ]]; then
           while IFS= read -r fc_path; do
             [[ -z "$fc_path" ]] && continue
@@ -1400,6 +1402,124 @@ do_check_deps() {
   exit 0
 }
 
+do_add_dep() {
+  local plan_json="$1" downstream_id="$2" source_id="$3"
+  if [[ "$downstream_id" == "$source_id" ]]; then
+    echo "ERROR: self_dependency: $downstream_id cannot depend on itself" >&2
+    exit 1
+  fi
+  lock_plan "$plan_json"
+  trap 'unlock_plan "'"$plan_json"'"' EXIT
+  local downstream_letter source_letter downstream_status letters
+  letters=$(jq -r --arg did "$downstream_id" --arg sid "$source_id" '
+    "\(([.phases[] | select(.tasks[] | .id == $did)][0] | .letter // ""))|\(([.phases[] | select(.tasks[] | .id == $sid)][0] | .letter // ""))"
+  ' "$plan_json")
+  IFS='|' read -r downstream_letter source_letter <<< "$letters"
+  if [[ -z "$downstream_letter" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: task_not_found: '$downstream_id'" >&2
+    exit 1
+  fi
+  if [[ -z "$source_letter" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: task_not_found: '$source_id'" >&2
+    exit 1
+  fi
+  if [[ "$source_letter" > "$downstream_letter" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: invalid_dependency: $downstream_id (phase $downstream_letter) cannot depend on $source_id (phase $source_letter)" >&2
+    exit 1
+  fi
+  downstream_status=$(jq -r --arg id "$downstream_id" '.phases[].tasks[] | select(.id == $id) | .status' "$plan_json")
+  if [[ "$downstream_status" == "complete" || "$downstream_status" == "skipped" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: cannot_add_dep: task '$downstream_id' is '$downstream_status' — dependencies can only be added to pending or in_progress tasks" >&2
+    exit 1
+  fi
+  local already
+  already=$(jq -r --arg did "$downstream_id" --arg sid "$source_id" '.phases[].tasks[] | select(.id == $did) | (.depends_on // []) | index($sid) // ""' "$plan_json")
+  if [[ -n "$already" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    exit 0
+  fi
+  local tmp="${plan_json}.tmp.$$"
+  jq --arg did "$downstream_id" --arg sid "$source_id" '
+    (.phases[].tasks[] | select(.id == $did)) |= (.depends_on = ((.depends_on // []) + [$sid] | unique))
+  ' "$plan_json" > "$tmp" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: jq update failed" >&2; exit 1; }
+  mv "$tmp" "$plan_json" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
+  do_render "$plan_json"
+  unlock_plan "$plan_json"
+  trap - EXIT
+}
+
+do_check_handoffs() {
+  local plan_json="$1" phase_letter="$2"
+  local plan_dir
+  plan_dir="$(cd "$(dirname "$plan_json")" && pwd)"
+  local phase_lower="${phase_letter,,}"
+  local phase_found
+  phase_found=$(jq --arg letter "$phase_letter" '[.phases[] | select(.letter == $letter)] | length' "$plan_json")
+  if [[ "$phase_found" -eq 0 ]]; then
+    echo "ERROR: phase_not_found: '$phase_letter'" >&2
+    exit 1
+  fi
+  local source_ids triple_list combined
+  combined=$(jq -r --arg letter "$phase_letter" '
+    "SOURCES:" + ([.phases[] | select(.letter == $letter) | .tasks[].id] | join("|")),
+    "TRIPLES",
+    (.phases[] | select(.letter > $letter) | .letter as $tletter |
+      .tasks[] | .id as $tid |
+      (.depends_on // [])[] | "\($tid)|\(.)|\($tletter)")
+  ' "$plan_json")
+  source_ids=$(echo "$combined" | awk -F: '/^SOURCES:/{print $2; exit}')
+  source_ids="$source_ids|"
+  triple_list=$(echo "$combined" | awk '/^TRIPLES$/{found=1; next} found{print}')
+  local missing=()
+  while IFS='|' read -r target_id source_id target_letter; do
+    [[ -z "$target_id" ]] && continue
+    case "|$source_ids" in
+      *"|$source_id|"*) ;;
+      *) continue ;;
+    esac
+    local target_lower="${target_letter,,}"
+    local target_id_lower="${target_id,,}"
+    local target_file="$plan_dir/phase-$target_lower/$target_id_lower.md"
+    if [[ ! -f "$target_file" ]]; then
+      missing+=("$source_id -> $target_id (target file missing: phase-$target_lower/$target_id_lower.md)")
+      continue
+    fi
+    if ! grep -q -E "^## Handoff from $source_id([[:space:]]|$)" "$target_file"; then
+      missing+=("$source_id -> $target_id")
+    fi
+  done <<< "$triple_list"
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    exit 0
+  fi
+  local completion_file="$plan_dir/phase-$phase_lower/completion.md"
+  if [[ -f "$completion_file" ]]; then
+    if awk '
+      BEGIN {found=0}
+      /^## Handoff Notes/ {found=1; next}
+      found && /^## / {found=0}
+      found && /^[[:space:]]*$/ {next}
+      found {
+        line = tolower($0)
+        sub(/^[[:space:]]+/, "", line)
+        if (line ~ /^none([^a-z0-9]|$)/) print "OPTOUT"
+        exit
+      }
+    ' "$completion_file" | grep -q "OPTOUT"; then
+      exit 0
+    fi
+  fi
+  echo "ERROR: missing_handoff_notes from phase $phase_letter:" >&2
+  for m in "${missing[@]}"; do
+    echo "  - $m" >&2
+  done
+  echo "  Write '## Handoff from {SOURCE_ID}' sections in target task files, or add '## Handoff Notes' section to phase-$phase_lower/completion.md whose first content line starts with 'None' to opt out." >&2
+  exit 1
+}
+
 MODE=""
 PLAN_JSON=""
 UPDATE_TARGET=""
@@ -1407,6 +1527,7 @@ UPDATE_ID=""
 UPDATE_STATUS=""
 CHECK_REVIEW_TYPE=""
 CHECK_REVIEW_SCOPE=""
+DEPENDS_ON_ID=""
 # shellcheck disable=SC2034
 CHECK_ENTRY_STAGE=""
 
@@ -1519,6 +1640,29 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
+    --add-dep)
+      MODE="add-dep"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --check-handoffs)
+      MODE="check-handoffs"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --depends-on)
+      shift
+      if [[ $# -gt 0 ]]; then
+        DEPENDS_ON_ID="$1"
+        shift
+      fi
+      ;;
     --stage)
       shift
       if [[ $# -gt 0 ]]; then
@@ -1591,6 +1735,20 @@ case "$MODE" in
       exit 2
     fi
     do_check_deps "$PLAN_JSON" "$UPDATE_ID"
+    ;;
+  add-dep)
+    if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" || -z "$DEPENDS_ON_ID" ]]; then
+      echo "ERROR: --add-dep requires --task <DOWNSTREAM_ID> --depends-on <SOURCE_ID>" >&2
+      exit 2
+    fi
+    do_add_dep "$PLAN_JSON" "$UPDATE_ID" "$DEPENDS_ON_ID"
+    ;;
+  check-handoffs)
+    if [[ "$UPDATE_TARGET" != "phase" || -z "$UPDATE_ID" ]]; then
+      echo "ERROR: --check-handoffs requires --phase <LETTER>" >&2
+      exit 2
+    fi
+    do_check_handoffs "$PLAN_JSON" "$UPDATE_ID"
     ;;
   *) usage ;;
 esac

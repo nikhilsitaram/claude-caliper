@@ -52,15 +52,14 @@ Process phases in order (A, B, C...). For each phase:
 
 ### Prepare Phase
 
-1. Determine phase resumption state (multi-phase only — single-phase: use feature worktree, no resumption check needed). Phase status is the primary signal because squash-merge in step 6 typically deletes the phase branch ref, making `git merge-base --is-ancestor` unreliable.
-   - If phase status starts with "Complete": run `gh pr list --base integrate/<feature> --head phase-<letter> --state merged --json number --jq 'length'`. If non-zero, the phase is fully merged — skip to next phase. If zero (status Complete but PR not yet merged), skip directly to Phase Wrap-Up step 6, reusing any open PR or creating one if absent.
+1. Determine phase resumption state (multi-phase only — single-phase: use feature worktree, no resumption check needed). Phase status is the primary signal because squash-merge in step 7 typically deletes the phase branch ref, making `git merge-base --is-ancestor` unreliable.
+   - If phase status starts with "Complete": run `gh pr list --base integrate/<feature> --head phase-<letter> --state merged --json number --jq 'length'`. If non-zero, the phase is fully merged — skip to next phase. If zero (status Complete but PR not yet merged), skip directly to Phase Wrap-Up step 7, reusing any open PR or creating one if absent.
    - Otherwise (status "Not Started" or "In Progress"): create phase worktree from integration branch and continue with the remaining numbered steps below (`validate-plan --check-base`, etc.).
 2. Re-validate base branch: `validate-plan --check-base "$PLAN_JSON"` (multi-phase only — ensures dispatch happens from integration worktree, not main)
 3. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in worktree
 4. **Bootstrap dependencies** in the worktree. **See:** skills/design/dependency-bootstrap.md
-5. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure)
-6. Cross-phase handoff notes: lead writes handoff sections to task .md files for tasks consuming prior-phase output
-7. Set phase to "In Progress": `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "In Progress"` — required before any task can be marked in_progress (transition gate rejects task advancement when parent phase is "Not Started")
+5. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure) — prior-phase handoff notes are already inlined in this phase's task .md files (written at prior phase's wrap-up)
+6. Set phase to "In Progress": `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "In Progress"` — required before any task can be marked in_progress (transition gate rejects task advancement when parent phase is "Not Started")
 
 ### Dispatch, Complete, and Review Tasks
 
@@ -79,7 +78,25 @@ After all tasks complete and branches merged:
 3. Append review changes to `${PHASE_DIR}/completion.md`
 4. Run phase criteria: `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}`
 5. Update status: `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
-6. (Multi-phase) Merge phase PR into integration branch — runs unconditionally for every phase including the last, regardless of `workflow` setting. The final integrate->main PR is created separately in "After All Phases".
+6. **Write cross-phase handoff notes** for downstream tasks. For each task in a future phase whose `depends_on` references a task from this phase, append a handoff section to `{PLAN_DIR}/phase-{next_letter}/{target_task_id_lower}.md` describing the shipped interface — names, paths, signatures, usage. Writing post-wrap-up (rather than before next-phase dispatch) means notes reflect the shipped reality, including any review-driven interface changes. Insert after the H1, before existing prose:
+
+   ````markdown
+   # B1: Dashboard page
+
+   ## Handoff from A2
+
+   Auth middleware exports `validateToken()` from `src/auth/middleware.ts`.
+   Use as Hono middleware: `app.use('/dashboard/*', validateToken())`.
+
+   **Avoid:** ...
+   ````
+
+   **Ad-hoc handoffs (no current `depends_on` link).** When implementation surfaces context useful to a future task that wasn't anticipated at design time, register the dependency before writing the note: `validate-plan --add-dep "$PLAN_JSON" --task {DOWNSTREAM_ID} --depends-on {SOURCE_ID}`. This keeps plan.json the single source of truth for the dependency graph and re-renders plan.md. Then write the `## Handoff from {SOURCE_ID}` section as above.
+
+   **Opt-out.** If downstream tasks can derive everything they need from `completion.md` alone, append a `## Handoff Notes` section to `{PHASE_DIR}/completion.md` whose first content line starts with `None` (e.g., `None — downstream tasks derive context from completion.md.`).
+
+   **Validate:** `validate-plan --check-handoffs "$PLAN_JSON" --phase {LETTER}` — fails if any cross-phase `depends_on` link into this phase lacks a matching `## Handoff from` section AND no opt-out block exists.
+7. (Multi-phase) Merge phase PR into integration branch — runs unconditionally for every phase including the last, regardless of `workflow` setting. The final integrate->main PR is created separately in "After All Phases".
    a. Open the phase PR: if one already exists and is open (`gh pr list --head phase-<letter> --state open --json url --jq '.[0].url'`), reuse it; otherwise run `pr-create --base integrate/<feature>`.
    b. `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`
    c. If `$REVIEW_WAIT` == 0: invoke `pr-merge` directly. Else: poll `gh pr checks` then invoke `pr-review --automated-merge` (which invokes `pr-merge` on pass)

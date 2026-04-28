@@ -66,7 +66,7 @@ After review passes, the **orchestrator** updates the plan document:
 
 1. **Document fixups** — append `### Implementation Review Changes` to `phase-{letter}/completion.md` listing each change. Omit if no fixups needed.
 
-2. **Handoff notes (multi-phase only)** — if future phases exist, the dispatcher has already written inline handoff notes on target tasks. The orchestrator verifies these are accurate post-review and updates if review changes affected interfaces.
+2. **Handoff notes (multi-phase only)** — if future phases exist, the orchestrator writes inline handoff notes on downstream task files now (post-review), so notes reflect the shipped interface including any review-driven changes. See orchestrate's Phase Wrap-Up step for format and trigger conditions.
 
 ## Re-Review Gate
 

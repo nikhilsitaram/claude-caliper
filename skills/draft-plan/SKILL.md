@@ -101,7 +101,7 @@ Optional: `success_criteria` at plan/phase/task levels. `workflow`: `pr-create` 
 (Full TDD cycle with code)
 ```
 
-H1 header must match `# {id}: {name}` from plan.json. When a task consumes output from a prior phase, the lead appends a handoff section after the H1.
+H1 header must match `# {id}: {name}` from plan.json. When a task consumes output from a prior phase, the orchestrate lead appends a handoff section after the H1 at the prior phase's wrap-up.
 
 ## Phasing
 
@@ -150,7 +150,7 @@ Write complete code in each step — not "add validation" or "implement the hand
 
 **First task as integration tests:** When cross-task data flow exists, A1 can be broad integration tests (double-loop TDD) that stay RED until the last piece lands.
 
-**Handoff notes:** The lead writes handoff sections to cross-phase task files between phases. Draft-plan doesn't write these.
+**Handoff notes:** The orchestrate lead writes handoff sections to cross-phase task files at the source phase's wrap-up (post-review). Draft-plan doesn't write these.
 
 ## Self-Review Gate
 
