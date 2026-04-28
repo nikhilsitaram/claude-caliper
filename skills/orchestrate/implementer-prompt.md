@@ -41,7 +41,15 @@ Agent(
 
     ## Before You Begin
 
-    Mark your task in-progress:
-    validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status in_progress"
+    1. Navigate to your worktree and verify you are on the correct branch:
+       ```bash
+       cd {WORKTREE_PATH} && git branch --show-current
+       ```
+       Output must be `{TASK_ID_LOWER}`. If it shows any other branch, stop and report the mismatch — do not commit anything.
+
+    2. Mark your task in-progress:
+       ```bash
+       validate-plan --update-status {PLAN_DIR}/plan.json --task {TASK_ID} --status in_progress
+       ```"
 )
 ```

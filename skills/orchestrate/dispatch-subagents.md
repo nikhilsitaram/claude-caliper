@@ -42,6 +42,11 @@ The agent runs in background automatically (defined in agent frontmatter). Track
 When a background agent completes (push notification — do not poll):
 
 1. Read the agent's return message for completion notes and task summary
+1a. Verify the commit landed on the task branch — not the parent worktree's branch:
+    ```bash
+    git -C "$TASK_WORKTREE" log --oneline -3 && git -C "$TASK_WORKTREE" branch --show-current
+    ```
+    Output must show `{TASK_ID_LOWER}`. If commits are on the wrong branch (e.g., the parent branch), correct it before dispatching the reviewer: advance `{TASK_ID_LOWER}` to current HEAD (`git -C "$TASK_WORKTREE" reset --hard <wrong-HEAD-sha>`), then reset the parent branch back to its pre-task SHA.
 2. Check `REVIEWER_NEEDED`:
    - If `"false"`: record a skip in reviews.json (`"verdict":"skip","reason":"reviewer_needed: false"`) and proceed directly to step 2 of "After Review Passes" (skip step 1 — verdict already recorded). Skip steps 3-4.
    - If `"true"`: dispatch a reviewer (synchronous — override background with `run_in_background: false` so the lead waits for results):
