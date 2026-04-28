@@ -74,9 +74,11 @@ EOF
 
 ```bash
 REBASE_BASE="${BASE_BRANCH:-$DEFAULT_BRANCH}"
-git fetch origin "$REBASE_BASE"
+git fetch origin
 git rebase "origin/$REBASE_BASE"
 ```
+
+Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/$REBASE_BASE` actually advances. `git fetch origin <branch>` only updates `FETCH_HEAD`, leaving the remote-tracking ref stale — `git rebase origin/$REBASE_BASE` then rebases onto an outdated tip.
 
 If conflicts occur, resolve them and re-run tests before continuing.
 

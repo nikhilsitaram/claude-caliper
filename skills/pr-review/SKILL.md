@@ -40,12 +40,14 @@ mode=$(caliper-settings get review_mode)
 ### Step 3: Rebase onto Base Branch
 
 ```bash
-git fetch origin $BASE_BRANCH
+git fetch origin
 if ! git merge-base --is-ancestor origin/$BASE_BRANCH HEAD; then
   git rebase origin/$BASE_BRANCH
   git push -u origin HEAD --force-with-lease
 fi
 ```
+
+Use bare `git fetch origin` (no branch arg) so the remote-tracking ref `refs/remotes/origin/$BASE_BRANCH` actually advances. `git fetch origin $BASE_BRANCH` only updates `FETCH_HEAD`, leaving `origin/$BASE_BRANCH` stale — which silently widens the reviewer's diff scope when other PRs merge during the session.
 
 If rebased, log it. If conflicts, stop and ask user. After force-push, only process comments posted *after* the push timestamp (or wait for fresh bot comments).
 
