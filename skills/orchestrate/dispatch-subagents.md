@@ -10,6 +10,7 @@ For each task in the phase, check deps: `validate-plan --check-deps "$PLAN_JSON"
 PARENT_WORKTREE="$(git rev-parse --show-toplevel)"
 MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
 [[ "$PARENT_WORKTREE" == "$MAIN_ROOT" ]] && { echo "ERROR: orchestrator CWD is the main repo; dispatching from here creates sibling task worktrees that trigger silent permission denials in background subagents. cd into the feature or phase worktree before dispatching." >&2; exit 1; }
+PRE_TASK_SHA=$(git -C "$PARENT_WORKTREE" rev-parse HEAD)
 git -C "$PARENT_WORKTREE" worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
 TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
@@ -42,13 +43,19 @@ The agent runs in background automatically (defined in agent frontmatter). Track
 When a background agent completes (push notification — do not poll):
 
 1. Read the agent's return message for completion notes and task summary
-1a. Verify the commit landed on the task branch — not the parent worktree's branch:
+2. Verify the commit landed on the task branch — not the parent worktree's branch. The real check is whether the parent HEAD is still at `PRE_TASK_SHA`:
     ```bash
-    git -C "$TASK_WORKTREE" log --oneline -3 && git -C "$TASK_WORKTREE" branch --show-current
+    git -C "$TASK_WORKTREE" log --oneline -3 --decorate
+    git -C "$PARENT_WORKTREE" rev-parse HEAD
     ```
-    Output must show `{TASK_ID_LOWER}`. If commits are on the wrong branch (e.g., the parent branch), correct it before dispatching the reviewer: advance `{TASK_ID_LOWER}` to current HEAD (`git -C "$TASK_WORKTREE" reset --hard <wrong-HEAD-sha>`), then reset the parent branch back to its pre-task SHA.
-2. Check `REVIEWER_NEEDED`:
-   - If `"false"`: record a skip in reviews.json (`"verdict":"skip","reason":"reviewer_needed: false"`) and proceed directly to step 2 of "After Review Passes" (skip step 1 — verdict already recorded). Skip steps 3-4.
+    Parent HEAD must still equal `$PRE_TASK_SHA`. If it has advanced, the implementer committed to the parent branch instead. Correct before dispatching the reviewer:
+    ```bash
+    WRONG_HEAD=$(git -C "$PARENT_WORKTREE" rev-parse HEAD)
+    git -C "$TASK_WORKTREE" reset --hard "$WRONG_HEAD"
+    git -C "$PARENT_WORKTREE" reset --hard "$PRE_TASK_SHA"
+    ```
+3. Check `REVIEWER_NEEDED`:
+   - If `"false"`: record a skip in reviews.json (`"verdict":"skip","reason":"reviewer_needed: false"`) and proceed directly to step 2 of "After Review Passes" (skip step 1 — verdict already recorded). Skip steps 4-5.
    - If `"true"`: dispatch a reviewer (synchronous — override background with `run_in_background: false` so the lead waits for results):
 
 ```text
@@ -62,8 +69,8 @@ Agent(
 )
 ```
 
-3. Extract the last `json review-summary` block from reviewer output
-4. Triage issues: "fix" or "dismiss" (with reasoning)
+4. Extract the last `json review-summary` block from reviewer output
+5. Triage issues: "fix" or "dismiss" (with reasoning)
 
 ## Review Fix Cycle
 

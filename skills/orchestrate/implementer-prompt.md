@@ -41,7 +41,7 @@ Agent(
 
     ## Before You Begin
 
-    1. Navigate to your worktree and verify you are on the correct branch:
+    1. *(Subagents mode only — omit this step in agent-teams mode)* Navigate to your worktree and verify you are on the correct branch:
        ```bash
        cd {WORKTREE_PATH} && git branch --show-current
        ```
