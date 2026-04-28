@@ -25,23 +25,19 @@ fi
 # variable assignments like FAIL=0; for f in ...).
 if [[ "$cmd" =~ (^|[^a-zA-Z0-9_])for[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]+in[[:space:]] ]]; then
   _loop_var="${BASH_REMATCH[2]}"
+  _bash_pat='bash[[:space:]]+"\$'"$_loop_var"'"'
+  _kw_pat='(do|then)[[:space:]]+"\$'"$_loop_var"'"'
+  _sep_pat='(;|!|&&|\|\||\||&|\{)[[:space:]]*"\$'"$_loop_var"'"'
 
-  if [[ "$cmd" == *"bash \"\$$_loop_var\""* ]]; then
+  if [[ "$cmd" =~ $_bash_pat ]]; then
     printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"for-loop with bash \"$%s\" detected. Invoke test scripts directly without bash: ./$%s"}}\n' "$_loop_var" "$_loop_var"
     exit 0
   fi
 
-  case "$cmd" in
-    *"do \"\$$_loop_var\""*|\
-    *"; \"\$$_loop_var\""*|\
-    *"! \"\$$_loop_var\""*|\
-    *"&& \"\$$_loop_var\""*|\
-    *"|| \"\$$_loop_var\""*|\
-    *"then \"\$$_loop_var\""*)
-      printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"for-loop invoking \"$%s\" as a command trips Claude Code'"'"'s tree-sitter parser. Chain invocations with ; or && instead, or wrap them in a runner script."}}\n' "$_loop_var"
-      exit 0
-      ;;
-  esac
+  if [[ "$cmd" =~ $_kw_pat ]] || [[ "$cmd" =~ $_sep_pat ]]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"for-loop invoking \"$%s\" as a command trips Claude Code'"'"'s tree-sitter parser. Chain invocations with ; or && instead, or wrap them in a runner script."}}\n' "$_loop_var"
+    exit 0
+  fi
 fi
 
 extract_segments "$cmd"

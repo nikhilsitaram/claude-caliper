@@ -436,6 +436,16 @@ else
   ((FAIL++)) || true
 fi
 
+echo "Test 27f: for-loop with multi-space \"do  \$f\" denied (whitespace robustness)"
+# shellcheck disable=SC2016
+OUT27F=$(run_deny 'for f in *.sh; do  "$f"; done')
+assert_output_contains_deny_with_reason "for-loop multi-space do denied" "$OUT27F" 'tree-sitter parser'
+
+echo "Test 27g: for-loop with pipe \"| \$f\" denied (separator coverage)"
+# shellcheck disable=SC2016
+OUT27G=$(run_deny 'for f in *.sh; do cat input | "$f"; done')
+assert_output_contains_deny_with_reason "for-loop pipe-to-direct-exec denied" "$OUT27G" 'tree-sitter parser'
+
 echo "Test 27: bash bin/validate-plan denied with guidance"
 OUT27=$(run_deny "bash bin/validate-plan --schema plan.json")
 assert_output_contains_deny_with_reason "bash + script denied" "$OUT27" "Do not use"
