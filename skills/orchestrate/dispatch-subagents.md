@@ -4,10 +4,14 @@ Parallel task execution via Agent tool dispatches with worktree isolation. No ex
 
 ## Dispatch Implementers
 
-For each task in the phase, check deps: `validate-plan --check-deps "$PLAN_JSON" --task {TASK_ID}`. Collect all tasks that pass. For each ready task, create a worktree and extract metadata (strip `status` — orchestrator state not needed by implementer):
+For each task in the phase, check deps: `validate-plan --check-deps "$PLAN_JSON" --task {TASK_ID}`. Collect all tasks that pass. For each ready task, create a worktree nested under the parent (feature or phase) worktree and extract metadata (strip `status` — orchestrator state not needed by implementer):
 
 ```bash
-git worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
+PARENT_WORKTREE="$(git rev-parse --show-toplevel)"
+MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+[[ "$PARENT_WORKTREE" == "$MAIN_ROOT" ]] && { echo "ERROR: orchestrator CWD is the main repo; dispatching from here creates sibling task worktrees that trigger silent permission denials in background subagents. cd into the feature or phase worktree before dispatching." >&2; exit 1; }
+git -C "$PARENT_WORKTREE" worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
+TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
 TASK_COMPLEXITY=$(echo "$TASK_METADATA" | jq -r '.complexity')
 REVIEWER_NEEDED=$(echo "$TASK_METADATA" | jq -r '.reviewer_needed')
@@ -90,3 +94,4 @@ When `REVIEWER_NEEDED` was `"false"`, skip step 1 — the skip verdict was alrea
 - No mailbox messaging — lead dispatches fix agents into the existing worktree
 - Worktrees are created by the orchestrator via `git worktree add` from the feature branch
 - Fix agents are dispatched into existing worktrees — the lead coordinates, implementers touch code
+- Task worktrees must nest **inside** the parent (feature or phase) worktree — anchor `git worktree add` with `git -C "$PARENT_WORKTREE"` so CWD drift never produces siblings under the main repo. Background subagents writing into a sibling worktree get silent permission denials because Claude Code scopes write permission to the parent session's project root, and they cannot answer the cross-directory prompt.
