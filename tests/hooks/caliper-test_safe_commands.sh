@@ -536,6 +536,12 @@ echo "Test 40d: Safe command produces no output from deny hook"
 OUT40D=$(run_deny "git status")
 assert_output_empty "safe command not denied" "$OUT40D"
 
+echo "Test 41b: [[ double-bracket conditional allowed (setup command pattern)"
+SAF41B="$TMPDIR_TEST/safe41b.txt"
+cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAF41B"
+OUT41B=$(run_allow 'MAIN_REPO="$(git worktree list --porcelain | head -1 | sed '"'"'s/^worktree //'"'"')" && BRANCH_NAME=$(git branch --show-current) && [[ "$BRANCH_NAME" == integrate/* ]] && echo "IS_INTEGRATION=true" || echo "IS_INTEGRATION=false"' "$SAF41B")
+assert_output_contains "[[ conditional in setup command allowed" "$OUT41B" '"behavior":"allow"'
+
 echo ""
 echo "$PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
