@@ -1410,9 +1410,11 @@ do_add_dep() {
   fi
   lock_plan "$plan_json"
   trap 'unlock_plan "'"$plan_json"'"' EXIT
-  local downstream_letter source_letter downstream_status
-  downstream_letter=$(jq -r --arg id "$downstream_id" '[.phases[] | select(.tasks[] | .id == $id)][0] | .letter // empty' "$plan_json")
-  source_letter=$(jq -r --arg id "$source_id" '[.phases[] | select(.tasks[] | .id == $id)][0] | .letter // empty' "$plan_json")
+  local downstream_letter source_letter downstream_status letters
+  letters=$(jq -r --arg did "$downstream_id" --arg sid "$source_id" '
+    "\(([.phases[] | select(.tasks[] | .id == $did)][0] | .letter // ""))|\(([.phases[] | select(.tasks[] | .id == $sid)][0] | .letter // ""))"
+  ' "$plan_json")
+  IFS='|' read -r downstream_letter source_letter <<< "$letters"
   if [[ -z "$downstream_letter" ]]; then
     unlock_plan "$plan_json"; trap - EXIT
     echo "ERROR: task_not_found: '$downstream_id'" >&2
@@ -1444,7 +1446,7 @@ do_add_dep() {
   jq --arg did "$downstream_id" --arg sid "$source_id" '
     (.phases[].tasks[] | select(.id == $did)) |= (.depends_on = ((.depends_on // []) + [$sid] | unique))
   ' "$plan_json" > "$tmp" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: jq update failed" >&2; exit 1; }
-  mv "$tmp" "$plan_json" || { unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
+  mv "$tmp" "$plan_json" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
   do_render "$plan_json"
   unlock_plan "$plan_json"
   trap - EXIT
@@ -1461,15 +1463,18 @@ do_check_handoffs() {
     echo "ERROR: phase_not_found: '$phase_letter'" >&2
     exit 1
   fi
-  local source_ids
-  source_ids=$(jq -r --arg letter "$phase_letter" '.phases[] | select(.letter == $letter) | .tasks[].id' "$plan_json" | tr '\n' '|')
-  local missing=()
-  local triple_list
-  triple_list=$(jq -r --arg letter "$phase_letter" '
-    .phases[] | select(.letter > $letter) | .letter as $tletter |
-    .tasks[] | .id as $tid |
-    (.depends_on // [])[] | "\($tid)|\(.)|\($tletter)"
+  local source_ids triple_list combined
+  combined=$(jq -r --arg letter "$phase_letter" '
+    "SOURCES:" + ([.phases[] | select(.letter == $letter) | .tasks[].id] | join("|")),
+    "TRIPLES",
+    (.phases[] | select(.letter > $letter) | .letter as $tletter |
+      .tasks[] | .id as $tid |
+      (.depends_on // [])[] | "\($tid)|\(.)|\($tletter)")
   ' "$plan_json")
+  source_ids=$(echo "$combined" | awk -F: '/^SOURCES:/{print $2; exit}')
+  source_ids="$source_ids|"
+  triple_list=$(echo "$combined" | awk '/^TRIPLES$/{found=1; next} found{print}')
+  local missing=()
   while IFS='|' read -r target_id source_id target_letter; do
     [[ -z "$target_id" ]] && continue
     case "|$source_ids" in
