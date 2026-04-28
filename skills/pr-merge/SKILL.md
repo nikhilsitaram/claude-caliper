@@ -24,6 +24,7 @@ If inside a worktree, note `IN_WORKTREE=true` and capture paths for cleanup:
 ```bash
 MAIN_REPO="$(git worktree list --porcelain | head -1 | sed 's/^worktree //')"
 WORKTREE_PATH="$(pwd)"
+CWD_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 ```
 
 Stay in the worktree — `gh pr merge` is a GitHub API call that works from any directory.
@@ -33,6 +34,7 @@ Identify the PR from argument, current branch (`gh pr view`), or `gh pr list --a
 Detect environment:
 - `DEFAULT_BRANCH` from `refs/remotes/origin/HEAD` (fallback: main/master)
 - `IS_INTEGRATION` — true when `$BRANCH_NAME` matches `integrate/*`; extract `FEATURE=${BRANCH_NAME#integrate/}`
+- `IS_INTEGRATION_CWD` — true when `$CWD_BRANCH` matches `integrate/*` (CWD is an integration worktree, regardless of which PR is being merged)
 
 ### Step 2: Merge
 
@@ -70,10 +72,12 @@ Never use `--delete-branch` — branch cleanup is handled in Step 3.
 5. `git worktree prune && git pull --rebase && git remote prune origin`
 
 **Standard worktree** (`IN_WORKTREE=true`):
-1. Call `ExitWorktree` with `action: "remove"` and `discard_changes: true` — the PR is already merged so local commits are safe to discard
-   - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH" --force`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
-2. `git branch -D $BRANCH_NAME`
-3. `git worktree prune && git pull --rebase && git remote prune origin`
+- If `IS_INTEGRATION_CWD=true`: the orchestrator is invoking pr-merge from the integration worktree for a phase PR — do NOT remove the integration worktree. Just delete the phase branch (`git branch -D $BRANCH_NAME`) and prune remotes (`git remote prune origin`). The orchestrator handles the integration worktree in Phase Wrap-Up step 7d/7e.
+- If `IS_INTEGRATION_CWD=false` (normal case, CWD branch matches PR branch):
+  1. Call `ExitWorktree` with `action: "remove"` and `discard_changes: true` — the PR is already merged so local commits are safe to discard
+     - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH" --force`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
+  2. `git branch -D $BRANCH_NAME`
+  3. `git worktree prune && git pull --rebase && git remote prune origin`
 
 **No worktree:** `git checkout $DEFAULT_BRANCH && git branch -D $BRANCH_NAME && git pull --rebase && git remote prune origin`
 
