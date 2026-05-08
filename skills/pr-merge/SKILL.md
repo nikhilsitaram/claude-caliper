@@ -63,10 +63,10 @@ Never use `--delete-branch` — branch cleanup is handled in Step 3.
 
 ### Step 3: Clean Up
 
-**Local branch deletion** uses a gh-verified pattern (`$B` is a placeholder for the call site's branch name — `$BRANCH_NAME`, `phase-a`, etc.):
+**Local branch deletion** uses a gh-verified pattern. `$B` is a placeholder for the call site's branch name (`$BRANCH_NAME`, `phase-a`, etc.); `$PR_REF` is whatever uniquely identifies the PR — prefer `$PR_NUMBER` (the just-merged PR from Step 1) when available, since branch-name resolution returns the most recent PR for that name and could match a stale historical PR for reused names like `phase-a`:
 
 ```bash
-state=$(gh pr view "$B" --json state -q .state 2>/dev/null)
+state=$(gh pr view "${PR_REF:-$B}" --json state -q .state 2>/dev/null)
 if [ "$state" = "MERGED" ]; then
   git update-ref -d "refs/heads/$B" || echo "ERROR: $B is MERGED but update-ref failed"
 else
@@ -76,10 +76,10 @@ fi
 
 GitHub is the source of truth that the PR actually merged; safer than `git branch -D`, which force-deletes regardless of merge state. (Squash-merged branches don't pass `git branch -d`'s local merge check, so the gh state replaces git's local check.) Capture skips and errors in the Step 4 Summary so the user knows their cleanup partially no-op'd. Remote branches are not deleted — rely on GitHub's auto-delete-on-merge setting or have the user delete manually.
 
-**Worktree removal** uses bare `git worktree remove "$PATH"` (no `--force`) — the PR has merged so the worktree should be clean. **This stop-on-failure rule applies to every `git worktree remove` call in this section:** if removal exits non-zero, the worktree has uncommitted/untracked content the user may want to keep — stop the cleanup chain, report the path, and let the user decide. Do NOT auto-retry with `--force`. **Sibling phase worktrees** (some may already be cleaned by earlier pr-merge runs) need an existence guard; the inner remove still follows the stop-on-failure rule:
+**Worktree removal** uses bare `git worktree remove "$PATH"` (no `--force`) — the PR has merged so the worktree should be clean. **This stop-on-failure rule applies to every `git worktree remove` call in this section:** if removal exits non-zero, the worktree has uncommitted/untracked content the user may want to keep — stop the cleanup chain, report the path, and let the user decide, since force-removal can destroy uncommitted or untracked work that may still be needed. **Sibling phase worktrees** (some may already be cleaned by earlier pr-merge runs) need an existence guard; the inner remove still propagates failure to the caller (the `if` block exits with the inner `worktree remove` exit code, so the orchestrator above sees non-zero and stops):
 
 ```bash
-if git worktree list --porcelain | grep -q "phase-X$"; then
+if git worktree list --porcelain | grep -q "^branch refs/heads/phase-X$"; then
   git worktree remove .claude/worktrees/$FEATURE-phase-X
 fi
 ```
