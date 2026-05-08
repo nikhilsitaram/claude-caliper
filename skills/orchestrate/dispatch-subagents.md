@@ -48,11 +48,36 @@ When a background agent completes (push notification — do not poll):
     git -C "$TASK_WORKTREE" log --oneline -3 --decorate
     git -C "$PARENT_WORKTREE" rev-parse HEAD
     ```
-    Parent HEAD must still equal `$PRE_TASK_SHA`. If it has advanced, the implementer committed to the parent branch instead. Correct before dispatching the reviewer:
+    Parent HEAD must still equal `$PRE_TASK_SHA`. If it has advanced, the implementer committed to the parent branch instead. Correct via a 3-stage recovery — capture, verify, rewind. **Each stage's exit code matters: stop and surface to the user if any stage fails.**
+
+    **Stage 1 — capture the rogue commit on the task branch.** FF-only fails loudly if `WRONG_HEAD` isn't a descendant of the task branch's tip (a more confused state than a single misplaced commit):
+
     ```bash
     WRONG_HEAD=$(git -C "$PARENT_WORKTREE" rev-parse HEAD)
-    git -C "$TASK_WORKTREE" reset --hard "$WRONG_HEAD"
-    git -C "$PARENT_WORKTREE" reset --hard "$PRE_TASK_SHA"
+    PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)
+    git -C "$TASK_WORKTREE" merge --ff-only "$WRONG_HEAD"
+    ```
+
+    If the `merge --ff-only` failed, **stop and surface to the user with `$WRONG_HEAD`, `$TASK_WORKTREE`, and `$PARENT_WORKTREE`** — do NOT proceed to Stage 2.
+
+    **Stage 2 — verify preconditions for the rewind.** All three checks must return exit code 0:
+
+    ```bash
+    [ "$(git -C "$TASK_WORKTREE" rev-parse HEAD)" = "$WRONG_HEAD" ]
+    [ "$(git -C "$PARENT_WORKTREE" worktree list --porcelain | grep -cFx "branch refs/heads/$PARENT_BRANCH")" -eq 1 ]
+    git -C "$PARENT_WORKTREE" diff --quiet && git -C "$PARENT_WORKTREE" diff --cached --quiet
+    ```
+
+    The first confirms task HEAD is exactly `$WRONG_HEAD` — Stage 1's FF-merge landed where expected. The second confirms `$PARENT_BRANCH` is checked out in exactly one worktree (we know it's `$PARENT_WORKTREE` from Stage 1's `PARENT_BRANCH=$(...)` derivation, so a count of 1 implies that one worktree) — Stage 3's final `switch` would fail if any other worktree had it checked out. `grep -Fx` matches the line literally (no regex meta-character interpretation in branch names like `feat/foo.bar`). The third confirms `$PARENT_WORKTREE` has no modified or staged files — Stage 3's `switch --detach` would fail if local changes blocked the working-tree update.
+
+    If any check failed, **stop and surface to the user** — do NOT proceed to Stage 3.
+
+    **Stage 3 — rewind parent via switch + atomic update-ref + switch.** No force flag (unlike `reset --hard`); the `<old-value>` arg to `update-ref` is an atomic compare-and-swap that fails loudly on TOCTOU:
+
+    ```bash
+    git -C "$PARENT_WORKTREE" switch --detach "$PRE_TASK_SHA"
+    git -C "$PARENT_WORKTREE" update-ref "refs/heads/$PARENT_BRANCH" "$PRE_TASK_SHA" "$WRONG_HEAD"
+    git -C "$PARENT_WORKTREE" switch "$PARENT_BRANCH"
     ```
 3. Check `REVIEWER_NEEDED`:
    - If `"false"`: record a skip in reviews.json (`"verdict":"skip","reason":"reviewer_needed: false"`) and proceed directly to step 2 of "After Review Passes" (skip step 1 — verdict already recorded). Skip steps 4-5.
