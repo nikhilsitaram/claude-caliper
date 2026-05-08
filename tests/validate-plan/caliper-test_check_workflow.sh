@@ -252,7 +252,7 @@ echo "Test 9a: branch resolved from CWD, not plan dir (PR #210)"
 CWD_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 GIT_PLAN_DIR=$(mktemp -d)
 git -C "$GIT_PLAN_DIR" init -b fix/my-feature >/dev/null 2>&1
-git -C "$GIT_PLAN_DIR" commit --allow-empty -m "init" >/dev/null 2>&1
+git -C "$GIT_PLAN_DIR" -c user.email="test@test.com" -c user.name="Test" commit --allow-empty -m "init" >/dev/null 2>&1
 write_single_phase_plan "pr-create" "Complete"
 cp "$TMPDIR/plan.json" "$GIT_PLAN_DIR/plan.json"
 printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$GIT_PLAN_DIR/reviews.json"
