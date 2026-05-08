@@ -63,23 +63,44 @@ Never use `--delete-branch` — branch cleanup is handled in Step 3.
 
 ### Step 3: Clean Up
 
+**Local branch deletion** uses a gh-verified pattern (`$B` is a placeholder for the call site's branch name — `$BRANCH_NAME`, `phase-a`, etc.):
+
+```bash
+state=$(gh pr view "$B" --json state -q .state 2>/dev/null)
+if [ "$state" = "MERGED" ]; then
+  git update-ref -d "refs/heads/$B" || echo "ERROR: $B is MERGED but update-ref failed"
+else
+  echo "Skipped $B (gh state: ${state:-unknown})"
+fi
+```
+
+GitHub is the source of truth that the PR actually merged; safer than `git branch -D`, which force-deletes regardless of merge state. (Squash-merged branches don't pass `git branch -d`'s local merge check, so the gh state replaces git's local check.) Capture skips and errors in the Step 4 Summary so the user knows their cleanup partially no-op'd. Remote branches are not deleted — rely on GitHub's auto-delete-on-merge setting or have the user delete manually.
+
+**Worktree removal** uses bare `git worktree remove "$PATH"` (no `--force`) — the PR has merged so the worktree should be clean. **This stop-on-failure rule applies to every `git worktree remove` call in this section:** if removal exits non-zero, the worktree has uncommitted/untracked content the user may want to keep — stop the cleanup chain, report the path, and let the user decide. Do NOT auto-retry with `--force`. **Sibling phase worktrees** (some may already be cleaned by earlier pr-merge runs) need an existence guard; the inner remove still follows the stop-on-failure rule:
+
+```bash
+if git worktree list --porcelain | grep -q "phase-X$"; then
+  git worktree remove .claude/worktrees/$FEATURE-phase-X
+fi
+```
+
 **Integration branch** (`IS_INTEGRATION=true`):
 1. If `IN_WORKTREE`: call `ExitWorktree` with `action: "remove"` and `discard_changes: true` — the PR is already merged so local commits are safe to discard
-   - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH" --force`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
-2. Remove remaining phase worktrees: `git worktree remove .claude/worktrees/$FEATURE-phase-*` for each
-3. Delete phase branches: `git branch -D phase-a phase-b ...` (list from plan.json)
-4. `git branch -D $BRANCH_NAME`
+   - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH"`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
+2. Remove remaining phase worktrees (apply the sibling existence guard from above for each `phase-X`)
+3. Delete phase branches (gh-verified): for each `phase-X` from plan.json, apply the pattern above
+4. Delete `$BRANCH_NAME` (gh-verified)
 5. `git worktree prune && git pull --rebase && git remote prune origin`
 
 **Standard worktree** (`IN_WORKTREE=true`):
-- If `IS_INTEGRATION_CWD=true`: the orchestrator is invoking pr-merge from the integration worktree for a phase PR — do NOT remove the integration worktree. Just delete the phase branch (`git branch -D $BRANCH_NAME`) and prune remotes (`git remote prune origin`). The orchestrator handles the integration worktree in Phase Wrap-Up step 7d/7e.
+- If `IS_INTEGRATION_CWD=true`: the orchestrator is invoking pr-merge from the integration worktree for a phase PR — do NOT remove the integration worktree. Just delete `$BRANCH_NAME` (gh-verified) and prune remotes (`git remote prune origin`). The orchestrator handles the integration worktree in Phase Wrap-Up step 7d/7e.
 - If `IS_INTEGRATION_CWD=false` (normal case, CWD branch matches PR branch):
   1. Call `ExitWorktree` with `action: "remove"` and `discard_changes: true` — the PR is already merged so local commits are safe to discard
-     - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH" --force`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
-  2. `git branch -D $BRANCH_NAME`
+     - If ExitWorktree is a no-op (cross-session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH"`, then prefix all subsequent commands with `cd "$MAIN_REPO" &&`
+  2. Delete `$BRANCH_NAME` (gh-verified)
   3. `git worktree prune && git pull --rebase && git remote prune origin`
 
-**No worktree:** `git checkout $DEFAULT_BRANCH && git branch -D $BRANCH_NAME && git pull --rebase && git remote prune origin`
+**No worktree:** `git checkout $DEFAULT_BRANCH && git pull --rebase && git remote prune origin`, then delete `$BRANCH_NAME` (gh-verified).
 
 ### Step 4: Summary
 

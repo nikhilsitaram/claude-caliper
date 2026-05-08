@@ -107,8 +107,8 @@ After all tasks complete and branches merged:
    a. Open the phase PR: if one already exists and is open (`gh pr list --head phase-<letter> --state open --json url --jq '.[0].url'`), reuse it; otherwise run `pr-create --base integrate/<feature>`.
    b. `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`
    c. If `$REVIEW_WAIT` == 0: invoke `pr-merge` directly. Else: poll `gh pr checks` then invoke `pr-review --automated-merge` (which invokes `pr-merge` on pass)
-   d. Return to the integration worktree (the orchestrate lead's primary CWD established at Setup) and fast-forward local integrate to the merged tip: `cd .claude/worktrees/<feature> && git fetch origin && git reset --hard origin/integrate/<feature>`
-   e. Remove phase worktree if it still exists (pr-merge typically removes it during cleanup; on resumption it may already be gone): `git worktree list --porcelain | grep -q "phase-<letter>$" && git worktree remove .claude/worktrees/<feature>-phase-<letter> --force || true`
+   d. Return to the integration worktree (the orchestrate lead's primary CWD established at Setup) and fast-forward local integrate to the merged tip: `cd .claude/worktrees/<feature> && git pull --ff-only origin integrate/<feature>` — `--ff-only` surfaces unexpected divergent commits instead of silently discarding them. If it fails, the local worktree has commits not on origin: stop the loop and surface to the user; do not auto-resolve.
+   e. Remove phase worktree if it still exists (pr-merge typically removes it during cleanup; on resumption it may already be gone): `if git worktree list --porcelain | grep -q "phase-<letter>$"; then git worktree remove .claude/worktrees/<feature>-phase-<letter>; fi` — no `--force`; missing worktree is silent-continue, but failure of `git worktree remove` itself (uncommitted content) stops the loop and surfaces to user.
    f. Continuity: only Rule 4 deviations stop the loop. Review feedback is auto-fixed by `pr-review --automated-merge`.
 
 ## Review Loop Protocol
