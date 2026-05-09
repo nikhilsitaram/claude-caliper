@@ -58,7 +58,7 @@ Skip if `--skip-review` passed or `caliper-settings get skip_review` returns `tr
 Read PR reviewer model: `caliper-settings get pr_reviewer_model` — substitute into `reviewer-prompt.md`'s `model:` field.
 
 Read `reviewer-prompt.md` and dispatch with `run_in_background: true`:
-- `{DIFF_RANGE}` = `origin/$BASE_BRANCH..HEAD`
+- `{DIFF_RANGE}` = `origin/$BASE_BRANCH...HEAD` (three-dot — merge-base diff, matches GitHub's PR view; two-dot includes phantom-reverts of base commits when the branch is behind)
 - `{REPO_PATH}` = repository root
 - `{PR_NUMBER}` = PR number
 
