@@ -40,10 +40,10 @@ Team mode without `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` set in the environmen
 Phase 1: Resolve scope → discover review units (top-level directories)
          |
          v
-Phase 2: Parallel scope reviews (one Explore subagent per directory)
+Phase 2: Parallel scope reviews (one claude-caliper:codebase-auditor subagent per directory)
          |
          v
-Phase 3: Cross-scope reconciliation (one Explore subagent, sees all findings)
+Phase 3: Cross-scope reconciliation (one claude-caliper:codebase-auditor subagent, sees all findings)
          |
          v
 Phase 4: Aggregate + route (write report, create issues, or hand off to draft-plan)
@@ -134,7 +134,7 @@ Summary: X findings (N Critical, N High, N Medium, N Low) | Y deferred → GH is
 | File | Purpose |
 |------|---------|
 | `SKILL.md` | Skill trigger and execution instructions |
-| `agents/codebase-auditor.md` | Plugin-root agent definition for `claude-caliper:codebase-auditor` — centralizes review categories, severity, output format, and quality bar |
-| `agents/cross-scope-reviewer.md` | Cross-directory reconciliation reviewer instructions |
-| `agents/reviewer.md` | Per-directory scope reviewer instructions |
+| `agents/codebase-auditor.md` (plugin root) | Plugin-root agent definition for `claude-caliper:codebase-auditor` — centralizes review categories, severity, output format, and quality bar |
+| `skills/codebase-review/agents/cross-scope-reviewer.md` | Cross-directory reconciliation dispatch prompt (single mode Phase 3) |
+| `skills/codebase-review/agents/reviewer.md` | Per-directory scope dispatch prompt (single mode Phase 2) |
 | `skills/codebase-review/agents/team-reviewer.md` | Team-mode dispatch prompt — Phase 1 + Phase 2 + dispute protocol |

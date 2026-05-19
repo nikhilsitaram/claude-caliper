@@ -19,10 +19,10 @@ Periodic whole-repo audits catch issues that per-task reviews miss — cross-mod
 Two modes exist: `single` (per-directory parallel review + cross-scope reconciliation) and `team` (3 parallel full-codebase reviewers + peer cross-verification + lead synthesis with confidence tiers). Run the helper in one Bash tool call, interpolating the user's raw arguments directly into the command string (NOT via `"$@"`, which is empty in a fresh Bash tool shell):
 
 ```bash
-bash skills/codebase-review/mode-detect.sh <user-args>
+./skills/codebase-review/mode-detect.sh <user-args>
 ```
 
-Examples: `/codebase-review` → `bash skills/codebase-review/mode-detect.sh`; `/codebase-review --mode=team` → `bash skills/codebase-review/mode-detect.sh --mode=team`; `/codebase-review path/to/dir --mode=single` → `bash skills/codebase-review/mode-detect.sh path/to/dir --mode=single`.
+Examples: `/codebase-review` → `./skills/codebase-review/mode-detect.sh`; `/codebase-review --mode=team` → `./skills/codebase-review/mode-detect.sh --mode=team`; `/codebase-review path/to/dir --mode=single` → `./skills/codebase-review/mode-detect.sh path/to/dir --mode=single`.
 
 Parse stdout — each line is `KEY=value`:
 
@@ -101,7 +101,7 @@ Agent({
   description: "Team-mode reviewer 1 of 3",
   prompt: <contents of skills/codebase-review/agents/team-reviewer.md, with parameters
            REVIEWER_NUMBER=1, ARTIFACT_DIR=<value>, SCOPE_PATH=<value>,
-           ESCALATION_FILE=<value>, PHASE=1>
+           ESCALATION_FILE=<value>>
 })
 ```
 
@@ -220,7 +220,7 @@ Summary: X findings (N Critical, N High, N Medium, N Low) | Y deferred → GH is
 
 ## Categories
 
-**See:** agents/reviewer.md
+**See:** ../../agents/codebase-auditor.md (plugin-root agent definition — single source of truth for categories and severity)
 
 - **DRY** — duplicated logic, repeated constants
 - **YAGNI** — unused code, dead paths, speculative features
