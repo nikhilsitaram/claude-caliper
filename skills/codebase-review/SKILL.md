@@ -16,13 +16,13 @@ Periodic whole-repo audits catch issues that per-task reviews miss — cross-mod
 
 ## Mode Detection
 
-Two modes exist: `single` (per-directory parallel review + cross-scope reconciliation) and `team` (3 parallel full-codebase reviewers + peer cross-verification + lead synthesis with confidence tiers). Run the helper in one Bash tool call, interpolating the user's raw arguments directly into the command string (NOT via `"$@"`, which is empty in a fresh Bash tool shell):
+Two modes exist: `single` (per-directory parallel review + cross-scope reconciliation) and `team` (3 parallel full-codebase reviewers + peer cross-verification + lead synthesis with confidence tiers). Parse the user's slash-command arguments into structured tokens before invoking the helper — do NOT interpolate raw user input into the shell command, which would be a command-injection risk for inputs containing `;`, `&&`, `|`, or backticks. Procedure:
 
-```bash
-./skills/codebase-review/mode-detect.sh <user-args>
-```
+1. Identify the optional positional path argument and the optional `--mode=<value>` flag in the user's invocation.
+2. Reject any `--mode` value other than `single` or `team` before invoking the helper (the helper also rejects, but early rejection keeps the shell call clean).
+3. Invoke the helper with each parsed token wrapped in single quotes. Bash single quotes preserve literal characters with no expansion. If a token contains a literal single quote, escape it as `'\''` within its single-quoted wrapper.
 
-Examples: `/codebase-review` → `./skills/codebase-review/mode-detect.sh`; `/codebase-review --mode=team` → `./skills/codebase-review/mode-detect.sh --mode=team`; `/codebase-review path/to/dir --mode=single` → `./skills/codebase-review/mode-detect.sh path/to/dir --mode=single`.
+Examples: `/codebase-review` → `./skills/codebase-review/mode-detect.sh`; `/codebase-review --mode=team` → `./skills/codebase-review/mode-detect.sh '--mode=team'`; `/codebase-review path/to/dir --mode=single` → `./skills/codebase-review/mode-detect.sh 'path/to/dir' '--mode=single'`.
 
 Parse stdout — each line is `KEY=value`:
 
@@ -32,7 +32,7 @@ Parse stdout — each line is `KEY=value`:
   - **Team (3-reviewer cross-verification)** — `Three independent full-codebase reviewers + peer cross-verification + lead synthesis with confidence tiers. ~3x token cost vs single, similar wall-clock. Surfaces findings any single reviewer would miss. Requires CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (downgrades to single if not set).`
 
   Neither option is marked Recommended. Substitute the user's choice for `MODE` and continue.
-- `SCOPE_PATH=<value>` — carry forward as the scope for Phase 1.
+- `SCOPE_PATH=<value>` — carry forward as the scope for Phase 1 (the helper resolves to an absolute path when one exists on disk, so team-mode reviewers in their own worktrees can read the same scope).
 
 If the helper exit code is non-zero, the user passed an invalid `--mode` value: surface the helper's stderr (which names the valid values) and stop.
 
@@ -73,12 +73,16 @@ Runs 3 independent full-codebase Opus reviewers in parallel, a peer cross-verifi
 Compute these absolute paths and create the artifact directory:
 
 ```bash
-MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||')"
+if [ -z "$MAIN_ROOT" ]; then
+  echo "ERROR: codebase-review team mode must be run inside a git repository (MAIN_ROOT could not be resolved)." >&2
+  exit 1
+fi
 REVIEW_ID="$(date -u +%Y%m%d-%H%M%S)"
 ARTIFACT_DIR="$MAIN_ROOT/.claude/claude-caliper/codebase-review/$REVIEW_ID"
 TEAM_NAME="cbr-$REVIEW_ID"
 ESCALATION_FILE="$ARTIFACT_DIR/escalations.md"
-mkdir -p "$ARTIFACT_DIR"
+mkdir -p "$ARTIFACT_DIR" "$MAIN_ROOT/docs/reviews"
 ```
 
 `MAIN_ROOT` uses `--git-common-dir` because in a worktree, `--show-toplevel` returns the worktree, not the main repo. Artifacts must live in the main repo root so they survive worktree cleanup (per project `CLAUDE.md`).
@@ -188,8 +192,10 @@ Send `SendMessage({to: "cbr-rev-N", message: {type: "shutdown_request"}})` to ea
 
 ## Phase 4 — Aggregate & Route
 
-1. Read findings from the master doc's `Findings by Severity` table, deduplicate, rank by severity (Tier is informational and does not affect ranking)
-2. Write report to `docs/reviews/YYYY-MM-DD-codebase-review.md` (single mode only — team mode wrote the master doc during lead synthesis above)
+1. Acquire findings, deduplicate, and rank by severity (Tier is informational and does not affect ranking):
+   - **Single mode:** collect findings from Phase 2's per-directory subagent returns and Phase 3's cross-scope reconciliation result.
+   - **Team mode:** the master doc at `docs/reviews/YYYY-MM-DD-codebase-review.md` was already written during lead synthesis above; read the `Findings by Severity` table from it.
+2. Write report to `docs/reviews/YYYY-MM-DD-codebase-review.md` (single mode only — team mode already wrote it during lead synthesis).
 3. Group findings by overlapping file sets — findings that touch the same files belong in the same plan or issue
 4. Route by fix complexity:
 
@@ -220,10 +226,10 @@ Summary: X findings (N Critical, N High, N Medium, N Low) | Y deferred → GH is
 
 ## Categories
 
-**See:** ../../agents/codebase-auditor.md (plugin-root agent definition — single source of truth for categories and severity)
-
 - **DRY** — duplicated logic, repeated constants
 - **YAGNI** — unused code, dead paths, speculative features
 - **Simplicity & Efficiency** — over-abstraction, unnecessary indirection
 - **Refactoring Opportunities** — SRP violations, God objects, deep nesting
 - **Consistency** — naming drift, style divergence
+
+Full category definitions, severity rubric, and output Finding template live in the `claude-caliper:codebase-auditor` agent's system prompt — that agent is dispatched in both modes.

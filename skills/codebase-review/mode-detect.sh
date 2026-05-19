@@ -51,6 +51,10 @@ if [[ "$mode_seen" -eq 1 ]]; then
   case "$mode" in
     single|team)
       ;;
+    "")
+      echo "ERROR: --mode requires a value (single or team)." >&2
+      exit 1
+      ;;
     *)
       echo "ERROR: invalid --mode value '$mode'. Valid values: single, team." >&2
       exit 1
@@ -65,6 +69,14 @@ if [[ -z "$scope_path" ]]; then
   else
     scope_path="."
   fi
+fi
+
+# Resolve to absolute path so team-mode reviewers (spawned in their own worktrees
+# with different CWDs) can read the same scope. Falls back to the original value
+# if the path doesn't exist on disk — caller will surface a clearer error than
+# `realpath: No such file or directory`.
+if [[ -e "$scope_path" ]]; then
+  scope_path="$(cd "$scope_path" && pwd -P)"
 fi
 
 # Resolve MODE

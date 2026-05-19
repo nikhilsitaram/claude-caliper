@@ -2,7 +2,7 @@
 name: codebase-auditor
 description: Read-only auditor that scans source code for DRY, YAGNI, simplicity, refactoring, and consistency issues with severity-tagged findings
 model: inherit
-tools: [Read, Grep, Glob, Bash, Write]
+tools: [Read, Grep, Glob, Write]
 memory: none
 effort: medium
 background: true
