@@ -1,6 +1,7 @@
 ---
 name: design-reviewer
 description: Reviews a design doc before planning begins
+color: blue
 model: inherit
 tools: [Read, Grep, Glob, Bash]
 memory: project

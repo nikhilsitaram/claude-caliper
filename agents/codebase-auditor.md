@@ -1,6 +1,7 @@
 ---
 name: codebase-auditor
 description: Read-only auditor that scans source code for DRY, YAGNI, simplicity, refactoring, and consistency issues with severity-tagged findings
+color: orange
 model: inherit
 tools: [Read, Grep, Glob, Write]
 memory: none

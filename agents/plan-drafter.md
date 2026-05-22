@@ -1,6 +1,7 @@
 ---
 name: plan-drafter
 description: Writes implementation plans from design docs with structured plan.json and task files
+color: cyan
 model: inherit
 tools: [Read, Grep, Glob, Bash, Write, Edit]
 memory: project

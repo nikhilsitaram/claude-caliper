@@ -60,6 +60,8 @@ This repo uses its own skills. The typical flow: design -> worktree -> draft-pla
 
 Orchestrate supports two execution modes: subagents (parallel Agent tool dispatches) and agent teams (parallel teammates). The design skill recommends a mode based on plan complexity. Agent teams requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
 
+In agent-teams mode, multi-phase plans branch phase worktrees off the integration worktree's HEAD (so phase B sees phase A's merged work). For this to work, set `worktree.baseRef: "head"` in `~/.claude/settings.json` — the default `"fresh"` branches new worktrees from `origin/<default>`, which skips locally-merged phases.
+
 ## Markdown
 
 - Always add a language label to fenced code blocks (MD040) — CodeRabbit flags this on every PR
