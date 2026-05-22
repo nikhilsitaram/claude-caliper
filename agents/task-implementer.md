@@ -1,9 +1,10 @@
 ---
 name: task-implementer
 description: Implements a single task from an implementation plan using TDD
+color: green
 model: inherit
 tools: [Read, Grep, Glob, Bash, Write, Edit]
-memory: none
+memory: project
 effort: high
 background: true
 ---

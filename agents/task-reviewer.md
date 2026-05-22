@@ -1,6 +1,7 @@
 ---
 name: task-reviewer
 description: Reviews a single task's implementation against its spec
+color: yellow
 model: inherit
 tools: [Read, Grep, Glob, Bash]
 memory: none

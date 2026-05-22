@@ -1,6 +1,7 @@
 ---
 name: plan-reviewer
 description: Reviews an implementation plan before execution begins
+color: purple
 model: inherit
 tools: [Read, Grep, Glob, Bash]
 memory: project

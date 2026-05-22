@@ -1,6 +1,7 @@
 ---
 name: implementation-reviewer
 description: Reviews an entire feature implementation for cross-task issues
+color: pink
 model: inherit
 tools: [Read, Grep, Glob, Bash]
 memory: project
