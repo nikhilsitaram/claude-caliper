@@ -148,7 +148,7 @@ File paths and structural code snippets can appear in both — the design descri
 
 ## Writing Guidance
 
-**Target length:** ~1,500 words. Design docs longer than 2,000 words are usually carrying plan-level detail that should be removed, or architecture prose that should be moved to a table.
+**Length:** Design docs longer than 3,000 words are usually carrying plan-level detail that should be removed, or architecture prose that should be moved to a table.
 
 **Use explicit structure over prose.** The plan-drafter reads literally. Headers, bullet points, and tables are parsed more reliably than paragraphs. Avoid "as mentioned above" — the plan-drafter may not have that context anchored.
 
