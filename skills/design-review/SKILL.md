@@ -51,6 +51,7 @@ Reviewer produces:
 **Re-review gate (design-review):** The design skill controls the review loop with these rules:
 - **Batch-fix discipline:** All issues from a review are triaged (fix or dismiss with reasoning) in one pass before re-dispatching
 - **Delta context (iter ≥2):** Follow-up reviewers receive the prior iteration's issues with resolution status, enabling verify-then-scan instead of full re-discovery
+- **Model step-down (iter ≥3):** When `design_reviewer_model` is `opus`, re-dispatches at iter ≥ 3 use `sonnet` instead — verification-heavy passes don't justify the opus cost
 - **Severity-gated termination (after iter 3):** Remaining `low` and `medium` issues are auto-dismissed; only `high` and `critical` issues block planning past iteration 3
 
 Note: Plan-review uses a separate gate — `caliper-settings get re_review_threshold`. That gate is unchanged.

@@ -129,12 +129,18 @@ After each reviewer dispatch, extract the `json review-summary` block from the r
    - `resolution`: `"fixed"` or `"dismissed"`
    - `dismissal_reason`: present only when dismissed
 
+   **Model step-down for iter ≥ 3:** Re-reviews past iter 2 are verification-heavy (did the prior issues get fixed?) rather than discovery-heavy, and don't justify the opus cost. When `ITER ≥ 3` and `DESIGN_REVIEWER_MODEL` is `opus`, use `sonnet` for the re-dispatch instead. Resolve with:
+
+   ```bash
+   if [ "$ITER" -ge 3 ] && [ "$DESIGN_REVIEWER_MODEL" = "opus" ]; then ITER_MODEL=sonnet; else ITER_MODEL="$DESIGN_REVIEWER_MODEL"; fi
+   ```
+
    Dispatch with `## Prior Issues` appended after the "Codebase root" line:
 
    ```text
    Agent(
      subagent_type: "claude-caliper:design-reviewer",
-     model: "$DESIGN_REVIEWER_MODEL",
+     model: "$ITER_MODEL",
      prompt: "Review the design doc at $PLAN_DIR/design-<topic>.md
 
        Codebase root: $WORKTREE
