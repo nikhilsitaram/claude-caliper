@@ -69,7 +69,7 @@
     "type": "enum",
     "values": ["opus", "sonnet", "haiku"],
     "default": "opus",
-    "description": "Model for design review",
+    "description": "Model for design review (iter 1–2). When set to opus, re-dispatches at iter ≥ 3 step down to sonnet automatically — verification passes don't justify opus cost.",
     "used_by": ["design", "design-review"]
   },
   "plan_reviewer_model": {
