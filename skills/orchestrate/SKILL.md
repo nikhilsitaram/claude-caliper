@@ -118,7 +118,7 @@ Read the re-review threshold: `RE_REVIEW_THRESHOLD=$(caliper-settings get re_rev
 After each impl-review dispatch:
 
 1. Extract last `json review-summary` fenced block from response. Missing/malformed -> verdict:fail, re-dispatch.
-2. Triage issues: "fix" (dispatch implementer) or "dismiss" (with reasoning)
+2. Triage issues: "fix" (dispatch implementer) or "dismiss" (with reasoning). **Issues with `non_dismissible: true` must take the 'fix' branch** — dismissing them invalidates the review record and triggers re-dispatch. This rule exists to prevent the dismissal pattern from gh issue #243 (impl-review #1 there dismissed a "kv_launcher↔kv_fetch boundary test missing" finding as low-severity; the seam then leaked 22+ commits of contract-drift bugs).
 3. actionable == 0 -> write reviews.json record with verdict:pass, advance
 4. actionable 1-$RE_REVIEW_THRESHOLD -> fix all, verify, write record verdict:pass, advance
 5. actionable > $RE_REVIEW_THRESHOLD -> fix all, write record verdict:fail, re-dispatch (max 3 iterations, then escalate via AskUserQuestion)

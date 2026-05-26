@@ -78,11 +78,12 @@ Complete in order:
    - Success criteria are behavioral outcomes, not implementation details ("users can log in" not "tests pass" or "middleware installed")
    - Non-goals each include a brief rationale for why they're excluded
    - Every file mentioned in the implementation approach is covered in the architecture section (and vice versa)
+   - Test Strategy names a non-mocking integration test for every cross-module data flow (or explicitly notes "no cross-module seam" for single-module designs)
    - Test impact is noted for every behavior change
    - Migration/operational steps are captured if the change touches data or config
 
    Run `validate-design --check <path>` and fix any errors before proceeding to self-review.
-9. **Self-review pass** — before dispatching the external reviewer, read through the design doc yourself against the 8-point checklist in `agents/design-reviewer.md`. Fix any issues you find. Goal: catch obvious gaps so the external reviewer surfaces only non-obvious ones. This is an inline check, not a subagent dispatch — no output format required, just fix what you find.
+9. **Self-review pass** — before dispatching the external reviewer, read through the design doc yourself against the 9-point checklist in `agents/design-reviewer.md`. Fix any issues you find. Goal: catch obvious gaps so the external reviewer surfaces only non-obvious ones. This is an inline check, not a subagent dispatch — no output format required, just fix what you find.
 10. **Dispatch design-review subagent** — fresh reviewer agent validates design before planning (hard gate)
 11. **Dispatch draft-plan subagent** — fresh implementer agent with design doc path and worktree path (zero design context)
 12. **Route workflow** — Map step 7 choices to schema values:
@@ -221,4 +222,4 @@ Use AskUserQuestion with "Looks good" / "Adjust phases" options.
 
 **See:** ./design-spec.md
 
-That file is the authoritative format definition. Required sections in order: Problem, Goal, Success Criteria, Architecture, Key Decisions, Non-Goals, Implementation Approach, Scope Estimate.
+That file is the authoritative format definition. Required sections in order: Problem, Goal, Success Criteria, Architecture, Test Strategy, Key Decisions, Non-Goals, Implementation Approach, Scope Estimate.

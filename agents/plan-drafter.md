@@ -25,3 +25,5 @@ Use `{PLAN_DIR}` in place of `$PLAN_DIR` references from the SKILL.md.
 ## Quality Bar
 
 Plan-review downstream is a gate, not an editing pass. Complete the Self-Review Gate step in SKILL.md before handoff — re-read every task file and fix Different Claude Test violations, unmeasurable `done_when`, vague steps, missing "why" in avoid sections, and artifact drift. If the reviewer has to apply more than one fix, the drafter did not do its job.
+
+This includes the cross-task seam coverage check from plan-review §8 — name the integration test up front and tie it to a seam from the design's Test Strategy section. Don't let it become a follow-up; seam tests added after the plan ships tend to inherit the same mocking pattern the per-task tests use.

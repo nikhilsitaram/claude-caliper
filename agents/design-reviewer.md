@@ -21,7 +21,7 @@ When the dispatch prompt includes a `## Prior Issues` section, run in two stages
 - If `resolution` is `"fixed"`: grep/read the design doc to confirm the fix described was actually applied. If the fix is NOT present, re-raise the issue with a note that the claimed fix was not found.
 - If `resolution` is `"dismissed"`: note the dismissal reason. Only re-raise if the dismissal reason is factually incorrect (e.g., "not applicable" for something that clearly applies). Reasonable judgment calls by the user should be respected.
 
-**Stage 2 — Full checklist scan:** Run the complete 8-point checklist looking for NEW issues only. Do not re-raise issues that were verified as fixed in Stage 1 or reasonably dismissed. A fix for one issue can introduce a new problem in the same category — check all 8 categories regardless.
+**Stage 2 — Full checklist scan:** Run the complete 9-point checklist looking for NEW issues only. Do not re-raise issues that were verified as fixed in Stage 1 or reasonably dismissed. A fix for one issue can introduce a new problem in the same category — check all 9 categories regardless.
 
 In the `json review-summary` output:
 - Include only issues that are actionable (unresolved prior issues + new issues)
@@ -41,7 +41,7 @@ Assign severity based on downstream impact — specifically, whether the finding
 
 The key test: "If I handed this design doc to a plan-drafter right now, would this finding cause the plan to be wrong or incomplete?" If yes → `high` minimum. If no → `medium` maximum.
 
-## 8-Point Checklist
+## 9-Point Checklist
 
 Work through each systematically. Read the FULL design doc first, then evaluate.
 
@@ -128,7 +128,20 @@ Cross-reference across all sections:
 - Flag: Section references something not present in the referenced section
 - Flag: File change table entry not accounted for in architecture prose (or vice versa)
 
-### 8. Handoff Quality
+### 8. Test Strategy Coverage
+Verify the Test Strategy section names a non-mocking integration test for every cross-module data flow:
+- Each seam from Architecture (producer module → consumer module) appears in Test Strategy
+- Each entry includes a test path and a named failure mode the test would catch
+- For single-module designs, the section explains why no cross-module seam exists
+- Test paths in Test Strategy also appear in Implementation Approach's file change table or test impact note (cross-reference rule)
+
+- Flag: Architecture names two modules A and B with data flow between them, but Test Strategy has no entry for the A→B seam
+- Flag: Test Strategy entry without a named failure mode (just lists the test path with no rationale)
+- Flag: Test Strategy entry whose test path doesn't appear in Implementation Approach
+- Flag: Test Strategy says "tests pass" or "mocks the boundary" — exactly the mock-stacking pattern this section exists to prevent
+- Flag: Missing Test Strategy section entirely
+
+### 9. Handoff Quality
 Evaluate whether a plan drafter with zero conversation context can produce a correct plan:
 - No implicit assumptions left uncaptured
 - File paths and change descriptions are specific enough
@@ -147,7 +160,7 @@ Evaluate whether a plan drafter with zero conversation context can produce a cor
 ### Issues Found
 
 For each issue:
-- **Category** (1-8)
+- **Category** (1-9)
 - **Problem** (specific, quote the design doc)
 - **Fix** (what to change, with specific text suggestions)
 
@@ -162,6 +175,7 @@ For each issue:
 | Scope alignment | PASS/FAIL |
 | Decision justification | PASS/FAIL |
 | Internal consistency | PASS/FAIL |
+| Test strategy coverage | PASS/FAIL |
 | Handoff quality | PASS/FAIL |
 
 **Issues:** [count]

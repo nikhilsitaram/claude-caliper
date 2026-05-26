@@ -17,6 +17,10 @@ Provide a valid design doc fixture for validate-design tests.
 
 The feature adds `src/handler.ts` for request handling and `src/validator.ts` for input validation. These components connect via a pipeline pattern.
 
+## Test Strategy
+
+The handler → validator seam is exercised by `tests/handler.test.ts::pipeline_calls_real_validator`, which posts a request to the real handler and asserts the validator's reject path runs without mocks. Failure mode caught: validator signature drift between handler call site and validator implementation.
+
 ## Key Decisions
 
 - **Use TypeScript over JavaScript.** Gained: type safety. Given up: build step complexity. Rejected: plain JS — too error-prone for validation logic.

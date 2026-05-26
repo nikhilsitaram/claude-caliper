@@ -25,7 +25,7 @@ Where `$MAIN_ROOT` is the main repo root (resolved from `git rev-parse --git-com
 
 ## Required Sections
 
-All 8 sections are required, in this order. No section may be empty.
+All 9 sections are required, in this order. No section may be empty.
 
 ### 1. `## Problem`
 
@@ -70,7 +70,21 @@ All 8 sections are required, in this order. No section may be empty.
 
 ---
 
-### 5. `## Key Decisions`
+### 5. `## Test Strategy`
+
+**What to include:** For every cross-module data flow named in `## Architecture` (producer module → consumer module), name a single test that exercises the flow **without mocking at the seam under test**. If the test does not yet exist, name where it will live (file path) and one specific failure mode it would catch that a mock-everything test would not.
+
+**Required form per seam:** producer → consumer → test path → named failure mode. Example: `kv_launcher → kv_fetch → tests/test_kv_integration.py::test_launcher_invokes_real_fetch → "env-var prefix drift between launcher emission and fetch consumption"`.
+
+**Single-module designs:** Write a brief note explaining why no cross-module seam exists (e.g., "single-file change to validate-design — no cross-module data flow").
+
+**Cross-reference rule:** Every test path listed here must also appear in `## Implementation Approach`'s file change table or test impact note. Test Strategy is the contract; Implementation Approach is how the contract gets built.
+
+**Why this matters:** Per-task TDD locks in module boundaries — each implementer's tests mock the next module, and once landed, those mocks are the only thing exercising the seam. Naming the non-mocking test up front prevents the mock-stacking pattern: every test passes against the same mock, while the real boundary stays untested. See gh issue #243 for the original incident.
+
+---
+
+### 6. `## Key Decisions`
 
 **What to include:** The significant trade-off decisions made during design. For each decision: what was chosen, what was gained, what was given up, and what alternatives were considered with their rejection reasons.
 
@@ -83,7 +97,7 @@ All 8 sections are required, in this order. No section may be empty.
 
 ---
 
-### 6. `## Non-Goals`
+### 7. `## Non-Goals`
 
 **What to include:** Explicit boundaries — things that are plausibly in scope given the Problem but are intentionally excluded.
 
@@ -93,7 +107,7 @@ All 8 sections are required, in this order. No section may be empty.
 
 ---
 
-### 7. `## Implementation Approach`
+### 8. `## Implementation Approach`
 
 **What to include:** How the solution gets built — file paths, change descriptions, test impact, and any migration or operational steps.
 
@@ -106,7 +120,7 @@ All 8 sections are required, in this order. No section may be empty.
 
 ---
 
-### 8. `## Scope Estimate`
+### 9. `## Scope Estimate`
 
 **What to include:** How big is this work? Enough information for the user to decide whether to proceed and how to execute it.
 
@@ -121,11 +135,13 @@ All 8 sections are required, in this order. No section may be empty.
 
 ## Cross-Reference Rules
 
-These two rules prevent the most common handoff failure:
+These three rules prevent the most common handoff failure:
 
 1. **Architecture ↔ Implementation Approach:** Every file path that appears in `## Architecture` must appear in `## Implementation Approach`, and every file path in `## Implementation Approach` must appear in `## Architecture`. The `validate-design` script enforces this mechanically.
 
 2. **Non-Goals ↔ Success Criteria:** A non-goal must not contradict or exclude something that a success criterion requires. If a success criterion says "users can export to CSV" and a non-goal says "no CSV export," the design is internally inconsistent.
+
+3. **Test Strategy ↔ Implementation Approach:** Every test path named in `## Test Strategy` must appear in `## Implementation Approach`'s file change table or test impact note. A seam declared in Test Strategy without a corresponding test artifact in Implementation Approach means the contract has nowhere to land.
 
 ---
 

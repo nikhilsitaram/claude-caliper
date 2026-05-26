@@ -27,7 +27,7 @@ Dispatch with `model: "$DESIGN_REVIEWER_MODEL"` — review requires strong reaso
 
 Use `subagent_type: "claude-caliper:design-reviewer"`. **See:** reviewer-prompt.md for invocation template.
 
-## 8-Point Checklist
+## 9-Point Checklist
 
 1. **Problem Clarity** — specific problem, who is affected, consequences of not solving
 2. **Success Criteria Quality** — human-verifiable, implementation-independent, collectively complete, individually necessary
@@ -36,7 +36,8 @@ Use `subagent_type: "claude-caliper:design-reviewer"`. **See:** reviewer-prompt.
 5. **Scope Alignment** — solves stated problem and not more, non-goals correctly scoped
 6. **Decision Justification** — key decisions include trade-off analysis
 7. **Internal Consistency** — names, paths, concepts consistent across sections
-8. **Handoff Quality** — plan drafter with zero context can produce correct plan from doc alone
+8. **Test Strategy Coverage** — Test Strategy section names a non-mocking integration test for every cross-module data flow, or explains why none exists
+9. **Handoff Quality** — plan drafter with zero context can produce correct plan from doc alone
 
 ## Output
 
