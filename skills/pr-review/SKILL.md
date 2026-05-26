@@ -61,6 +61,7 @@ Read `reviewer-prompt.md` and dispatch with `run_in_background: true`:
 - `{DIFF_RANGE}` = `origin/$BASE_BRANCH...HEAD` (three-dot — merge-base diff, matches GitHub's PR view; two-dot includes phantom-reverts of base commits when the branch is behind)
 - `{REPO_PATH}` = repository root
 - `{PR_NUMBER}` = PR number
+- `{HEAD_SHA}` = `git rev-parse HEAD` — anchors the review to the exact commit the subagent saw, so line numbers stay valid even if anything pushes during the background window
 
 Subagent posts findings as inline review comments via the GitHub reviews API, then returns the Findings table for Step 6.
 

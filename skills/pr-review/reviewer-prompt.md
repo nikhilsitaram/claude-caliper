@@ -59,6 +59,7 @@ Agent tool (general-purpose):
     column-0 heredoc):
 
     {
+      "commit_id": "{HEAD_SHA}",
       "event": "COMMENT",
       "body": "<Summary section: counts, severity, recommendation>",
       "comments": [
@@ -73,10 +74,10 @@ Agent tool (general-purpose):
       --method POST --input <path-to-json>
 
     The `{owner}` and `{repo}` placeholders are filled by gh from the
-    current repo, so run from {REPO_PATH}. Omitting `commit_id` anchors
-    the review to the PR's most recent commit, which is correct because
-    pr-review rebased and force-pushed just before dispatching this
-    review.
+    current repo, so run from {REPO_PATH}. `commit_id` is pinned to the
+    SHA pr-review captured when dispatching this review, so the line
+    numbers in your comments stay valid even if a wave-1 fix pushes
+    while you're running.
 
     Inline-comment rules:
     - `path` is repo-root-relative (matches the diff header)
