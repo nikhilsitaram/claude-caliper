@@ -141,7 +141,7 @@ These three rules prevent the most common handoff failure:
 
 2. **Non-Goals ↔ Success Criteria:** A non-goal must not contradict or exclude something that a success criterion requires. If a success criterion says "users can export to CSV" and a non-goal says "no CSV export," the design is internally inconsistent.
 
-3. **Test Strategy ↔ Implementation Approach:** Every test path named in `## Test Strategy` must appear in `## Implementation Approach`'s file change table or test impact note. A seam declared in Test Strategy without a corresponding test artifact in Implementation Approach means the contract has nowhere to land.
+3. **Test Strategy ↔ Implementation Approach:** Every test path named in `## Test Strategy` must appear in `## Implementation Approach`'s file change table or test impact note. A seam declared in Test Strategy without a corresponding test artifact in Implementation Approach means the contract has nowhere to land. The `validate-design` script enforces this mechanically.
 
 ---
 
@@ -174,4 +174,4 @@ File paths and structural code snippets can appear in both — the design descri
 
 **Success criteria calibration:** Write each criterion as a sentence starting with "A user can..." or "The system..." and test it against: "Can a person verify this without reading code?" If the answer is no, rewrite it.
 
-**Architecture prose should describe structure, not mechanism.** "The validator reads the design doc, extracts H2 headings with grep, and returns a list of missing sections" is plan-level. "The validator checks that all 8 required H2 headings are present, in order, with content" is architecture-level.
+**Architecture prose should describe structure, not mechanism.** "The validator reads the design doc, extracts H2 headings with grep, and returns a list of missing sections" is plan-level. "The validator checks that all 9 required H2 headings are present, in order, with content" is architecture-level.

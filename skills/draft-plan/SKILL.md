@@ -148,7 +148,14 @@ Write complete code in each step — not "add validation" or "implement the hand
 
 **Interface-first ordering:** Define contracts first, implement in middle tasks, wire consumers last.
 
-**Integration tests for cross-task seams:** When the design's `## Test Strategy` section names a seam (producer module → consumer module), the plan must include at least one task whose `done_when` exercises that seam end-to-end with no mock at the seam under test. The Test Strategy section is the trigger — the seams it names map 1:1 to integration tasks the plan must include. Multi-phase plans and plans with cross-task `depends_on` are where seams typically exist, but the design doc, not the plan structure, is the source of truth. Place each integration task as either A1 (double-loop TDD: broad tests RED until the last piece lands) or as the final task of the consumer's phase — either works as long as the seam is exercised without mocking the producer.
+**Integration tests for cross-task seams:** When the design's `## Test Strategy` section names a seam (producer module → consumer module), the plan must include at least one task whose `done_when` exercises that seam end-to-end with no mock at the seam under test. The Test Strategy section is the trigger — the seams it names map 1:1 to integration tasks the plan must include. Multi-phase plans and plans with cross-task `depends_on` are where seams typically exist, but the design doc, not the plan structure, is the source of truth.
+
+**Placement rules — same-phase vs cross-phase seams:**
+
+- **Same-phase seam** (producer and consumer in the same phase, or single-phase plan): place as the phase's A1 task using double-loop TDD (broad tests stay RED until the last piece lands).
+- **Cross-phase seam** (Phase A producer → Phase B consumer): place as the final task of the consumer's phase (B-last), not A1. The A1 placement would make Phase A's impl-review fail because the consumer code doesn't exist yet when Phase A wraps up.
+
+Either placement works as long as the seam is exercised without mocking the producer.
 
 Each integration task's `done_when` should name the seam explicitly: `"kv_launcher → kv_fetch seam runs end-to-end with real subprocess spawn, 1/1 test passes"` — not just `"integration tests pass"`. The named seam links the task back to design's Test Strategy and lets plan-review verify the contract.
 

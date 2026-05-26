@@ -98,7 +98,7 @@ Severity mapping for implementation-review:
 ```json review-summary
 {
   "issues_found": 2,
-  "severity": { "critical": 0, "high": 1, "medium": 0, "low": 1 },
+  "severity": { "critical": 0, "high": 2, "medium": 0, "low": 0 },
   "verdict": "fail",
   "issues": [
     { "id": 1, "severity": "high", "category": "Cross-task inconsistencies", "file": "src/api.ts:42", "problem": "Port 8080 used here but 3000 in config.ts:7", "fix": "Read port from config in all files" },

@@ -139,6 +139,29 @@ do_check() {
         err "cross_ref_mismatch: '${path}' appears in Implementation Approach but not Architecture"
       fi
     done <<< "$impl_paths"
+
+    # --------------------------------------------------------------
+    # Check 4b: Test Strategy → Implementation Approach cross-reference
+    # Every path listed in Test Strategy must also appear in
+    # Implementation Approach (file change table or test impact note).
+    # --------------------------------------------------------------
+    local test_line test_next
+    test_line="$(grep -nE "^## Test Strategy$" "$doc" | head -1 | cut -d: -f1 || true)"
+
+    if [[ -n "$test_line" ]]; then
+      test_next="$(awk -v start="$test_line" 'NR > start && /^## / { print NR; exit }' "$doc")"
+      test_next="${test_next:-$((total_lines + 1))}"
+
+      local test_paths
+      test_paths="$(extract_paths "$test_line" "$test_next")"
+
+      while IFS= read -r path; do
+        [[ -z "$path" ]] && continue
+        if ! echo "$impl_paths" | grep -qFx "$path"; then
+          err "test_strategy_cross_ref: '${path}' appears in Test Strategy but not Implementation Approach"
+        fi
+      done <<< "$test_paths"
+    fi
   fi
 
   # ----------------------------------------------------------------

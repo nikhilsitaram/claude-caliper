@@ -17,6 +17,10 @@ Provide a valid design doc fixture for validate-design tests.
 
 The feature adds `src/handler.ts` for request handling. This component handles all incoming requests via a pipeline pattern.
 
+## Test Strategy
+
+Single-module change — no cross-module seam.
+
 ## Key Decisions
 
 - **Use TypeScript over JavaScript.** Gained: type safety. Given up: build step complexity. Rejected: plain JS — too error-prone for validation logic.

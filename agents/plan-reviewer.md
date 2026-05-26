@@ -158,7 +158,7 @@ File-set overlap within phases (no two tasks in the same phase share create/modi
 ### Issues Found
 
 For each issue:
-- **Category** (1-7 or Phase)
+- **Category** (1-8 or Phase)
 - **Tasks** (which tasks involved)
 - **Problem** (specific, quote the plan)
 - **Fix** (what to change)
