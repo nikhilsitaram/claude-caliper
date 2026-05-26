@@ -52,7 +52,7 @@ fix="$(new_fixture t1)"
 "$SCRIPT" "$fix/wt"
 check "t1: symlink created at worktree path" test -L "$fix/wt/.claude/agent-memory"
 check "t1: target dir exists in main repo" test -d "$fix/.claude/agent-memory"
-target="$(readlink -- "$fix/wt/.claude/agent-memory")"
+target="$(readlink "$fix/wt/.claude/agent-memory")"
 check_eq "t1: symlink target matches main repo path" "$fix/.claude/agent-memory" "$target"
 
 # Test 2: idempotent — second invocation is a silent no-op
@@ -69,6 +69,18 @@ if "$SCRIPT" "$fix/wt" >/dev/null 2>&1; then
   fail=$((fail + 1))
 else
   echo "PASS: t3: fails loudly on real-dir conflict"
+  pass=$((pass + 1))
+fi
+
+# Test 3b: fails loudly when a symlink to the wrong target already exists
+fix="$(new_fixture t3b)"
+mkdir -p "$fix/wt/.claude" "$fix/other-target"
+ln -s "$fix/other-target" "$fix/wt/.claude/agent-memory"
+if "$SCRIPT" "$fix/wt" >/dev/null 2>&1; then
+  echo "FAIL: t3b: should fail when symlink points to the wrong target"
+  fail=$((fail + 1))
+else
+  echo "PASS: t3b: fails loudly on mis-targeted symlink"
   pass=$((pass + 1))
 fi
 

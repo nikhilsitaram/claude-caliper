@@ -38,7 +38,7 @@ LINK="$WORKTREE/.claude/agent-memory"
 mkdir -p "$(dirname "$LINK")"
 
 if [[ -L "$LINK" ]]; then
-  current="$(readlink -- "$LINK")"
+  current="$(readlink "$LINK")"
   if [[ "$current" == "$TARGET" ]]; then
     exit 0
   fi
