@@ -128,7 +128,7 @@ This check exists because per-task TDD locks in the boundary: once each task's m
 - Flag: Multiple tasks all mock the same producer module; no task lists a verification that imports/invokes the real producer
 - Flag: Integration task exists but its `done_when` says "tests pass" without naming the seam (mock-everything risk)
 
-Skip this check when the design doc has no Test Strategy section (legacy plans pre-dating this rule) and no cross-task `depends_on` links exist. Otherwise apply.
+Skip this check only when the design doc has no Test Strategy section (legacy plans pre-dating this rule) AND the plan has no cross-task `depends_on` links. If either signal is present (design declares seams, or plan structure implies them), apply the check.
 
 ### Phase & Parallelism Checks
 **Structural validation already verified:** phase-{letter}/completion.md files exist.

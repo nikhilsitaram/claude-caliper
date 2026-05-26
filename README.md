@@ -41,7 +41,7 @@ Then the pipeline runs:
 |------|-------------|-----|
 | 1 | Claude challenges your assumptions, proposes 2-3 approaches with trade-offs | You + Claude |
 | 2 | You approve a design | **You** |
-| 3 | Design review validates the doc against an 8-point checklist | Fresh subagent |
+| 3 | Design review validates the doc against a 9-point checklist | Fresh subagent |
 | 4 | Draft plan writes tasks with exact file paths, TDD steps, verification commands | Fresh subagent |
 | 5 | Plan review catches vague steps, missing paths, design-plan drift | Fresh subagent |
 | 6 | Orchestrator spawns one agent team teammate per task (parallel within phase), each running RED-GREEN-REFACTOR | Agent team teammates |
@@ -151,7 +151,7 @@ These skills chain automatically. You trigger the first one by describing what t
 | Stage | Skill | What happens |
 |-------|-------|-------------|
 | **Design** | [design](skills/design/) | Challenges assumptions, proposes 2-3 approaches, asks you to pick one |
-| **Design Gate** | [design-review](skills/design-review/) | 8-point validation: problem clarity, success criteria, architecture fit, scope alignment, handoff quality |
+| **Design Gate** | [design-review](skills/design-review/) | 9-point validation: problem clarity, success criteria, architecture fit, scope alignment, test strategy coverage, handoff quality |
 | **Planning** | [draft-plan](skills/draft-plan/) | Structured plan: `plan.json` manifest + per-task `.md` files with TDD steps, exact file paths, verification commands |
 | **Plan Gate** | [plan-review](skills/plan-review/) | Catches vague steps, missing file paths, design-plan drift, the "Different Claude Test" |
 | **Execution** | [orchestrate](skills/orchestrate/) | Dispatches tasks via subagents or agent teams (parallel within phase, sequential phases); mode selected during design |
