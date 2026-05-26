@@ -61,8 +61,9 @@ Read `reviewer-prompt.md` and dispatch with `run_in_background: true`:
 - `{DIFF_RANGE}` = `origin/$BASE_BRANCH...HEAD` (three-dot — merge-base diff, matches GitHub's PR view; two-dot includes phantom-reverts of base commits when the branch is behind)
 - `{REPO_PATH}` = repository root
 - `{PR_NUMBER}` = PR number
+- `{HEAD_SHA}` = `git rev-parse HEAD` — anchors the review to the exact commit the subagent saw, so line numbers stay valid even if anything pushes during the background window
 
-Subagent posts findings as `gh pr comment`, then returns them for Step 6.
+Subagent posts findings as inline review comments via the GitHub reviews API, then returns the Findings table for Step 6.
 
 ### Step 5: External Feedback
 
@@ -74,12 +75,23 @@ Subagent posts findings as `gh pr comment`, then returns them for Step 6.
 - Bot rate-limit warning = treat as ready.
 - Timeout: `caliper-settings get review_wait_minutes` (default: 5).
 
-**Collect from all three sources:**
+**Collect from all three sources, dropping self-authored entries.** The Step 4 reviewer subagent runs under the same gh identity as the parent and posts to sources 2-3, so re-ingesting its own findings would double-count against the Findings table returned in Step 6. Capture the identity once, then filter:
+
+```bash
+GH_USER=$(gh api user -q .login)
+```
+
 1. Conversation comments: `gh pr view --json comments`
 2. Inline review comments: `gh api repos/{owner}/{repo}/pulls/$PR_NUMBER/comments`
 3. Reviews: `gh pr view --json reviews`
 
-All three required — bots post to sources 2-3.
+The author field shape differs by API — `gh pr view --json` reshapes to `.author.login` (sources 1 and 3), while the raw REST endpoint uses `.user.login` (source 2). Filter with a fallback so one expression works on all three:
+
+```bash
+jq --arg me "$GH_USER" '[.[] | select((.user.login // .author.login) != $me)]'
+```
+
+After filtering, sources 2-3 are bot-only.
 
 **Categorize:**
 
