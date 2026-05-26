@@ -62,7 +62,7 @@ Read `reviewer-prompt.md` and dispatch with `run_in_background: true`:
 - `{REPO_PATH}` = repository root
 - `{PR_NUMBER}` = PR number
 
-Subagent posts findings as `gh pr comment`, then returns them for Step 6.
+Subagent posts findings as inline review comments via the GitHub reviews API, then returns the Findings table for Step 6.
 
 ### Step 5: External Feedback
 
