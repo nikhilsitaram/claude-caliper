@@ -19,7 +19,7 @@ Per-task reviews verify each piece works. This review verifies the pieces work *
 Before dispatching the reviewer:
 
 1. **Run integration tests** — The first task's broad acceptance tests and boundary tests at cross-task seams should all pass. If any fail, fix before proceeding.
-2. **Fill gaps** — if any cross-task boundary lacks a test, write one now.
+2. **Fill gaps** — if any cross-task boundary lacks an executable (non-mocking) test, write one now. Don't dispatch the reviewer until this passes; the reviewer's category-7 non-dismissibility rule will flag the gap as Important and trigger a re-dispatch loop.
 
 Skip if: single-module change or purely additive tasks with no interactions.
 

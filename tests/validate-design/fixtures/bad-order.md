@@ -17,6 +17,10 @@ Provide a valid design doc fixture for validate-design tests.
 
 The feature adds `src/handler.ts` for request handling and `src/validator.ts` for input validation. These components connect via a pipeline pattern.
 
+## Test Strategy
+
+Single-module change — no cross-module seam.
+
 ## Non-Goals
 
 - **Performance optimization at this stage** — The initial implementation prioritizes correctness over speed because premature optimization would complicate the validation logic without measurable benefit.

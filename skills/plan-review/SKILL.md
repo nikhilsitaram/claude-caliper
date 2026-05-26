@@ -32,7 +32,7 @@ Gather inputs:
 
 Dispatch with `model: "$PLAN_REVIEWER_MODEL"` — consistency checking requires strong reasoning.
 
-Use `subagent_type: "claude-caliper:plan-reviewer"`. The agent's static behavior (7-point checklist, output format) is in the agent definition. The invocation prompt contains only the plan dir, design doc path, and codebase root.
+Use `subagent_type: "claude-caliper:plan-reviewer"`. The agent's static behavior (8-point checklist, output format) is in the agent definition. The invocation prompt contains only the plan dir, design doc path, and codebase root.
 
 **See:** reviewer-prompt.md
 
@@ -66,8 +66,9 @@ Handled by `validate-plan --schema`:
 | Different Claude Test | Task references "the handler" without path | Planner has context executor won't |
 | Phase boundary issues | 9 tasks in single phase, no verification gates | Didn't apply complexity gates |
 | Orphaned criteria | Design says "users can X" but no task verifies it | Lost during decomposition |
+| Mock-stacking at cross-task seam | Two tasks both mock `auth_middleware`; no task exercises the real middleware | LLM judgment from task prose, not schema |
 
-## 7-Point Checklist
+## 8-Point Checklist
 
 1. **Dependency Ordering** — *(schema validates graph; LLM checks semantic coherence)*
 2. **Artifact Consistency** — Same file/function/variable referenced with same name everywhere *(LLM focus)*
@@ -76,6 +77,7 @@ Handled by `validate-plan --schema`:
 5. **Completeness** — *(schema validates field presence; LLM checks prose quality)*
 6. **Different Claude Test** — Each task executable by fresh Claude with zero context *(LLM focus)*
 7. **Success Criteria Coverage** — Every criterion in the design doc maps to at least one task's "done when" field (skip if no design doc) *(LLM focus)*
+8. **Cross-Task Seam Coverage** — For each seam in the design's Test Strategy section and each cross-task `depends_on` link, at least one task's verification exercises the seam without mocking the producer (skip if no Test Strategy section and no cross-task deps) *(LLM focus)*
 
 **For multi-phase plans:**
 - Phase boundaries at meaningful verification points *(schema validates completion.md exists)*

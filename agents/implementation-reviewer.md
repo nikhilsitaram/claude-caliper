@@ -31,6 +31,8 @@ Hunt for issues that span task boundaries:
 
 7. **Inadequate integration test coverage** -- missing broad acceptance tests (Level 1), missing boundary tests at cross-task seams (Level 2), tests that mock away the boundaries they should verify
 
+   **Non-dismissibility rule:** When a seam's producer and consumer files are both modified in the current diff (`git diff --name-only $BASE_SHA..$HEAD_SHA` shows both sides) and the only tests covering that seam mock at the seam, this finding is **Important (high severity)** and cannot be downgraded to Low or dismissed. Emit the issue with `non_dismissible: true` in the review-summary JSON. This prevents the dismissal pattern from gh issue #243, where dismissing "boundary test missing" as low-severity hid 22+ commits of contract-drift bugs.
+
 8. **Success Criteria Fulfillment** (skip if design doc is "None")
    Read the Goal and Success Criteria sections from the design doc.
    For each criterion: does the implementation deliver this outcome?
@@ -96,10 +98,11 @@ Severity mapping for implementation-review:
 ```json review-summary
 {
   "issues_found": 2,
-  "severity": { "critical": 0, "high": 1, "medium": 0, "low": 1 },
+  "severity": { "critical": 0, "high": 2, "medium": 0, "low": 0 },
   "verdict": "fail",
   "issues": [
-    { "id": 1, "severity": "high", "category": "Cross-task inconsistencies", "file": "src/api.ts:42", "problem": "Port 8080 used here but 3000 in config.ts:7", "fix": "Read port from config in all files" }
+    { "id": 1, "severity": "high", "category": "Cross-task inconsistencies", "file": "src/api.ts:42", "problem": "Port 8080 used here but 3000 in config.ts:7", "fix": "Read port from config in all files" },
+    { "id": 2, "severity": "high", "category": "Inadequate integration test coverage", "file": "tests/test_kv.py:10", "problem": "kv_launcher and kv_fetch are both modified; only mocked tests cover the seam", "fix": "Add a non-mocking test that spawns the real subprocess", "non_dismissible": true }
   ]
 }
 ```
@@ -109,6 +112,7 @@ Rules for the summary block:
 - `issues_found`: total count (including low/informational)
 - `severity`: counts per level (critical, high, medium, low)
 - `issues[]`: one entry per issue with id (sequential integer), severity, category (from cross-task category list), file (path:line or "N/A"), problem, fix
+- `non_dismissible` (optional bool): set `true` only for findings the non-dismissibility rule applies to (currently: category 7 "Inadequate integration test coverage" when both seam sides are modified). The orchestrator's Review Loop treats dismissal of these as an invalid review and re-dispatches.
 - If zero issues: `{"issues_found": 0, "severity": {"critical": 0, "high": 0, "medium": 0, "low": 0}, "verdict": "pass", "issues": []}`
 - This block must be the LAST fenced code block in your response -- the controller uses the last `json review-summary` block if multiple appear
 

@@ -148,13 +148,22 @@ Write complete code in each step — not "add validation" or "implement the hand
 
 **Interface-first ordering:** Define contracts first, implement in middle tasks, wire consumers last.
 
-**First task as integration tests:** When cross-task data flow exists, A1 can be broad integration tests (double-loop TDD) that stay RED until the last piece lands.
+**Integration tests for cross-task seams:** When the design's `## Test Strategy` section names a seam (producer module → consumer module), the plan must include at least one task whose `done_when` exercises that seam end-to-end with no mock at the seam under test. The Test Strategy section is the trigger — the seams it names map 1:1 to integration tasks the plan must include. Multi-phase plans and plans with cross-task `depends_on` are where seams typically exist, but the design doc, not the plan structure, is the source of truth.
+
+**Placement rules — same-phase vs cross-phase seams:**
+
+- **Same-phase seam** (producer and consumer in the same phase, or single-phase plan): place as the phase's A1 task using double-loop TDD (broad tests stay RED until the last piece lands).
+- **Cross-phase seam** (Phase A producer → Phase B consumer): place as the final task of the consumer's phase (B-last), not A1. The A1 placement would make Phase A's impl-review fail because the consumer code doesn't exist yet when Phase A wraps up.
+
+Either placement works as long as the seam is exercised without mocking the producer.
+
+Each integration task's `done_when` should name the seam explicitly: `"kv_launcher → kv_fetch seam runs end-to-end with real subprocess spawn, 1/1 test passes"` — not just `"integration tests pass"`. The named seam links the task back to design's Test Strategy and lets plan-review verify the contract.
 
 **Handoff notes:** The orchestrate lead writes handoff sections to cross-phase task files at the source phase's wrap-up (post-review). Draft-plan doesn't write these.
 
 ## Self-Review Gate
 
-Before handoff, re-read every task file and the plan.json. The plan-reviewer downstream applies a 7-point checklist; catch the prose-level items here so review is pass/fail, not an editing pass. Goal at handoff: zero or one remaining issues.
+Before handoff, re-read every task file and the plan.json. The plan-reviewer downstream applies an 8-point checklist; catch the prose-level items here so review is pass/fail, not an editing pass. Goal at handoff: zero or one remaining issues.
 
 **Per task:**
 
@@ -168,6 +177,7 @@ Before handoff, re-read every task file and the plan.json. The plan-reviewer dow
 **Across the plan:**
 
 - **Design criteria map to tasks** — Each success criterion from the design doc is covered by at least one task's `done_when`. Missing criterion → add a task.
+- **Test Strategy seams map to integration tasks** — Every seam declared in the design's `## Test Strategy` section maps to a task whose `done_when` names the seam and the non-mocking constraint. If the design lists three seams, the plan needs at least one task per seam (or one task covering multiple seams) whose verification exercises them without mocking the producer.
 - **Consolidation sweep** — Any task whose prose is shorter than its plan.json metadata should merge with a neighbor (see Task Consolidation).
 - **Complexity gates** — 8+ tasks single-phase or 7+ per phase → split.
 - **Interface-first ordering** — Tasks defining contracts precede tasks consuming them.

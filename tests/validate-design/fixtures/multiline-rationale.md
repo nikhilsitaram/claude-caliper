@@ -15,7 +15,11 @@ Provide a valid design doc fixture for validate-design tests.
 
 ## Architecture
 
-The feature adds `src/handler.ts` for request handling and `src/validator.ts` for input validation.
+The feature adds `src/handler.ts` for request handling and `src/validator.ts` for input validation. The pipeline is exercised end-to-end by `tests/handler.test.ts`.
+
+## Test Strategy
+
+The handler → validator seam is exercised by `tests/handler.test.ts::pipeline_calls_real_validator`, which posts a request to the real handler and asserts the validator runs without mocks. Failure mode caught: validator signature drift.
 
 ## Key Decisions
 
@@ -32,7 +36,7 @@ The feature adds `src/handler.ts` for request handling and `src/validator.ts` fo
 
 ## Implementation Approach
 
-Create `src/handler.ts` and `src/validator.ts`. Both get unit tests.
+Create `src/handler.ts`, `src/validator.ts`, and `tests/handler.test.ts` (containing `pipeline_calls_real_validator` covering the handler→validator seam). Both modules get unit tests in addition to the pipeline integration test.
 
 ## Scope Estimate
 

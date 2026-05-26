@@ -17,7 +17,7 @@ that would cause problems during implementation.
 existence, H1 headers) already completed by validate-plan --schema. Focus on prose quality,
 design alignment, and Different Claude Test.
 
-## 7-Point Checklist
+## 8-Point Checklist
 
 Work through each systematically. Read ALL tasks and cross-reference.
 
@@ -114,6 +114,22 @@ endpoint returns JWT" plus Task A3's "login form submits and redirects."
 - Flag: "Done when" references a criterion but doesn't actually satisfy it
 - Flag: Design doc has Success Criteria section but plan has no tasks covering them
 
+### 8. Cross-Task Seam Coverage
+For each cross-task `depends_on` link (producer task A → consumer task B), and for each seam declared in the design doc's `## Test Strategy` section:
+
+- Find the task whose `verification` command exercises this seam end-to-end.
+- Confirm its prose names what it does *not* mock (the seam under test).
+- Flag if every task that touches the seam mocks the producer module — i.e., no task in the plan exercises A→B without mocking A.
+- LLM signal: in task prose, watch for repeated `mock.patch("module.X")` (or equivalent stubbing) targeting the same `module.X` across multiple tasks where one of those tasks also creates or modifies `module`. That's mock-stacking — the seam has no executable test.
+
+This check exists because per-task TDD locks in the boundary: once each task's mocked tests land, those mocks become the only thing exercising the seam. Naming the integration task in the plan prevents the mock-everything pattern from gh issue #243.
+
+- Flag: Design's Test Strategy declares an A→B seam but no task's `done_when` references that seam by name
+- Flag: Multiple tasks all mock the same producer module; no task lists a verification that imports/invokes the real producer
+- Flag: Integration task exists but its `done_when` says "tests pass" without naming the seam (mock-everything risk)
+
+Skip this check only when the design doc has no Test Strategy section (legacy plans pre-dating this rule) AND the plan has no cross-task `depends_on` links. If either signal is present (design declares seams, or plan structure implies them), apply the check.
+
 ### Phase & Parallelism Checks
 **Structural validation already verified:** phase-{letter}/completion.md files exist.
 File-set overlap within phases (no two tasks in the same phase share create/modify/test paths).
@@ -142,7 +158,7 @@ File-set overlap within phases (no two tasks in the same phase share create/modi
 ### Issues Found
 
 For each issue:
-- **Category** (1-7 or Phase)
+- **Category** (1-8 or Phase)
 - **Tasks** (which tasks involved)
 - **Problem** (specific, quote the plan)
 - **Fix** (what to change)
@@ -158,6 +174,7 @@ For each issue:
 | Completeness | PASS/FAIL |
 | Different Claude test | PASS/FAIL |
 | Success criteria coverage | PASS/FAIL/SKIP |
+| Cross-task seam coverage | PASS/FAIL/SKIP |
 | Phase boundaries | PASS/FAIL/N/A |
 
 **Issues:** [count]
