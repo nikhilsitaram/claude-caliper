@@ -74,12 +74,17 @@ Subagent posts findings as inline review comments via the GitHub reviews API, th
 - Bot rate-limit warning = treat as ready.
 - Timeout: `caliper-settings get review_wait_minutes` (default: 5).
 
-**Collect from all three sources:**
+**Collect from all three sources, dropping self-authored entries.** The Step 4 reviewer subagent runs under the same gh identity as the parent and posts to sources 2-3, so re-ingesting its own findings would double-count against the Findings table returned in Step 6. Capture the identity once, then filter:
+
+```bash
+GH_USER=$(gh api user -q .login)
+```
+
 1. Conversation comments: `gh pr view --json comments`
 2. Inline review comments: `gh api repos/{owner}/{repo}/pulls/$PR_NUMBER/comments`
 3. Reviews: `gh pr view --json reviews`
 
-All three required — bots post to sources 2-3.
+Drop entries where `user.login == $GH_USER` from each source before categorizing. After filtering, sources 2-3 are bot-only.
 
 **Categorize:**
 

@@ -53,30 +53,30 @@ Agent tool (general-purpose):
     separately-resolvable thread, so a follow-up wave can dismiss
     individual items without re-touching unrelated ones.
 
-    Build one JSON payload covering every finding, then submit a single
-    review:
+    From {REPO_PATH}, build one JSON payload of this shape covering every
+    finding (write it to a tmp file using whatever method handles your
+    finding-body escaping safely — e.g., `jq -n`, `python -c`, or a
+    column-0 heredoc):
 
-    cd {REPO_PATH}
-
-    cat > /tmp/pr_review_{PR_NUMBER}.json <<'JSON'
     {
       "event": "COMMENT",
-      "body": "<Summary section: counts, severity, recommendation>\n\n_— pr-review reviewer subagent_",
+      "body": "<Summary section: counts, severity, recommendation>",
       "comments": [
         {"path": "src/foo.ts", "line": 42, "body": "**[bug]** Off-by-one in loop bound..."},
         {"path": "src/bar.ts", "start_line": 17, "line": 19, "body": "**[logic]** Branch unreachable..."}
       ]
     }
-    JSON
+
+    Then POST it:
 
     gh api repos/{owner}/{repo}/pulls/{PR_NUMBER}/reviews \
-      --method POST --input /tmp/pr_review_{PR_NUMBER}.json
+      --method POST --input <path-to-json>
 
     The `{owner}` and `{repo}` placeholders are filled by gh from the
-    current repo — that's why the `cd` matters. Omitting `commit_id`
-    anchors the review to the PR's most recent commit, which is correct
-    because pr-review rebased and force-pushed just before dispatching
-    this review.
+    current repo, so run from {REPO_PATH}. Omitting `commit_id` anchors
+    the review to the PR's most recent commit, which is correct because
+    pr-review rebased and force-pushed just before dispatching this
+    review.
 
     Inline-comment rules:
     - `path` is repo-root-relative (matches the diff header)
@@ -86,7 +86,8 @@ Agent tool (general-purpose):
     - Line must be inside a diff hunk. If a finding can't anchor to a
       changed line, list it in the review `body` instead of as an inline
       comment
-    - Zero findings: post a review with `body: "No issues found\n\n_— pr-review reviewer subagent_"` and `comments: []`
+    - Zero findings: post a review with `body: "No issues found"` and
+      `comments: []`
     - If the API rejects the payload (e.g., 422 line-not-in-diff), fall
       back to a single `gh pr comment {PR_NUMBER}` containing the full
       Findings table
