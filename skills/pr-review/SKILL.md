@@ -84,7 +84,13 @@ GH_USER=$(gh api user -q .login)
 2. Inline review comments: `gh api repos/{owner}/{repo}/pulls/$PR_NUMBER/comments`
 3. Reviews: `gh pr view --json reviews`
 
-Drop entries where `user.login == $GH_USER` from each source before categorizing. After filtering, sources 2-3 are bot-only.
+The author field shape differs by API — `gh pr view --json` reshapes to `.author.login` (sources 1 and 3), while the raw REST endpoint uses `.user.login` (source 2). Filter with a fallback so one expression works on all three:
+
+```bash
+jq --arg me "$GH_USER" '[.[] | select((.user.login // .author.login) != $me)]'
+```
+
+After filtering, sources 2-3 are bot-only.
 
 **Categorize:**
 

@@ -97,7 +97,7 @@ Agent tool (general-purpose):
 
     ## Rules
 
-    - Read-only review — do not modify files. Posting the inline review is the only write.
+    - Read-only — posting the inline review is the only write
     - Be specific: file:line references, not vague suggestions
     - If zero issues, say so — do not invent problems
     - Do not review test coverage or commit messages — out of scope
