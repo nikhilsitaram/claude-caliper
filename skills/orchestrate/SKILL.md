@@ -61,7 +61,7 @@ Process phases in order (A, B, C...). For each phase:
 
 1. Determine phase resumption state (multi-phase only — single-phase: use feature worktree, no resumption check needed). Phase status is the primary signal because squash-merge in step 7 typically deletes the phase branch ref, making `git merge-base --is-ancestor` unreliable.
    - If phase status starts with "Complete": run `gh pr list --base integrate/<feature> --head phase-<letter> --state merged --json number --jq 'length'`. If non-zero, the phase is fully merged — skip to next phase. If zero (status Complete but PR not yet merged), skip directly to Phase Wrap-Up step 7, reusing any open PR or creating one if absent.
-   - Otherwise (status "Not Started" or "In Progress"): create phase worktree from integration branch and continue with the remaining numbered steps below (`validate-plan --check-base`, etc.).
+   - Otherwise (status "Not Started" or "In Progress"): create phase worktree from integration branch (`git worktree add "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>" -b phase-<letter>`), then `link-agent-memory "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>"` so the implementation-reviewer dispatched at Phase Wrap-Up persists memory through cleanup. Continue with the remaining numbered steps below (`validate-plan --check-base`, etc.).
 2. Re-validate base branch: `validate-plan --check-base "$PLAN_JSON"` (multi-phase only — ensures dispatch happens from integration worktree, not main)
 3. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in worktree
 4. **Bootstrap dependencies** in the worktree. **See:** skills/design/dependency-bootstrap.md

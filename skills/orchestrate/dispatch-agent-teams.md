@@ -36,6 +36,8 @@ Spawn **all ready implementer teammates in a single message** — one Agent call
 
 **Note:** `--check-base` runs at orchestrate startup and before each phase dispatch (multi-phase). No separate dispatch-level base check is needed.
 
+**Known limitation — agent-memory persistence (issue #244):** Auto-provisioned teammate worktrees are created by the platform after spawn, so the orchestrator cannot run `link-agent-memory` against them before the teammate starts writing. As a result, `memory: project` writes by task-implementer teammates currently land in the auto-provisioned worktree and are lost on teammate shutdown. Subagents mode does not have this limitation (its task worktrees are orchestrator-created and linked). Until Claude Code exposes a `SubagentStart` injection point or a memory-path override, prefer subagents mode for plans where preserved agent memory matters.
+
 ## Process Completions (Push-Based)
 
 When an implementer teammate goes idle (push notification — no polling):

@@ -18,8 +18,10 @@ check() {
 
 check "bin/validate-plan exists" test -f "$REPO_ROOT/bin/validate-plan"
 check "bin/caliper-settings exists" test -f "$REPO_ROOT/bin/caliper-settings"
+check "bin/link-agent-memory exists" test -f "$REPO_ROOT/bin/link-agent-memory"
 check "bin/validate-plan is executable" test -x "$REPO_ROOT/bin/validate-plan"
 check "bin/caliper-settings is executable" test -x "$REPO_ROOT/bin/caliper-settings"
+check "bin/link-agent-memory is executable" test -x "$REPO_ROOT/bin/link-agent-memory"
 check "scripts/ directory does not exist" test ! -d "$REPO_ROOT/scripts"
 check_shebang() {
   local line
@@ -28,6 +30,7 @@ check_shebang() {
 }
 check "bin/validate-plan has bash shebang" check_shebang "$REPO_ROOT/bin/validate-plan"
 check "bin/caliper-settings has bash shebang" check_shebang "$REPO_ROOT/bin/caliper-settings"
+check "bin/link-agent-memory has bash shebang" check_shebang "$REPO_ROOT/bin/link-agent-memory"
 
 echo ""
 echo "Results: $pass passed, $fail failed"

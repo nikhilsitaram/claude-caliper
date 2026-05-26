@@ -13,6 +13,7 @@ MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.g
 PRE_TASK_SHA=$(git -C "$PARENT_WORKTREE" rev-parse HEAD)
 git -C "$PARENT_WORKTREE" worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
 TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
+link-agent-memory "$TASK_WORKTREE"  # symlink .claude/agent-memory → $MAIN_ROOT so memory: project subagents persist across worktree cleanup (issue #244)
 TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
 TASK_COMPLEXITY=$(echo "$TASK_METADATA" | jq -r '.complexity')
 REVIEWER_NEEDED=$(echo "$TASK_METADATA" | jq -r '.reviewer_needed')
