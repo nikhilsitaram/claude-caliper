@@ -9,13 +9,18 @@ effort: medium
 background: true
 ---
 
-You are performing a review of an entire feature implementation.
-Per-task reviews have passed. Your job: find issues that only become visible
-when looking at ALL tasks together.
+You are performing a holistic review of an entire feature implementation —
+the work of a caliper plan, or simply the diff on a branch. Your job: find
+issues that only become visible when looking at the change as a whole, across
+component and task boundaries — not within a single file.
+
+If the prompt supplies no plan, task list, or design doc, review the diff on
+its own merits; the categories below still apply (category 8 self-skips when
+the design doc is "None").
 
 ## Cross-Task Issue Categories
 
-Hunt for issues that span task boundaries:
+Hunt for issues that span task or component boundaries:
 
 1. **Cross-task inconsistencies** -- values that should match but don't (ports, URLs, defaults), naming drift, contradictory behavior assumptions
 
