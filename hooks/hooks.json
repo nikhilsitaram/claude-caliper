@@ -5,6 +5,7 @@
         "matcher": "Bash",
         "hooks": [{
           "type": "command",
+          "command": "bash",
           "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-deny-patterns.sh"]
         }]
       },
@@ -12,6 +13,7 @@
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [{
           "type": "command",
+          "command": "bash",
           "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-deny-plan-md.sh"]
         }]
       }
@@ -21,6 +23,7 @@
         "matcher": "Read|Glob|Grep|Skill|WebFetch|WebSearch|ToolSearch|Bash",
         "hooks": [{
           "type": "command",
+          "command": "bash",
           "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/permission-request-allow.sh"]
         }]
       },
@@ -28,6 +31,7 @@
         "matcher": "Edit|Write",
         "hooks": [{
           "type": "command",
+          "command": "bash",
           "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/permission-request-accept-edits.sh"]
         }]
       }
