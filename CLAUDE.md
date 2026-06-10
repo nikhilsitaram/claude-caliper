@@ -54,6 +54,8 @@ Bash test scripts live in `tests/`. Run with `bash tests/<dir>/<script>.sh`. Ski
 
 All shell scripts (`bin/*`, `tests/**/*.sh`) must have a `#!/usr/bin/env bash` shebang and the executable bit set (`chmod +x`). Agent teammates can't auto-approve `bash <script>` because `bash` is excluded from safe-commands — but `./script` resolves to the script's own path, which the hook can approve.
 
+In `hooks/hooks.json`, `command`-type hooks always require a `command` string — even in exec form, where `command` is the *executable* and `args` is its argument vector (e.g. `"command": "bash", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/x.sh"]`). Putting the script path in `args` with no `command` fails schema validation (`command: expected string, received undefined`) and silently disables every hook.
+
 ## Development Workflow
 
 This repo uses its own skills. The typical flow: design -> worktree -> draft-plan -> orchestrate -> pr-create -> pr-review -> pr-merge.
