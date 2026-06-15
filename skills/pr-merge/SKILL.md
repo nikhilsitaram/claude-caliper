@@ -87,7 +87,7 @@ This errors if required checks are still pending — the caller is responsible f
 gh pr view $PR_NUMBER --json state -q .state   # poll until MERGED
 ```
 
-Poll on a modest interval, timing out at `caliper-settings get review_wait_minutes` (default 5):
+Poll on a modest interval, timing out at `caliper-settings get merge_wait_minutes` (default 10) — a dedicated setting, not `review_wait_minutes` (which orchestrate overloads to `0` to mean "merge directly"; a `0` here would defer cleanup on every auto-merge repo):
 - `MERGED` → proceed to Step 3 cleanup. (Direct-merge fallback is already `MERGED`, so it returns immediately.)
 - `CLOSED` without merge → stop and report; do not clean up.
 - Still `OPEN` at timeout → auto-merge is enabled but CI is slow. Report the PR URL and that it will merge when checks pass, then **skip Step 3** — local cleanup needs the PR actually merged. A later `/pr-merge` sees the `MERGED` state and finishes cleanup (Step 3's per-branch gh-state gate makes re-runs safe).

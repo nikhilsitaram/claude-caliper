@@ -56,7 +56,7 @@
     {
       "name": "claude-caliper-tooling",
       "description": "Standalone tools: codebase audit and skill evaluation",
-      "version": "1.48.0",
+      "version": "1.47.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",

@@ -59,6 +59,12 @@
     "description": "Poll timeout in minutes for external review bot comments (warm-up periods remain fixed)",
     "used_by": ["orchestrate", "pr-review"]
   },
+  "merge_wait_minutes": {
+    "type": "int",
+    "default": 10,
+    "description": "Poll timeout in minutes for pr-merge to wait for auto-merge to land (PR reaching MERGED). Kept separate from review_wait_minutes, which orchestrate overloads to 0 to mean merge-directly",
+    "used_by": ["pr-merge"]
+  },
   "re_review_threshold": {
     "type": "int",
     "default": 5,
