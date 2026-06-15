@@ -83,6 +83,17 @@ The reviewer's first 7 categories (cross-component consistency, duplication, dea
 | Missing boundary tests | Components interact but no integration test |
 | Unmet success criteria | Design says "users can X" but implementation doesn't deliver it (caliper only) |
 
+## Triage & Fix
+
+When the reviewer returns, **display what it found, then proceed straight to fixing — don't stop for confirmation.** This is a visibility step, not an approval gate: silently fixing and dismissing leaves the user blind to what was wrong, but waiting on a confirmation reply stalls the run. Present a compact summary — group by severity, and for each issue give its `file:line`, category, and the one-line problem — then immediately continue into the fixes below. Continuation flags don't change this: findings are always shown, fixing always proceeds without a pause.
+
+Address each:
+
+- **Fix** actionable findings — verify against the code first, since the reviewer can be wrong.
+- **Dismiss** false positives with a stated technical reason. Findings marked `non_dismissible: true` (category-7 seam-mock gaps) can't be dismissed — fix them or re-dispatch.
+
+Run the relevant tests after fixing, then apply the Re-Review Gate.
+
 ## Post-Review: Plan Doc Updates (caliper only)
 
 After review passes, the **orchestrator** updates the plan document. Skip this entirely in standalone mode.
@@ -96,6 +107,19 @@ After review passes, the **orchestrator** updates the plan document. Skip this e
 Applies in both modes. Read the threshold: `caliper-settings get re_review_threshold` (default: 5). If the reviewer finds more issues than this threshold: after all fixes are applied, dispatch a fresh reviewer subagent with the same full review scope. This catches reviewer hallucination from compounding and new issues introduced by bulk fixes.
 
 At or under the threshold, verify fixes and proceed without re-review.
+
+## Continue the Workflow
+
+By default the skill stops once the review passes and fixes land. These flags chain the next steps automatically — but only after the review fully passes (re-review gate included) and the user has seen the findings:
+
+| Flag | Effect |
+|------|--------|
+| `--pr-create` | Invoke the pr-create skill to commit, push, and open a PR. |
+| `--pr-review` | Invoke pr-create, then the pr-review skill. Forward any pr-review flags placed after it — `--automated-fix`/`-A`, `--automated-merge`/`-M`, or `--deliberate`/`-D`. |
+
+`--pr-review` with no forwarded mode flag lets pr-review select its mode the usual way (configured `review_mode`, else prompt). These flags are for manual `/implementation-review`; in caliper mode orchestrate already drives pr-create after the review.
+
+If both `--pr-create` and `--pr-review` are passed, `--pr-review` wins (it includes PR creation). If the review can't be made to pass (unresolved `non_dismissible` findings, or fixes keep failing tests), stop before the continuation rather than opening a PR on a failing review.
 
 ## Integration
 
