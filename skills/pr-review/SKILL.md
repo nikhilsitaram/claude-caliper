@@ -23,9 +23,9 @@ If not on PR branch: use existing worktree if found (`cd` into it), otherwise `g
 
 ### Step 2: Mode Selection
 
-If `--automated-fix`/`-A` passed, use automated-fix mode. If `--automated-merge`/`-M` passed, use automated-merge mode. Both flags together is invalid — fail fast. Either automated flag + `--skip-fixes` is also invalid — fail fast.
+If `--automated-fix`/`-A` passed, use automated-fix mode. If `--automated-merge`/`-M` passed, use automated-merge mode. If `--deliberate`/`-D` passed, use deliberate mode (skip the settings lookup and prompt below). More than one mode flag together is invalid — fail fast. Either automated flag + `--skip-fixes` is also invalid — fail fast.
 
-If no flag, read the user's preference:
+If no mode flag, read the user's preference:
 
 ```bash
 mode=$(caliper-settings get review_mode)
@@ -154,6 +154,7 @@ Report PR URL and item counts. Automated-merge mode: invoke pr-merge. Automated-
 | `--skip-fixes` / `-S` | Skip fixing — just comment (invalid with automated modes) |
 | `--automated-fix` / `-A` | Fix all actionable, no interaction |
 | `--automated-merge` / `-M` | Fix all actionable, then auto-merge |
+| `--deliberate` / `-D` | Force deliberate mode — skip settings lookup and prompt |
 
 ## Pitfalls
 
