@@ -106,7 +106,7 @@ After all tasks complete and branches merged:
 7. (Multi-phase) Merge phase PR into integration branch — runs unconditionally for every phase including the last, regardless of `workflow` setting. The final integrate->main PR is created separately in "After All Phases".
    a. Open the phase PR: if one already exists and is open (`gh pr list --head phase-<letter> --state open --json url --jq '.[0].url'`), reuse it; otherwise run `pr-create --base integrate/<feature>`.
    b. `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`
-   c. If `$REVIEW_WAIT` == 0: invoke `pr-merge` directly. Else: poll `gh pr checks` then invoke `pr-review --automated-merge` (which invokes `pr-merge` on pass)
+   c. If `$REVIEW_WAIT` == 0: invoke `pr-merge` directly. Else: invoke `pr-review --automated-merge` (which invokes `pr-merge`). No pre-merge `gh pr checks` poll — `pr-merge` enables auto-merge so GitHub gates on CI, then waits (up to `merge_wait_minutes`) for the `MERGED` flip before returning. If that wait times out with the PR still open, step d's `--ff-only` finds no merged tip and stops the loop (handled there) — resume once GitHub completes the merge
    d. Return to the integration worktree (the orchestrate lead's primary CWD established at Setup) and fast-forward local integrate to the merged tip: `cd "$MAIN_ROOT/.claude/worktrees/<feature>" && git pull --ff-only origin integrate/<feature>` — uses `$MAIN_ROOT` from Setup so the path is absolute (relative `cd .claude/worktrees/<feature>` would fail when called from a phase worktree). `--ff-only` surfaces unexpected divergent commits, because auto-resolution via hard reset can silently destroy local commits the user may need. If it fails, stop the loop and surface to the user with the worktree path.
    e. Remove phase worktree if it still exists (pr-merge typically removes it during cleanup; on resumption it may already be gone): `if git worktree list --porcelain | grep -q "^branch refs/heads/phase-<letter>$"; then git worktree remove "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>"; fi` — anchored on the `branch refs/heads/...` porcelain line (avoids matching the worktree-path line). No `--force`; missing worktree is silent-continue, while a failed `git worktree remove` (uncommitted content) propagates non-zero exit so the orchestrator can stop and surface the path.
    f. Continuity: only Rule 4 deviations stop the loop. Review feedback is auto-fixed by `pr-review --automated-merge`.
@@ -138,7 +138,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 6. Route on workflow:
    - `"orchestrate"`: `validate-plan --check-workflow "$PLAN_JSON"`, report worktree path, stop
    - `"pr-create"`: invoke pr-create (targets main), `validate-plan --check-workflow "$PLAN_JSON"`, stop
-   - `"pr-merge"`: invoke pr-create, read `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`, poll checks + pr-review --automated-merge (skip if $REVIEW_WAIT is 0; if skipped, invoke pr-merge directly), `validate-plan --check-workflow "$PLAN_JSON"`
+   - `"pr-merge"`: invoke pr-create, read `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`, invoke pr-review --automated-merge (skip if $REVIEW_WAIT is 0; if skipped, invoke pr-merge directly), `validate-plan --check-workflow "$PLAN_JSON"`
 
 ## After All Phases (Multi-Phase Only)
 
@@ -148,7 +148,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 4. `validate-plan --update-status "$PLAN_JSON" --plan --status Complete`
 5. Route on workflow:
    - `"orchestrate"`: `validate-plan --check-workflow "$PLAN_JSON"`, report worktree path, stop
-   - `"pr-merge"`: create final PR, poll checks, pr-review --automated-merge, `validate-plan --check-workflow "$PLAN_JSON"`, clean up
+   - `"pr-merge"`: create final PR, pr-review --automated-merge (no pre-merge check poll — pr-merge auto-merges and waits for `MERGED`), `validate-plan --check-workflow "$PLAN_JSON"`, clean up
    - `"pr-create"`: create final PR, `validate-plan --check-workflow "$PLAN_JSON"`, stop
 
 **Continuity:** Run continuously. Pause only for Rule 4 violations.
