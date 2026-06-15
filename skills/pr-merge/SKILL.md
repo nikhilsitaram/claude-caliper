@@ -51,13 +51,48 @@ Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/$DEFAULT_BRA
 
 If behind (non-zero exit): rebase onto default branch, resolve conflicts, run tests, push with `git push -u origin HEAD --force-with-lease`. Comment on PR with conflict resolution details. Complex conflicts → stop and ask user.
 
-**Merge strategy:**
-- Integration branches (`IS_INTEGRATION=true`): `gh pr merge $PR_NUMBER --rebase` — auto-detected, no flag needed
-- Phase PRs (base is `integrate/*`): `gh pr merge $PR_NUMBER --squash` — auto-detected, no flag needed
+**Merge method** (`$METHOD` = `squash` or `rebase`):
+- Integration branches (`IS_INTEGRATION=true`): `rebase` — auto-detected, no flag needed
+- Phase PRs (base is `integrate/*`): `squash` — auto-detected, no flag needed
 - Explicit `--rebase` flag overrides for any non-auto-detected branch
-- Otherwise: check `caliper-settings get merge_strategy` — use the returned value (`squash` or `rebase`) as the merge method
+- Otherwise: `caliper-settings get merge_strategy` (`squash` or `rebase`)
 
-Multi-phase plans produce one squash commit per phase on the integration branch. Rebase preserves this per-phase history on main. Single-phase plans use squash (one phase = one commit). Phase PRs (base is `integrate/*`) always use `--squash`.
+Multi-phase plans produce one squash commit per phase on the integration branch; rebase preserves that per-phase history on main. Single-phase plans use squash (one phase = one commit).
+
+**Enable auto-merge (preferred).** Hand the CI gate to GitHub instead of polling `gh pr checks` yourself. Check whether the repo allows it:
+
+```bash
+ALLOW_AUTO_MERGE=$(gh api "repos/{owner}/{repo}" --jq .allow_auto_merge 2>/dev/null)
+```
+
+If `true`, enable auto-merge:
+
+```bash
+gh pr merge $PR_NUMBER --auto --$METHOD
+```
+
+This is **non-blocking** — it returns once auto-merge is *enabled*, not once the PR merges. GitHub performs the merge whenever required checks pass (PR already mergeable → merges within seconds; checks pending → deferred until green). A non-zero exit means auto-merge couldn't attach (repo disallows it, or the PR is already in a clean immediately-mergeable state GitHub won't queue) — fall back to the direct merge below.
+
+**Fallback — direct merge (legacy behavior).** When `allow_auto_merge` is `false` or `--auto` exits non-zero:
+
+```bash
+gh pr merge $PR_NUMBER --$METHOD
+```
+
+This errors if required checks are still pending — the caller is responsible for having waited. It returns with the PR already `MERGED`.
+
+**Wait for the merge to land.** Unless `--no-wait` was passed, poll the PR's merge state until it flips — this replaces the old pre-merge `gh pr checks` poll:
+
+```bash
+gh pr view $PR_NUMBER --json state -q .state   # poll until MERGED
+```
+
+Poll on a modest interval, timing out at `caliper-settings get review_wait_minutes` (default 5):
+- `MERGED` → proceed to Step 3 cleanup. (Direct-merge fallback is already `MERGED`, so it returns immediately.)
+- `CLOSED` without merge → stop and report; do not clean up.
+- Still `OPEN` at timeout → auto-merge is enabled but CI is slow. Report the PR URL and that it will merge when checks pass, then **skip Step 3** — local cleanup needs the PR actually merged. A later `/pr-merge` sees the `MERGED` state and finishes cleanup (Step 3's per-branch gh-state gate makes re-runs safe).
+
+`--no-wait` enables auto-merge and exits after reporting, skipping Step 3.
 
 Never use `--delete-branch` — branch cleanup is handled in Step 3.
 
@@ -122,6 +157,7 @@ Report: PR number/URL, merge status, cleanup status.
 | `<PR number>` | Target specific PR (`/pr-merge 42`) |
 | *(none)* | Detect from current branch |
 | `--rebase` | Use rebase merge instead of squash (for multi-phase final PRs) |
+| `--no-wait` | Enable auto-merge and exit without waiting for the merge or cleaning up (cleanup runs on a later `/pr-merge` once GitHub reports `MERGED`) |
 
 ## Pitfalls
 
@@ -130,6 +166,7 @@ Report: PR number/URL, merge status, cleanup status.
 | Skipping `ExitWorktree` when it's available | `cd` doesn't persist across Bash tool calls — only `ExitWorktree` resets CWD at the session level. Always try `ExitWorktree` first; the `cd "$MAIN_REPO" &&` fallback is for cross-session worktrees where ExitWorktree returns a no-op. |
 | Deleting branch before removing worktree | Git refuses. Remove worktree first. |
 | Using `--delete-branch` on `gh pr merge` | Fails in worktree flows. Delete branch manually after. |
+| Treating `gh pr merge --auto` as blocking | It returns once auto-merge is *enabled*, not merged. Poll `gh pr view --json state` for `MERGED` before cleanup. |
 
 ## Integration
 
