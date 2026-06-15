@@ -63,7 +63,19 @@ Read `reviewer-prompt.md` and dispatch with `run_in_background: true`:
 - `{PR_NUMBER}` = PR number
 - `{HEAD_SHA}` = `git rev-parse HEAD` — anchors the review to the exact commit the subagent saw, so line numbers stay valid even if anything pushes during the background window
 
-Subagent posts findings as inline review comments via the GitHub reviews API, then returns the Findings table for Step 6.
+Subagent posts findings as inline review comments via the GitHub reviews API, then returns the Findings table (with each finding's `Comment ID`) for Step 6.
+
+### Replying to reviewer findings
+
+When you decide a subagent finding's disposition (fix or dismiss), reply in its own thread so the back-and-forth lives where the issue was raised — not only in the Step 9 summary. Reply by the `Comment ID` from the returned table:
+
+```bash
+gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies" \
+  -f body="Fixed in $(git rev-parse --short HEAD) — <what changed>."
+# or: -f body="Dismissed — <technical reasoning>."
+```
+
+These are your own (`$GH_USER`) comments — replying to them is intended, and is separate from the Step 5 self-filter, which only prevents *re-ingesting* findings. Findings with `Comment ID` = `—` (body-only) have no thread; they go in the Step 9 summary instead. Post each reply where the disposition is finalized: Step 6 (automated) or Step 8 (deliberate).
 
 ### Step 5: External Feedback
 
@@ -110,7 +122,7 @@ After filtering, sources 2-3 are bot-only.
 
 Wait for background subagent (Step 4). Skip if `--skip-review`.
 
-**Automated (fix or merge):** Dismiss findings already fixed in wave 1. Fix remaining actionable items, run tests, commit and push (covers both waves).
+**Automated (fix or merge):** Dismiss findings already fixed in wave 1. Fix remaining actionable items, run tests, commit and push (covers both waves). Reply inline to each subagent finding's thread with its disposition (see Replying to reviewer findings).
 
 **Deliberate:** Merge with Step 5 findings into unified set. Proceed to Step 7.
 
@@ -124,11 +136,11 @@ Show summary table (source, category, action, counts). AskUserQuestion:
 
 ### Step 8: Fix, Test, Push (Deliberate Only)
 
-Skip if `--skip-fixes`. Fix each item, run tests (fail = stop), commit and push.
+Skip if `--skip-fixes`. Fix each item, run tests (fail = stop), commit and push. Reply inline to each subagent finding's thread with its disposition (see Replying to reviewer findings).
 
 ### Step 9: Comment on PR
 
-Post `gh pr comment`: what was fixed, dismissed (with reasons), no-action. Omit empty sections.
+Post `gh pr comment`: what was fixed, dismissed (with reasons), no-action. Omit empty sections. Subagent findings answered inline (Step 6/8) need only a roll-up count here, not a re-listing — the per-item reasoning lives in their threads. The summary still fully covers external feedback and any body-only findings that had no thread.
 
 Report PR URL and item counts. Automated-merge mode: invoke pr-merge. Automated-fix mode: tell user to run `/pr-merge` when ready. Deliberate mode: offer merge or tell user to run `/pr-merge` when ready.
 

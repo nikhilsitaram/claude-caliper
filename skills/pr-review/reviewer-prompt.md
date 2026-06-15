@@ -34,11 +34,15 @@ Agent tool (general-purpose):
 
     ### Findings
 
-    | # | Severity | File:Line | Finding |
-    |---|----------|-----------|---------|
+    | # | Severity | File:Line | Comment ID | Finding |
+    |---|----------|-----------|------------|---------|
+
+    Leave `Comment ID` blank until after you post (see Post Review) —
+    the parent replies to each thread by this id. Body-only and
+    fallback findings get `—`.
 
     If zero issues found, output the table header with a single row:
-    | — | — | — | No issues found |
+    | — | — | — | — | No issues found |
 
     ### Summary
 
@@ -78,6 +82,15 @@ Agent tool (general-purpose):
     SHA pr-review captured when dispatching this review, so the line
     numbers in your comments stay valid even if a wave-1 fix pushes
     while you're running.
+
+    The POST response is the review object (its `.id`), not the line
+    comments. Fetch them and map each back to a finding by path+line so
+    the parent can reply to the exact thread:
+
+    gh api repos/{owner}/{repo}/pulls/{PR_NUMBER}/reviews/<review_id>/comments
+
+    Fill the `Comment ID` column of your Findings table from each
+    comment's `.id`. Body-only and fallback findings keep `—`.
 
     Inline-comment rules:
     - `path` is repo-root-relative (matches the diff header)
