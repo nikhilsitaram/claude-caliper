@@ -132,9 +132,9 @@ Install only what you need:
 
 | Package | What you get | Install command |
 |---------|-------------|-----------------|
-| **claude-caliper** | All 11 skills | `/plugin install claude-caliper@claude-caliper` |
+| **claude-caliper** | All 12 skills | `/plugin install claude-caliper@claude-caliper` |
 | **claude-caliper-workflow** | Design-to-merge pipeline (9 skills) | `/plugin install claude-caliper-workflow@claude-caliper` |
-| **claude-caliper-tooling** | Codebase review + skill eval (2 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
+| **claude-caliper-tooling** | Codebase review + test audit + skill eval (3 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
 
 ### Updating
 
@@ -165,6 +165,7 @@ These skills chain automatically. You trigger the first one by describing what t
 | Skill | Trigger | What it does |
 |-------|---------|-------------|
 | [codebase-review](skills/codebase-review/) | `/codebase-review [path]` | Whole-repo audit with parallel subagents per directory, cross-scope reconciliation, findings triaged by fix complexity |
+| [test-audit](skills/test-audit/) | `/test-audit [path] [--diff]` | Audits the test suite for false-pass risk, flakiness, weak assertions, and isolation smells; surfaces findings, dispatches implementers to fix approved ones, offers to record testing conventions |
 | [skill-eval](skills/skill-eval/) | `/skill-eval` | Assertion-based grading, blind A/B comparison, adversarial scenarios, variance analysis |
 
 ---

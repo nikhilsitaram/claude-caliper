@@ -8,7 +8,7 @@
     {
       "name": "claude-caliper",
       "description": "claude-caliper bundle",
-      "version": "1.48.0",
+      "version": "1.49.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
@@ -23,6 +23,7 @@
         "./skills/plan-review",
         "./skills/implementation-review",
         "./skills/codebase-review",
+        "./skills/test-audit",
         "./skills/pr-create",
         "./skills/pr-review",
         "./skills/pr-merge",
@@ -55,8 +56,8 @@
     },
     {
       "name": "claude-caliper-tooling",
-      "description": "Standalone tools: codebase audit and skill evaluation",
-      "version": "1.47.0",
+      "description": "Standalone tools: codebase audit, test audit, and skill evaluation",
+      "version": "1.48.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
@@ -65,6 +66,7 @@
       "strict": false,
       "skills": [
         "./skills/codebase-review",
+        "./skills/test-audit",
         "./skills/skill-eval"
       ]
     }
