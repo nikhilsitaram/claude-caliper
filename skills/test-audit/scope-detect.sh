@@ -53,11 +53,20 @@ done
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 
-# Resolve SCOPE_PATH (path arg wins; fall back to git toplevel, then cwd)
-if [[ -z "$scope_path" ]]; then
+# Resolve SCOPE_PATH. A user-supplied path must exist — a typo should be a loud
+# error, not a silent no-op — and may be a file or a directory. The
+# git-toplevel/cwd fallback always exists.
+if [[ -n "$scope_path" ]]; then
+  if [[ -d "$scope_path" ]]; then
+    scope_path="$(cd "$scope_path" && pwd -P)"
+  elif [[ -f "$scope_path" ]]; then
+    scope_path="$(cd "$(dirname "$scope_path")" && pwd -P)/$(basename "$scope_path")"
+  else
+    echo "ERROR: path '$scope_path' does not exist." >&2
+    exit 1
+  fi
+else
   scope_path="${repo_root:-.}"
-fi
-if [[ -e "$scope_path" ]]; then
   scope_path="$(cd "$scope_path" && pwd -P)"
 fi
 
@@ -77,8 +86,11 @@ if [[ "$mode" == "diff" ]]; then
       :
     elif base_ref="$(git merge-base "$default_branch" HEAD 2>/dev/null)"; then
       :
-    else
+    elif git rev-parse --verify -q HEAD~1 >/dev/null; then
       base_ref="HEAD~1"
+    else
+      # Single-commit repo: diff against the empty tree (all files read as added).
+      base_ref="$(git hash-object -t tree /dev/null)"
     fi
   fi
   echo "BASE_REF=$base_ref"

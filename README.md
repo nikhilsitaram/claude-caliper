@@ -25,7 +25,7 @@ Many claude workflows are either improperly context engineered, overly complicat
 
 Install claude-caliper. Describe what you want to build. Walk away.
 
-The plugin installs 11 skills that fire automatically at the right moment, enforcing a full development workflow: **design before plan, plan before code, test before merge.** You make three decisions — approve the design, review the PR, and confirm the merge — and everything between runs as a chain of fresh subagents with zero manual handoffs.
+The plugin installs 12 skills that fire automatically at the right moment, enforcing a full development workflow: **design before plan, plan before code, test before merge.** You make three decisions — approve the design, review the PR, and confirm the merge — and everything between runs as a chain of fresh subagents with zero manual handoffs.
 
 ---
 

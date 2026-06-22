@@ -20,14 +20,16 @@ The audit itself is read-only. Fixes happen only after you approve them, via sep
 
 ## Phase 1 — Resolve Scope
 
-Parse the user's arguments into structured tokens before calling the helper — do NOT interpolate raw user input into the shell, which is a command-injection risk for inputs containing `;`, `&&`, `|`, or backticks. Wrap each parsed token in single quotes; escape any literal single quote as `'\''`.
+Parse the user's arguments into structured tokens before calling the helper — do NOT interpolate raw user input into the shell, which is a command-injection risk for inputs containing `;`, `&&`, `|`, or backticks. Wrap each parsed token in its own single quotes (escape any literal single quote as `'\''`) and pass them as **separate** arguments — never as one quoted blob, which the helper would see as a single bogus path.
 
-Run `./skills/test-audit/scope-detect.sh '<tokens…>'`. Parse stdout (`KEY=value` per line): `SCOPE_MODE` (`full`|`diff`), `SCOPE_PATH`, and in diff mode `BASE_REF`. A non-zero exit means bad arguments — surface stderr and stop.
+Examples: `/test-audit` → `./skills/test-audit/scope-detect.sh`; `/test-audit src --diff` → `./skills/test-audit/scope-detect.sh 'src' '--diff'`; `/test-audit --base=develop --diff` → `./skills/test-audit/scope-detect.sh '--base=develop' '--diff'`.
+
+Parse stdout (`KEY=value` per line): `SCOPE_MODE` (`full`|`diff`), `SCOPE_PATH`, and in diff mode `BASE_REF`. A non-zero exit means bad arguments or a nonexistent path — surface stderr and stop.
 
 Discover the test files:
 
 - **full:** find test files under `SCOPE_PATH` using the repo's conventions (e.g. `*_test.*`, `test_*.*`, `*.test.*`, `*.spec.*`, files under `tests/`/`__tests__/`/`spec/`). Confirm the framework from config (`package.json`, `pyproject.toml`/`pytest.ini`, `go.mod`, `*.csproj`, etc.).
-- **diff:** `git diff --name-only "$BASE_REF"... -- <test-path-globs>` to get changed test files only. If none changed, report that and stop.
+- **diff:** `git diff --name-only "$BASE_REF"... -- <test-path-globs>` to get changed test files only; when a path was given, scope it to `SCOPE_PATH` by using that path in the `git diff` pathspec (otherwise `/test-audit src --diff` silently ignores `src`). If none changed, report that and stop.
 
 If the test set is empty, say so and stop — there is nothing to audit.
 
