@@ -132,8 +132,8 @@ Install only what you need:
 
 | Package | What you get | Install command |
 |---------|-------------|-----------------|
-| **claude-caliper** | All 14 skills | `/plugin install claude-caliper@claude-caliper` |
-| **claude-caliper-workflow** | Design-to-merge pipeline (9 skills) | `/plugin install claude-caliper-workflow@claude-caliper` |
+| **claude-caliper** | All 15 skills | `/plugin install claude-caliper@claude-caliper` |
+| **claude-caliper-workflow** | Design-to-merge pipeline (10 skills) | `/plugin install claude-caliper-workflow@claude-caliper` |
 | **claude-caliper-tooling** | Codebase review + test audit + skill eval + queue + usage-guard (5 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
 
 ### Updating

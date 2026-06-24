@@ -14,13 +14,15 @@
 #
 # CAPTURED_AGE_SEC is the staleness signal: large ⇒ the statusline isn't
 # rendering and USED_PCT lags reality. A missing captured_at reports as very
-# stale (not falsely fresh).
+# stale (not falsely fresh). STALE=yes|no applies the same >90s cutoff as
+# compute-fire.sh, so both consumers of captured_at agree on one threshold.
 #
 # Config (env): QUEUE_STATE_FILE (default ~/.claude/queue/state.json)
 set -u
 
 STATE_FILE="${QUEUE_STATE_FILE:-$HOME/.claude/queue/state.json}"
 THRESH="${1:-99}"
+STALE_SEC=90            # statusline refreshes ~every 10s; >90s ⇒ likely not rendering
 
 if [ ! -f "$STATE_FILE" ]; then
   echo "ERROR: no $STATE_FILE — the queue statusline wrapper isn't capturing usage yet." >&2
@@ -47,6 +49,7 @@ used_disp="$(awk -v u="$used" 'BEGIN{ printf "%.1f", u+0 }')"
 echo "USED_PCT=$used_disp"
 echo "THRESHOLD=$THRESH"
 echo "CAPTURED_AGE_SEC=$age"
+if [ "$age" -gt "$STALE_SEC" ]; then echo "STALE=yes"; else echo "STALE=no"; fi
 if [ -n "$resets_at" ] && [ "$resets_at" != "null" ]; then
   echo "RESETS_AT_HUMAN=$(date -r "$resets_at" '+%Y-%m-%d %H:%M %Z')"
   echo "RESETS_IN_MIN=$(( (resets_at - now) / 60 ))"

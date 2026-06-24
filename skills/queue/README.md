@@ -81,4 +81,6 @@ first API response of a session.
 - `scripts/compute-fire.sh` — resolves reset time (or an explicit epoch) into a one-shot cron expression.
 - `scripts/statusline-wrapper.sh` — the statusline tap.
 
-Tests: `tests/queue/caliper-test_compute_fire.sh`.
+Tests: `tests/queue/caliper-test_compute_fire.sh` (compute-fire unit tests) and
+`tests/queue/caliper-test_statusline_seam.sh` (end-to-end: wrapper → state file →
+both consumers).

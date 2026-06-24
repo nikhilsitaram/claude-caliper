@@ -20,8 +20,13 @@ mkdir -p "$(dirname "$STATE_FILE")"
 
 input="$(cat)"
 
-# Tap the 5h window fields; only persist when resets_at is present and numeric.
+# Tap the 5h window fields; only persist when resets_at is present and a bare
+# integer epoch. Guarding here matters: resets_at is interpolated raw into the
+# JSON below, so a non-numeric value (e.g. an ISO-8601 string) would write a
+# corrupt, unparseable state file — worse than no file, since both consumers
+# would then jq-fail to empty and misreport the cause as "no resets_at".
 resets_at="$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.resets_at // empty' 2>/dev/null)"
+case "$resets_at" in ''|*[!0-9]*) resets_at="" ;; esac
 if [ -n "$resets_at" ]; then
   used="$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty' 2>/dev/null)"
   now="$(date +%s)"

@@ -26,13 +26,14 @@ actions don't trip a real rate limit mid-action.
 `./skills/usage-guard/scripts/check-usage.sh [threshold]` (invoke
 directly — executable, no `bash` prefix) reads `~/.claude/queue/state.json`,
 kept fresh by the queue skill's statusline wrapper. It prints `USED_PCT=`,
-`VERDICT=` (UNDER/OVER), `CAPTURED_AGE_SEC=`, `RESETS_AT_HUMAN=`, `RESETS_IN_MIN=`
-and exits **0 = under**, **10 = at/over**, **1/2 = data unavailable**.
+`VERDICT=` (UNDER/OVER), `CAPTURED_AGE_SEC=`, `STALE=` (yes/no), `RESETS_AT_HUMAN=`,
+`RESETS_IN_MIN=` and exits **0 = under**, **10 = at/over**, **1/2 = data unavailable**.
 
 - This depends on the **queue skill's statusline wrapper** being wired in. If
   check-usage exits 1/2, relay its stderr and stop — usage can't be read.
-- If `CAPTURED_AGE_SEC` is large (say > 120s), the reading is stale (statusline
-  hasn't rendered — terminal idle/unfocused). Note it; the number may lag.
+- `STALE=yes` (the same >90s cutoff `compute-fire.sh` uses) means the statusline
+  hasn't rendered recently — terminal idle/unfocused — so `USED_PCT` lags reality.
+  Note it; the number may be behind.
 
 ## The work loop
 
@@ -54,9 +55,9 @@ and exits **0 = under**, **10 = at/over**, **1/2 = data unavailable**.
      action (big build, wide subagent fan-out, large batch) that could plausibly
      consume more than the remaining headroom. If the next step might, check/stop
      *before* it, not after.
-   - If `CAPTURED_AGE_SEC` is large near the ceiling, the reading is stale and
-     lags reality — treat it as a floor and stop early rather than trusting a
-     sub-threshold number.
+   - If `STALE=yes` near the ceiling, the reading lags reality — treat
+     `USED_PCT` as a floor and stop early rather than trusting a sub-threshold
+     number.
 6. **If the task completes before the threshold** → stop and report it done; do
    NOT queue. (A finished task ends the chain.)
 

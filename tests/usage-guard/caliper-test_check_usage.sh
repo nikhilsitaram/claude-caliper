@@ -41,6 +41,7 @@ mkstate "{\"resets_at\":$reset,\"used_percentage\":42.7,\"captured_at\":$now}"
 run
 assert "under threshold -> exit 0"      '[[ $RC -eq 0 ]]'
 assert "under -> VERDICT=UNDER"         '[[ "$(field VERDICT)" == "UNDER" ]]'
+assert "fresh capture -> STALE=no"      '[[ "$(field STALE)" == "no" ]]'
 
 # --- at/over threshold (default 99) ---
 mkstate "{\"resets_at\":$reset,\"used_percentage\":99.4,\"captured_at\":$now}"
@@ -70,6 +71,7 @@ assert "float value still UNDER (exit 0)" '[[ $RC -eq 0 ]]'
 mkstate "{\"resets_at\":$reset,\"used_percentage\":50}"
 run
 assert "missing captured_at -> huge age" '[[ "$(field CAPTURED_AGE_SEC)" -gt 1000000 ]]'
+assert "missing captured_at -> STALE=yes" '[[ "$(field STALE)" == "yes" ]]'
 
 # --- no data ---
 mkstate '{"resets_at":'"$reset"'}'
