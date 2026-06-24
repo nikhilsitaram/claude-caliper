@@ -132,9 +132,9 @@ Install only what you need:
 
 | Package | What you get | Install command |
 |---------|-------------|-----------------|
-| **claude-caliper** | All 12 skills | `/plugin install claude-caliper@claude-caliper` |
-| **claude-caliper-workflow** | Design-to-merge pipeline (9 skills) | `/plugin install claude-caliper-workflow@claude-caliper` |
-| **claude-caliper-tooling** | Codebase review + test audit + skill eval (3 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
+| **claude-caliper** | All 15 skills | `/plugin install claude-caliper@claude-caliper` |
+| **claude-caliper-workflow** | Design-to-merge pipeline (10 skills) | `/plugin install claude-caliper-workflow@claude-caliper` |
+| **claude-caliper-tooling** | Codebase review + test audit + skill eval + queue + usage-guard (5 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
 
 ### Updating
 
@@ -167,6 +167,15 @@ These skills chain automatically. You trigger the first one by describing what t
 | [codebase-review](skills/codebase-review/) | `/codebase-review [path]` | Whole-repo audit with parallel subagents per directory, cross-scope reconciliation, findings triaged by fix complexity |
 | [test-audit](skills/test-audit/) | `/test-audit [path] [--diff]` | Audits the test suite for false-pass risk, flakiness, weak assertions, and isolation smells; surfaces findings, dispatches implementers to fix approved ones, offers to record testing conventions |
 | [skill-eval](skills/skill-eval/) | `/skill-eval` | Assertion-based grading, blind A/B comparison, adversarial scenarios, variance analysis |
+
+### Usage-window scheduling
+
+Defer or pace work around Claude's 5-hour usage window. **macOS-only**, and reset-mode needs a one-time statusline setup — see [queue/README](skills/queue/README.md).
+
+| Skill | Trigger | What it does |
+|-------|---------|-------------|
+| [queue](skills/queue/) | `/queue [<when>] <commands>` | Schedule commands to fire later in the same session via a one-shot cron — by default ~90s after the 5h window resets (fresh quota), or at a time/duration you name |
+| [usage-guard](skills/usage-guard/) | `/usage-guard [--queue] [--at <pct>] <task>` | Work a task continuously until 5h usage hits a threshold (default 99%), then stop and report — or with `--queue`, chain the remainder into the next block |
 
 ---
 

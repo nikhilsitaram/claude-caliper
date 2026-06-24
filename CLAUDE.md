@@ -56,6 +56,10 @@ All shell scripts (`bin/*`, `tests/**/*.sh`) must have a `#!/usr/bin/env bash` s
 
 In `hooks/hooks.json`, `command`-type hooks always require a `command` string — even in exec form, where `command` is the *executable* and `args` is its argument vector (e.g. `"command": "bash", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/x.sh"]`). Putting the script path in `args` with no `command` fails schema validation (`command: expected string, received undefined`) and silently disables every hook.
 
+### Platform-specific & externally-wired skills
+
+`queue` and `usage-guard` use BSD `date` (`date -r <epoch>`, `date -j -f`) and are **macOS-only** — `date -r` reads a file mtime on GNU/Linux. Their tests guard with `date -r 0 >/dev/null 2>&1` and print `SKIP` rather than fail, so they are intentionally **not** wired into the Linux CI job; run them on macOS. They also depend on a statusline tap (`skills/queue/scripts/statusline-wrapper.sh`) the user must wire into `statusLine` themselves — a plugin can't auto-edit user settings. When a skill needs that kind of out-of-band setup, document it in the skill's `README.md` and gate the dependent path behind a clear error, as `queue` does.
+
 ## Development Workflow
 
 This repo uses its own skills. The typical flow: design -> worktree -> draft-plan -> orchestrate -> pr-create -> pr-review -> pr-merge.
