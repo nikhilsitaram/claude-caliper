@@ -116,10 +116,11 @@ By default the skill stops once the review passes and fixes land. These flags ch
 |------|--------|
 | `--pr-create` | Invoke the pr-create skill to commit, push, and open a PR. |
 | `--pr-review` | Invoke pr-create, then the pr-review skill. Forward any pr-review flags placed after it — `--automated-fix`/`-A`, `--automated-merge`/`-M`, or `--deliberate`/`-D`. |
+| `--pr-merge` | Invoke pr-create, then pr-review in `--automated-merge` mode (which fixes all actionable feedback, then invokes pr-merge). This is the full merge chain — pr-create → pr-review → pr-merge — so don't skip pr-review and jump straight to pr-merge. Equivalent to `--pr-review --automated-merge`. |
 
 `--pr-review` with no forwarded mode flag lets pr-review select its mode the usual way (configured `review_mode`, else prompt). These flags are for manual `/implementation-review`; in caliper mode orchestrate already drives pr-create after the review.
 
-If both `--pr-create` and `--pr-review` are passed, `--pr-review` wins (it includes PR creation). If the review can't be made to pass (unresolved `non_dismissible` findings, or fixes keep failing tests), stop before the continuation rather than opening a PR on a failing review.
+When more than one of these is passed, the most complete chain wins: `--pr-merge` over `--pr-review` over `--pr-create` (each includes the steps before it). If the review can't be made to pass (unresolved `non_dismissible` findings, or fixes keep failing tests), stop before the continuation rather than opening a PR on a failing review.
 
 ## Integration
 
