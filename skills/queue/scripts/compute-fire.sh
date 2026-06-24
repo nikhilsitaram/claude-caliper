@@ -43,11 +43,15 @@ if [ "$mode" = "reset" ]; then
     echo "Fix: keep this terminal focused ~10-15s so the statusline renders once, then retry." >&2
     exit 1
   fi
+  # Must be a bare integer epoch: it feeds `fire=$(( resets_at + 90 ))` below, so
+  # a non-numeric value (corrupt/hand-edited file) would otherwise reach
+  # arithmetic. Guard at read; the empty/"null"/garbage cases all land here.
   resets_at="$(jq -r '.resets_at // empty' "$STATE_FILE" 2>/dev/null)"
-  if [ -z "$resets_at" ] || [ "$resets_at" = "null" ]; then
-    echo "ERROR: state file has no resets_at (rate_limits is Pro/Max-only, and appears after the first API response)." >&2
-    exit 2
-  fi
+  case "$resets_at" in
+    ''|*[!0-9]*)
+      echo "ERROR: state file has no valid resets_at (rate_limits is Pro/Max-only, and appears after the first API response)." >&2
+      exit 2 ;;
+  esac
   # Staleness from captured_at; default 0 so a missing/non-numeric value reads as
   # very stale (not falsely fresh).
   captured="$(jq -r '.captured_at // 0' "$STATE_FILE" 2>/dev/null)"

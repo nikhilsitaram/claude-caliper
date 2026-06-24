@@ -66,6 +66,10 @@ assert "stale capture warns on stderr"   '[[ "$STDERR" == *"stale"* ]]'
 mkstate '{"used_percentage":40,"captured_at":'"$now"'}'
 run
 assert "missing resets_at -> exit 2" '[[ $RC -eq 2 ]]'
+# non-integer resets_at is rejected at read, before it can reach arithmetic
+mkstate "{\"resets_at\":\"2026-06-24T21:00:00Z\",\"captured_at\":$now}"
+run
+assert "non-integer resets_at -> exit 2" '[[ $RC -eq 2 ]]'
 rm -f "$STATE"
 run
 assert "no state file -> exit 1"     '[[ $RC -eq 1 ]]'

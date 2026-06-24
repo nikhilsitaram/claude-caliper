@@ -33,10 +33,17 @@ fi
 used="$(jq -r '.used_percentage // empty' "$STATE_FILE" 2>/dev/null)"
 resets_at="$(jq -r '.resets_at // empty' "$STATE_FILE" 2>/dev/null)"
 captured="$(jq -r '.captured_at // 0' "$STATE_FILE" 2>/dev/null)"
-if [ -z "$used" ]; then
-  echo "ERROR: no used_percentage in state file (Pro/Max only, after first API response)." >&2
-  exit 2
-fi
+# Fail closed on a missing/non-numeric used_percentage: a non-number would make
+# the awk compare below read 0 and report a false UNDER — exactly the verdict
+# that would let the guard run past the limit. exit 2 (data unavailable) instead.
+case "$used" in
+  ''|*[!0-9.]*|*.*.*)
+    echo "ERROR: missing or non-numeric used_percentage in state file (Pro/Max only, after first API response)." >&2
+    exit 2 ;;
+esac
+# resets_at is only used for the human/RESETS_IN lines; a non-integer reads as
+# absent so we skip those rather than emit garbage or hit a date error.
+case "$resets_at" in *[!0-9]*) resets_at="" ;; esac
 case "$captured" in ''|*[!0-9]*) captured=0 ;; esac
 
 now="$(date +%s)"
@@ -50,7 +57,7 @@ echo "USED_PCT=$used_disp"
 echo "THRESHOLD=$THRESH"
 echo "CAPTURED_AGE_SEC=$age"
 if [ "$age" -gt "$STALE_SEC" ]; then echo "STALE=yes"; else echo "STALE=no"; fi
-if [ -n "$resets_at" ] && [ "$resets_at" != "null" ]; then
+if [ -n "$resets_at" ]; then
   echo "RESETS_AT_HUMAN=$(date -r "$resets_at" '+%Y-%m-%d %H:%M %Z')"
   echo "RESETS_IN_MIN=$(( (resets_at - now) / 60 ))"
 fi

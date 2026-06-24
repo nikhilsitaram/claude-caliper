@@ -28,10 +28,14 @@ input="$(cat)"
 resets_at="$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.resets_at // empty' 2>/dev/null)"
 case "$resets_at" in ''|*[!0-9]*) resets_at="" ;; esac
 if [ -n "$resets_at" ]; then
+  # used_percentage is a float and is interpolated raw too — same corruption risk
+  # as resets_at. Keep only a bare number (digits + at most one dot); anything
+  # else (absent, or unexpected non-numeric) becomes JSON null.
   used="$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty' 2>/dev/null)"
+  case "$used" in ''|*[!0-9.]*|*.*.*) used="null" ;; esac
   now="$(date +%s)"
   printf '{"resets_at":%s,"used_percentage":%s,"captured_at":%s}\n' \
-    "$resets_at" "${used:-null}" "$now" > "$STATE_FILE"
+    "$resets_at" "$used" "$now" > "$STATE_FILE"
 fi
 
 # Forward original stdin to the real statusline renderer (output unchanged).

@@ -77,6 +77,16 @@ assert "missing captured_at -> STALE=yes" '[[ "$(field STALE)" == "yes" ]]'
 mkstate '{"resets_at":'"$reset"'}'
 run
 assert "missing used_percentage -> exit 2" '[[ $RC -eq 2 ]]'
+
+# non-numeric used_percentage fails CLOSED (exit 2), never a false UNDER that
+# would let the guard run past the limit.
+mkstate "{\"resets_at\":$reset,\"used_percentage\":\"garbage\",\"captured_at\":$now}"
+run
+assert "non-numeric used_percentage -> exit 2"  '[[ $RC -eq 2 ]]'
+mkstate "{\"resets_at\":$reset,\"used_percentage\":\"9.9.9\",\"captured_at\":$now}"
+run
+assert "multi-dot used_percentage -> exit 2"    '[[ $RC -eq 2 ]]'
+
 rm -f "$STATE"
 run
 assert "no state file -> exit 1"        '[[ $RC -eq 1 ]]'

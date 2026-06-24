@@ -90,6 +90,13 @@ assert "compute-fire still works without used_pct"  '[[ $RC -eq 0 ]]'
 run "$CHECK_USAGE"
 assert "check-usage -> exit 2 on null used_pct"     '[[ $RC -eq 2 ]]'
 
+# --- Producer sanitizes a non-numeric used_percentage to null (still valid JSON) ---
+produce "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$future,\"used_percentage\":\"N/A\"}}}"
+assert "non-numeric used_percentage -> still valid JSON" 'jq -e . "$STATE" >/dev/null'
+assert "non-numeric used_percentage -> null"             '[[ "$(jq -r .used_percentage "$STATE")" == "null" ]]'
+run "$CHECK_USAGE"
+assert "check-usage -> exit 2 on sanitized-null used_pct" '[[ $RC -eq 2 ]]'
+
 # --- Producer guards a non-numeric resets_at instead of writing corrupt JSON ---
 # Without the guard, an ISO-8601 resets_at would be interpolated raw and produce
 # an unparseable file that misleads both consumers.
