@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Tests for skills/queue/scripts/compute-fire.sh
+# macOS/BSD only (uses `date -r <epoch>`); skips on GNU date (e.g. Linux CI).
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+HELPER="$REPO_ROOT/skills/queue/scripts/compute-fire.sh"
+
+# Skip gracefully where `date -r <epoch>` isn't BSD semantics.
+if ! date -r 0 >/dev/null 2>&1; then
+  echo "SKIP: compute-fire.sh requires BSD date (-r epoch); not available here."
+  exit 0
+fi
+
+pass=0; fail=0
+STATE="$(mktemp)"; trap 'rm -f "$STATE"' EXIT
+now="$(date +%s)"
+
+# Run HELPER with QUEUE_STATE_FILE pointed at our temp state; capture out/err/rc.
+run() {
+  local tmp_out tmp_err
+  tmp_out="$(mktemp)"; tmp_err="$(mktemp)"
+  set +e
+  env QUEUE_STATE_FILE="$STATE" PATH="$PATH" HOME="$HOME" bash "$HELPER" "$@" \
+    >"$tmp_out" 2>"$tmp_err"
+  RC=$?
+  set -e
+  STDOUT="$(cat "$tmp_out")"; STDERR="$(cat "$tmp_err")"
+  rm -f "$tmp_out" "$tmp_err"
+}
+assert() {
+  local desc="$1" cond="$2"
+  if eval "$cond"; then echo "PASS: $desc"; pass=$((pass+1))
+  else echo "FAIL: $desc"; echo "  STDOUT: $STDOUT"; echo "  STDERR: $STDERR"; echo "  RC: $RC"; fail=$((fail+1)); fi
+}
+field() { echo "$STDOUT" | sed -n "s/^$1=//p"; }            # value of a KEY=
+lmin()  { echo $(( 10#$(date -r "$1" +%M) )); }             # local minute of an epoch
+mkstate() { printf '%s' "$1" > "$STATE"; }
+
+# --- reset mode: basic ---
+future=$(( (now/3600 + 2)*3600 + 17*60 ))                   # a future :17 local, hours out
+mkstate "{\"resets_at\":$future,\"used_percentage\":40,\"captured_at\":$now}"
+run
+assert "reset mode exits 0"            '[[ $RC -eq 0 ]]'
+assert "reset mode reports MODE=reset" '[[ "$(field MODE)" == "reset" ]]'
+assert "reset mode emits a CRON"       '[[ -n "$(field CRON)" ]]'
+assert "fresh capture -> STALE=no"     '[[ "$(field STALE)" == "no" ]]'
+
+# --- reset mode: :30 dodge (reset+90 rounds onto a local :30) ---
+base=$(( (now/60 + 5)*60 ))                                 # minute-aligned, future
+while [ "$(lmin "$base")" -ne 30 ]; do base=$((base+60)); done
+mkstate "{\"resets_at\":$(( base - 120 )),\"captured_at\":$now}"   # +90 = base-30s -> roundup = base (:30)
+run
+dodged_min="$(field CRON | cut -d' ' -f1)"
+assert ":30 reset dodges to :31"   '[[ "$dodged_min" -eq 31 ]]'
+assert "dodge never lands on :00/:30" '[[ "$dodged_min" -ne 0 && "$dodged_min" -ne 30 ]]'
+
+# --- reset mode: stale capture ---
+mkstate "{\"resets_at\":$future,\"used_percentage\":40,\"captured_at\":$(( now - 600 ))}"
+run
+assert "stale capture -> STALE=yes"      '[[ "$(field STALE)" == "yes" ]]'
+assert "stale capture still exits 0"     '[[ $RC -eq 0 ]]'
+assert "stale capture warns on stderr"   '[[ "$STDERR" == *"stale"* ]]'
+
+# --- reset mode: missing / no data ---
+mkstate '{"used_percentage":40,"captured_at":'"$now"'}'
+run
+assert "missing resets_at -> exit 2" '[[ $RC -eq 2 ]]'
+rm -f "$STATE"
+run
+assert "no state file -> exit 1"     '[[ $RC -eq 1 ]]'
+
+# --- epoch mode ---
+tgt=$(( (now/3600 + 3)*3600 + 12*60 ))                      # future :12 local
+run --epoch "$tgt"
+assert "epoch mode exits 0"               '[[ $RC -eq 0 ]]'
+assert "epoch mode reports MODE=epoch"    '[[ "$(field MODE)" == "epoch" ]]'
+assert "epoch minute honored"             "[[ \"\$(field CRON | cut -d' ' -f1)\" -eq $(lmin "$tgt") ]]"
+
+# sub-minute future target bumps to the next whole minute (cron is minute-granular)
+nowx="$(date +%s)"; run --epoch "$(( nowx + 20 ))"
+assert "sub-minute target exits 0"        '[[ $RC -eq 0 ]]'
+assert "sub-minute bumps to next minute"  "[[ \$(field FIRE_EPOCH) -ge \$(( (nowx/60 + 1)*60 )) ]]"
+
+# genuinely-past target -> exit 3 with minute-granular message
+run --epoch "$(( now - 300 ))"
+assert "past epoch -> exit 3"             '[[ $RC -eq 3 ]]'
+assert "past epoch message mentions minutes" '[[ "$STDERR" == *"whole minutes"* ]]'
+
+# bad --epoch -> exit 4
+run --epoch "abc"
+assert "non-integer --epoch -> exit 4"    '[[ $RC -eq 4 ]]'
+
+echo "----"
+echo "compute-fire: $pass passed, $fail failed"
+[ "$fail" -eq 0 ]

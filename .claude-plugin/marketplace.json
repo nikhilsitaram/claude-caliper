@@ -8,7 +8,7 @@
     {
       "name": "claude-caliper",
       "description": "claude-caliper bundle",
-      "version": "1.49.1",
+      "version": "1.50.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
@@ -28,7 +28,9 @@
         "./skills/pr-review",
         "./skills/pr-merge",
         "./skills/skill-eval",
-        "./skills/caliper-settings"
+        "./skills/caliper-settings",
+        "./skills/queue",
+        "./skills/usage-guard"
       ]
     },
     {
