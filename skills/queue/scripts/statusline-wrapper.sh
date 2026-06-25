@@ -43,9 +43,11 @@ EOF
 # resets_at is interpolated raw into JSON, so a non-numeric value (e.g. an
 # ISO-8601 string) would corrupt the state file — worse than no file, since both
 # consumers would then jq-fail to empty and misreport the cause. Guard it to a
-# bare integer epoch; guard used to a bare number (digits + at most one dot).
+# bare integer epoch; guard used to a well-formed JSON number. The leading- and
+# trailing-dot cases (.5, 40., .) matter: they'd be a non-numeric percentage AND
+# invalid JSON if interpolated raw, so they must reduce to null like any garbage.
 case "$resets_at" in ''|*[!0-9]*) resets_at="" ;; esac
-case "$used" in ''|*[!0-9.]*|*.*.*) used="" ;; esac
+case "$used" in ''|.*|*.|*[!0-9.]*|*.*.*) used="" ;; esac
 
 # Tap: only persist a real window (resets_at present); used falls back to null.
 if [ -n "$resets_at" ]; then
@@ -67,7 +69,10 @@ else
   fi
   [ -n "$model" ] && line="${line:+$line · }$model"
   if [ -n "$used" ]; then
-    seg="5h $(awk -v u="$used" 'BEGIN{ printf "%d", u+0 }')%"
+    # Truncate to whole percent in pure bash (no awk subprocess — this renders
+    # on every statusline refresh). `used` is guaranteed well-formed above, so
+    # stripping the fraction floors it for a non-negative percentage.
+    seg="5h ${used%%.*}%"
     [ -n "$resets_at" ] && seg="$seg (resets $(date -r "$resets_at" +%H:%M))"
     line="${line:+$line · }$seg"
   fi

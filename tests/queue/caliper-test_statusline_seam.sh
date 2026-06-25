@@ -104,6 +104,14 @@ assert "non-numeric used_percentage -> null"             '[[ "$(jq -r .used_perc
 run "$CHECK_USAGE"
 assert "check-usage -> exit 2 on sanitized-null used_pct" '[[ $RC -eq 2 ]]'
 
+# Leading/trailing-dot forms (.5, 40., .) are invalid JSON numbers AND not a
+# usable percentage — they must reduce to null, never be interpolated raw.
+for bad in '"40."' '".5"' '"."'; do
+  produce "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$future,\"used_percentage\":$bad}}}"
+  assert "malformed used_percentage $bad -> valid JSON" 'jq -e . "$STATE" >/dev/null'
+  assert "malformed used_percentage $bad -> null"       '[[ "$(jq -r .used_percentage "$STATE")" == "null" ]]'
+done
+
 # --- Producer guards a non-numeric resets_at instead of writing corrupt JSON ---
 # Without the guard, an ISO-8601 resets_at would be interpolated raw and produce
 # an unparseable file that misleads both consumers.
@@ -125,6 +133,10 @@ assert "built-in: still taps state file"        '[[ -f "$STATE" ]]'
 assert "built-in: shows dir basename"           '[[ "$OUT" == *"${tmpdir##*/}"* ]]'
 assert "built-in: shows model display_name"     '[[ "$OUT" == *"Opus 4.8"* ]]'
 assert "built-in: shows 5h percentage (int)"    '[[ "$OUT" == *"5h 40%"* ]]'
+
+# Pure-bash fraction strip floors a non-negative percent (e.g. 0.5 -> 0).
+render "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$future,\"used_percentage\":0.5}},\"model\":{\"id\":\"m\"},\"workspace\":{\"current_dir\":\"$tmpdir\"}}"
+assert "built-in: sub-1 percent floors to 0"    '[[ "$OUT" == *"5h 0%"* ]]'
 assert "built-in: shows reset wall-clock"       '[[ "$OUT" == *"resets $exp_hm"* ]]'
 assert "built-in: non-git dir -> no (branch)"   '[[ "$OUT" != *"${tmpdir##*/} ("* ]]'
 
