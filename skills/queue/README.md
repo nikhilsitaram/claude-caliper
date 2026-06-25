@@ -16,9 +16,12 @@ command's stdin — not in any file or CLI. So reset-mode depends on a thin
 statusline wrapper that captures those fields to a state file on the way through
 to your real statusline renderer.
 
-`scripts/statusline-wrapper.sh` does exactly that: it reads stdin once, writes
-`{resets_at, used_percentage, captured_at}` to the state file, then forwards the
-same stdin to your renderer (default `bunx -y ccstatusline@latest`) unchanged.
+`scripts/statusline-wrapper.sh` does exactly that: it reads stdin once and writes
+`{resets_at, used_percentage, captured_at}` to the state file. It then renders the
+statusline itself — a compact `dir (branch) · model · 5h NN% (resets HH:MM)`
+line — so **no external statusline tool is required**. If you already use a
+statusline renderer (ccstatusline or anything else), set `QUEUE_STATUSLINE` and
+the wrapper forwards the same stdin to it instead of rendering its own line.
 
 ### Wiring it in
 
@@ -42,12 +45,18 @@ chmod +x ~/.claude/queue/statusline-wrapper.sh
 }
 ```
 
-Already running a custom statusline? Set `QUEUE_STATUSLINE` to it (the wrapper
-forwards stdin to that command instead of `ccstatusline`):
+With nothing else configured the wrapper renders its own line. Already running a
+custom statusline? Set `QUEUE_STATUSLINE` to it and the wrapper forwards stdin to
+that command instead:
 
 ```bash
+# any renderer:
 QUEUE_STATUSLINE="my-statusline --flags" bash ~/.claude/queue/statusline-wrapper.sh
+# ccstatusline specifically:
+QUEUE_STATUSLINE="bunx -y ccstatusline@latest" bash ~/.claude/queue/statusline-wrapper.sh
 ```
+
+Set it via the `statusLine.command`'s `env`, or export it before Claude starts.
 
 Give the terminal ~10–15 s to render once, then confirm:
 
@@ -63,7 +72,7 @@ first API response of a session.
 | Var | Default | Purpose |
 |-----|---------|---------|
 | `QUEUE_STATE_FILE` | `~/.claude/queue/state.json` | Where state is read/written |
-| `QUEUE_STATUSLINE` | `bunx -y ccstatusline@latest` | The real statusline to forward to |
+| `QUEUE_STATUSLINE` | _(unset)_ | External statusline command to forward stdin to; unset renders the built-in line |
 
 ## Notes & limits
 
