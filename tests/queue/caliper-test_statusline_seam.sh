@@ -32,12 +32,19 @@ assert() {
   else echo "FAIL: $desc"; echo "  cond: $cond"; fail=$((fail+1)); fi
 }
 
-# Pipe a statusline JSON blob through the real wrapper. QUEUE_STATUSLINE=cat
-# both avoids invoking the default ccstatusline (network) and lets us assert the
-# wrapper forwards stdin unchanged. Returns the renderer's stdout in FWD.
+# Pipe a statusline JSON blob through the real wrapper with an EXTERNAL renderer
+# (QUEUE_STATUSLINE=cat) — lets us assert the wrapper forwards stdin unchanged.
+# Returns the renderer's stdout in FWD.
 produce() {
   rm -f "$STATE"
   FWD="$(printf '%s' "$1" | env QUEUE_STATE_FILE="$STATE" QUEUE_STATUSLINE="cat" \
+    PATH="$PATH" HOME="$HOME" bash "$WRAPPER")"
+}
+# Pipe a blob through the wrapper with NO external renderer (QUEUE_STATUSLINE
+# unset) — exercises the built-in line. Returns the rendered line in OUT.
+render() {
+  rm -f "$STATE"
+  OUT="$(printf '%s' "$1" | env -u QUEUE_STATUSLINE QUEUE_STATE_FILE="$STATE" \
     PATH="$PATH" HOME="$HOME" bash "$WRAPPER")"
 }
 # Run a consumer against whatever the wrapper wrote; capture out/err/rc.
@@ -97,6 +104,14 @@ assert "non-numeric used_percentage -> null"             '[[ "$(jq -r .used_perc
 run "$CHECK_USAGE"
 assert "check-usage -> exit 2 on sanitized-null used_pct" '[[ $RC -eq 2 ]]'
 
+# Leading/trailing-dot forms (.5, 40., .) are invalid JSON numbers AND not a
+# usable percentage — they must reduce to null, never be interpolated raw.
+for bad in '"40."' '".5"' '"."'; do
+  produce "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$future,\"used_percentage\":$bad}}}"
+  assert "malformed used_percentage $bad -> valid JSON" 'jq -e . "$STATE" >/dev/null'
+  assert "malformed used_percentage $bad -> null"       '[[ "$(jq -r .used_percentage "$STATE")" == "null" ]]'
+done
+
 # --- Producer guards a non-numeric resets_at instead of writing corrupt JSON ---
 # Without the guard, an ISO-8601 resets_at would be interpolated raw and produce
 # an unparseable file that misleads both consumers.
@@ -108,6 +123,32 @@ assert "compute-fire reports no-data (exit 1) not corruption" '[[ $RC -eq 1 ]]'
 # --- No rate_limits at all (free tier / pre-first-response): nothing written ---
 produce '{"model":{"id":"x"}}'
 assert "blob without rate_limits -> no state file" '[[ ! -f "$STATE" ]]'
+
+# --- Built-in render path (no external statusline tool installed) ---
+# Works standalone: the wrapper renders its own line and still taps the state.
+tmpdir="$(mktemp -d)"; trap 'rm -f "$STATE"; rm -rf "$tmpdir"' EXIT   # non-git dir
+exp_hm="$(date -r "$future" +%H:%M)"
+render "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$future,\"used_percentage\":40.5}},\"model\":{\"display_name\":\"Opus 4.8\"},\"workspace\":{\"current_dir\":\"$tmpdir\"}}"
+assert "built-in: still taps state file"        '[[ -f "$STATE" ]]'
+assert "built-in: shows dir basename"           '[[ "$OUT" == *"${tmpdir##*/}"* ]]'
+assert "built-in: shows model display_name"     '[[ "$OUT" == *"Opus 4.8"* ]]'
+assert "built-in: shows 5h percentage (int)"    '[[ "$OUT" == *"5h 40%"* ]]'
+
+# Pure-bash fraction strip floors a non-negative percent (e.g. 0.5 -> 0).
+render "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$future,\"used_percentage\":0.5}},\"model\":{\"id\":\"m\"},\"workspace\":{\"current_dir\":\"$tmpdir\"}}"
+assert "built-in: sub-1 percent floors to 0"    '[[ "$OUT" == *"5h 0%"* ]]'
+assert "built-in: shows reset wall-clock"       '[[ "$OUT" == *"resets $exp_hm"* ]]'
+assert "built-in: non-git dir -> no (branch)"   '[[ "$OUT" != *"${tmpdir##*/} ("* ]]'
+
+# A git working dir adds a (branch) segment.
+render "{\"model\":{\"id\":\"m\"},\"workspace\":{\"current_dir\":\"$REPO_ROOT\"}}"
+assert "built-in: git dir shows (branch)"        '[[ "$OUT" == *"("*")"* ]]'
+
+# Free tier (no rate_limits): clean dir/model line, no 5h segment, no state file.
+render "{\"model\":{\"display_name\":\"Sonnet\"},\"workspace\":{\"current_dir\":\"$tmpdir\"}}"
+assert "built-in free-tier: shows model"        '[[ "$OUT" == *"Sonnet"* ]]'
+assert "built-in free-tier: no 5h segment"      '[[ "$OUT" != *"5h"* ]]'
+assert "built-in free-tier: no state written"   '[[ ! -f "$STATE" ]]'
 
 echo "----"
 echo "statusline-seam: $pass passed, $fail failed"
