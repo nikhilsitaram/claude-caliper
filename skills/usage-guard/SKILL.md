@@ -46,7 +46,8 @@ kept fresh by the queue skill's statusline wrapper. It prints `WINDOW=`, `USED_P
    "what's done / what's still open" for the stop report and the queue payload.
 2. **Do a chunk** of the work (a sub-task, or a small batch of steps).
 3. **Update the ledger** (mark finished items done) — do this *before* the usage
-   check so the check/branch always sees a current ledger.
+   check so the check/branch always sees a current ledger. In `--queue` mode, also
+   refresh the rate-limit backstop marker here (see "Rate-limit backstop").
 4. **Check usage** by running check-usage.sh:
    - Exit 0 (UNDER) → continue to the next chunk.
    - Exit 10 (OVER) → go to "At the threshold".
@@ -63,7 +64,7 @@ kept fresh by the queue skill's statusline wrapper. It prints `WINDOW=`, `USED_P
      `USED_PCT` as a floor and stop early rather than trusting a sub-threshold
      number.
 6. **If the task completes before the threshold** → stop and report it done; do
-   NOT queue. (A finished task ends the chain.)
+   NOT queue, and clear the backstop marker. (A finished task ends the chain.)
 
 Work continuously without pausing to ask between chunks — that's the point of
 the guard. Only stop for the threshold, task completion, a hard error, or a
@@ -108,10 +109,36 @@ remains). Then:
    > usage and re-queues anything still open at the next threshold:
    >
    > <CONTINUATION PAYLOAD>
-4. Report: what got done, that the rest is queued for `FIRE_HUMAN` (job ID), and
+4. **Clear the backstop marker** — the work is durably queued now, so the
+   StopFailure hook must not double-queue it:
+   `./skills/usage-guard/scripts/guard-marker.sh clear`
+5. Report: what got done, that the rest is queued for `FIRE_HUMAN` (job ID), and
    the caveats below. Because the continuation re-invokes `/usage-guard --queue`,
    a task bigger than one block chains block-to-block until the open list is
    empty (the termination guard above is what ends it).
+
+(Default-mode stop also clears the marker — there's no queued continuation to
+protect.)
+
+## Rate-limit backstop (`--queue`, opt-in hook)
+
+The checks above are checkpoint-granular, so one oversized action can trip a real
+rate limit *before* the next check queues the work. An opt-in `StopFailure` hook
+(matcher `rate_limit`) rescues that case — but only when it knows a `--queue` run
+is live. So in `--queue` mode, maintain the run marker:
+
+- **At run start and after each ledger update**, refresh it with the current
+  continuation payload (same fields as the CONTINUATION PAYLOAD above):
+  `printf '%s' "<PAYLOAD>" | ./skills/usage-guard/scripts/guard-marker.sh set`
+- **Clear it** the moment the run ends — task completion, a clean stop, or right
+  after the CronCreate above (steps 4/6).
+
+If a rate limit hits while the marker is live, the hook records the remaining work
+to `pending-resume.json` keyed off the last-known reset time, and a `SessionStart`
+hook surfaces it next session. **On a cold resume, if you're handed a "pending
+resume" context, act on its payload, then delete the named `pending-resume.json`
+so it can't be resumed twice.** Both hooks are opt-in (a plugin can't edit
+settings.json) — wiring + caveats in the README.
 
 ## Caveats (state these when stopping)
 
