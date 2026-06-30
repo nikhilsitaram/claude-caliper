@@ -1,6 +1,6 @@
 ---
 name: usage-guard
-description: Work a task autonomously and continuously, checking 5-hour usage-window consumption at each checkpoint, and stop when usage hits a threshold (default 99%) instead of getting rate-limited mid-action. Use when the user runs `/usage-guard <task>`, `/usage-guard --queue <task>`, says "keep going until I'm almost out of usage", "grind on this until the 5-hour limit", "use up my block on this", or "work until 99% then stop / then queue the rest".
+description: Work a task autonomously and continuously, checking usage-window consumption (the 5-hour block by default, or the 7-day/weekly cap with `--window 7d`) at each checkpoint, and stop when usage hits a threshold (default 99%) instead of getting rate-limited mid-action. Use when the user runs `/usage-guard <task>`, `/usage-guard --queue <task>`, `/usage-guard --window 7d <task>`, says "keep going until I'm almost out of usage", "grind on this until the 5-hour limit", "use up my block on this", "stop when I'm near my weekly/7-day limit", or "work until 99% then stop / then queue the rest".
 ---
 
 # /usage-guard — work until the 5-hour usage window is nearly spent
@@ -23,12 +23,16 @@ actions don't trip a real rate limit mid-action.
 
 ## How usage is read
 
-`./skills/usage-guard/scripts/check-usage.sh [threshold]` (invoke
-directly — executable, no `bash` prefix) reads `~/.claude/queue/state.json`,
-kept fresh by the queue skill's statusline wrapper. It prints `USED_PCT=`,
+`./skills/usage-guard/scripts/check-usage.sh [--window 5h|7d] [threshold]`
+(invoke directly — executable, no `bash` prefix) reads `~/.claude/queue/state.json`,
+kept fresh by the queue skill's statusline wrapper. It prints `WINDOW=`, `USED_PCT=`,
 `VERDICT=` (UNDER/OVER), `CAPTURED_AGE_SEC=`, `STALE=` (yes/no), `RESETS_AT_HUMAN=`,
 `RESETS_IN_MIN=` and exits **0 = under**, **10 = at/over**, **1/2 = data unavailable**.
 
+- `--window` selects the rolling window (default `5h`). Pass `--window 7d` to guard
+  the **weekly** cap instead — e.g. "stop when I'm near my 7-day limit". The work
+  loop is otherwise identical; just thread the same `--window` value through every
+  check this run so cadence and the threshold branch track one window.
 - This depends on the **queue skill's statusline wrapper** being wired in. If
   check-usage exits 1/2, relay its stderr and stop — usage can't be read.
 - `STALE=yes` (the same >90s cutoff `compute-fire.sh` uses) means the statusline
@@ -40,6 +44,9 @@ kept fresh by the queue skill's statusline wrapper. It prints `USED_PCT=`,
 1. **Set up a ledger.** Use the task list (TaskCreate/TaskUpdate) to break the
    TASK into trackable sub-tasks and keep it current. This ledger IS your
    "what's done / what's still open" for the stop report and the queue payload.
+   In `--queue` mode, also write the rate-limit backstop marker once now (see
+   "Rate-limit backstop"), and — at the very start of any run — check for a
+   leftover breadcrumb from a previously interrupted run.
 2. **Do a chunk** of the work (a sub-task, or a small batch of steps).
 3. **Update the ledger** (mark finished items done) — do this *before* the usage
    check so the check/branch always sees a current ledger.
@@ -59,7 +66,7 @@ kept fresh by the queue skill's statusline wrapper. It prints `USED_PCT=`,
      `USED_PCT` as a floor and stop early rather than trusting a sub-threshold
      number.
 6. **If the task completes before the threshold** → stop and report it done; do
-   NOT queue. (A finished task ends the chain.)
+   NOT queue, and clear the backstop marker. (A finished task ends the chain.)
 
 Work continuously without pausing to ask between chunks — that's the point of
 the guard. Only stop for the threshold, task completion, a hard error, or a
@@ -104,10 +111,35 @@ remains). Then:
    > usage and re-queues anything still open at the next threshold:
    >
    > <CONTINUATION PAYLOAD>
-4. Report: what got done, that the rest is queued for `FIRE_HUMAN` (job ID), and
+4. **Clear the backstop marker** — the work is durably queued now, so the
+   StopFailure hook must not double-queue it:
+   `./skills/usage-guard/scripts/guard-marker.sh clear`
+5. Report: what got done, that the rest is queued for `FIRE_HUMAN` (job ID), and
    the caveats below. Because the continuation re-invokes `/usage-guard --queue`,
    a task bigger than one block chains block-to-block until the open list is
    empty (the termination guard above is what ends it).
+
+(Default-mode stop also clears the marker — there's no queued continuation to
+protect.)
+
+## Rate-limit backstop (`--queue`, opt-in hook)
+
+usage-guard's job is to **stop** before the limit; this is just a light safety net
+for the overshoot case (one oversized action trips a real rate limit before the
+next check). An opt-in `StopFailure` hook (matcher `rate_limit`) records — it does
+NOT auto-resume — so an interrupted `--queue` run isn't silently lost.
+
+- **At `--queue` run start**, write the marker once with the original task + the
+  environment needed to resume (working dir, branch/worktree, key paths/IDs):
+  `printf '%s' "<task + env>" | ./skills/usage-guard/scripts/guard-marker.sh set`
+- **Clear it** the moment the run ends — task completion, a clean stop, or right
+  after the CronCreate above (steps 4/6): `guard-marker.sh clear`.
+
+If a rate limit hits while the marker is live, the hook copies it to
+`~/.claude/queue/pending-resume.json` (a breadcrumb). **At the start of any
+`/usage-guard` run, check for that file; if present, fold its task/env into this
+run and delete it** so it isn't picked up twice. The hook is opt-in (a plugin
+can't edit settings.json) — wiring + caveats in the README.
 
 ## Caveats (state these when stopping)
 

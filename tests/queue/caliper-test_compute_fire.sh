@@ -95,6 +95,36 @@ assert "past epoch message mentions minutes" '[[ "$STDERR" == *"whole minutes"* 
 run --epoch "abc"
 assert "non-integer --epoch -> exit 4"    '[[ $RC -eq 4 ]]'
 
+# --- reset mode: --window 7d selects the seven_day reset (#260) ---
+future7=$(( (now/3600 + 4)*3600 + 23*60 ))                  # distinct, later than $future
+mkstate "{\"resets_at\":$future,\"used_percentage\":40,\"captured_at\":$now,\"seven_day\":{\"resets_at\":$future7,\"used_percentage\":12}}"
+run
+assert "default targets 5h reset"          "[[ \$(field FIRE_EPOCH) -lt $future7 ]]"
+assert "default reports WINDOW=5h"         '[[ "$(field WINDOW)" == "5h" ]]'
+run --window 7d
+assert "--window 7d exits 0"               '[[ $RC -eq 0 ]]'
+assert "--window 7d reports WINDOW=7d"      '[[ "$(field WINDOW)" == "7d" ]]'
+assert "--window 7d targets 7d reset"      "[[ \$(field FIRE_EPOCH) -ge $future7 ]]"
+
+# 7d unavailable (sub-object absent, or its resets_at null) -> exit 2, like 5h.
+mkstate "{\"resets_at\":$future,\"captured_at\":$now}"
+run --window 7d
+assert "--window 7d, no seven_day -> exit 2" '[[ $RC -eq 2 ]]'
+mkstate "{\"resets_at\":$future,\"captured_at\":$now,\"seven_day\":{\"resets_at\":null,\"used_percentage\":null}}"
+run --window 7d
+assert "--window 7d, null 7d resets_at -> exit 2" '[[ $RC -eq 2 ]]'
+
+# bad --window value -> exit 4
+mkstate "{\"resets_at\":$future,\"captured_at\":$now}"
+run --window 9z
+assert "bad --window -> exit 4"            '[[ $RC -eq 4 ]]'
+
+# trailing flag with no value must error (not hang on a failed `shift 2`)
+run --window
+assert "--window with no value -> exit 4"  '[[ $RC -eq 4 ]]'
+run --epoch
+assert "--epoch with no value -> exit 4"   '[[ $RC -eq 4 ]]'
+
 echo "----"
 echo "compute-fire: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

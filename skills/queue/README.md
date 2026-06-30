@@ -10,18 +10,36 @@ Pairs with the `usage-guard` skill, which reads the same usage state.
 
 ## Requirement: the statusline tap
 
-The 5-hour window reset time (`rate_limits.five_hour.resets_at`) and percent used
-are exposed by Claude Code **only** in the JSON piped to your `statusLine`
-command's stdin — not in any file or CLI. So reset-mode depends on a thin
-statusline wrapper that captures those fields to a state file on the way through
-to your real statusline renderer.
+The usage-window reset times (`rate_limits.five_hour.resets_at`,
+`rate_limits.seven_day.resets_at`) and percent used are exposed by Claude Code
+**only** in the JSON piped to your `statusLine` command's stdin — not in any file
+or CLI. So reset-mode depends on a thin statusline wrapper that captures those
+fields to a state file on the way through to your real statusline renderer.
 
 `scripts/statusline-wrapper.sh` does exactly that: it reads stdin once and writes
-`{resets_at, used_percentage, captured_at}` to the state file. It then renders the
-statusline itself — a compact `dir (branch) · model · 5h NN% (resets HH:MM)`
-line — so **no external statusline tool is required**. If you already use a
-statusline renderer (ccstatusline or anything else), set `QUEUE_STATUSLINE` and
-the wrapper forwards the same stdin to it instead of rendering its own line.
+both rolling windows to the state file. It then renders the statusline itself — a
+compact `dir (branch) · model · 5h NN% (resets HH:MM)` line — so **no external
+statusline tool is required**. If you already use a statusline renderer
+(ccstatusline or anything else), set `QUEUE_STATUSLINE` and the wrapper forwards
+the same stdin to it instead of rendering its own line.
+
+### State-file shape
+
+```jsonc
+{
+  "resets_at": 1782824400,      // five_hour reset (epoch); top-level for backcompat
+  "used_percentage": 40.5,      // five_hour percent (null if absent)
+  "captured_at": 1782820000,    // when the wrapper last wrote (staleness signal)
+  "seven_day": {                // always written; fields null when that window is absent
+    "resets_at": 1783429200,
+    "used_percentage": 12.3
+  }
+}
+```
+
+The two windows are independent — either may be `null` while the other is present.
+`five_hour` stays at the top level so existing consumers are unaffected; the
+consumer scripts select the window with `--window 5h|7d` (default `5h`).
 
 ### Wiring it in
 
@@ -61,10 +79,10 @@ Set it via the `statusLine.command`'s `env`, or export it before Claude starts.
 Give the terminal ~10–15 s to render once, then confirm:
 
 ```bash
-cat ~/.claude/queue/state.json   # {"resets_at":…, "used_percentage":…, "captured_at":…}
+cat ~/.claude/queue/state.json   # see "State-file shape" above
 ```
 
-`resets_at`/`used_percentage` only appear for Pro/Max subscribers, after the
+`rate_limits` (both windows) only appears for Pro/Max subscribers, after the
 first API response of a session.
 
 ## Configuration (env)

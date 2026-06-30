@@ -91,6 +91,39 @@ rm -f "$STATE"
 run
 assert "no state file -> exit 1"        '[[ $RC -eq 1 ]]'
 
+# --- --window selector reads the seven_day sub-object (#260) ---
+mkstate "{\"resets_at\":$reset,\"used_percentage\":42.7,\"captured_at\":$now,\"seven_day\":{\"resets_at\":$reset,\"used_percentage\":88.0}}"
+run
+assert "default reads 5h used_pct (42.7)" '[[ "$(field USED_PCT)" == "42.7" ]]'
+assert "default reports WINDOW=5h"        '[[ "$(field WINDOW)" == "5h" ]]'
+run --window 7d
+assert "--window 7d reads 7d used_pct (88.0)" '[[ "$(field USED_PCT)" == "88.0" ]]'
+assert "--window 7d reports WINDOW=7d"    '[[ "$(field WINDOW)" == "7d" ]]'
+# each window crosses its own threshold independently: 5h under, 7d over.
+run 90
+assert "5h 42.7 vs 90 -> UNDER (exit 0)"  '[[ $RC -eq 0 ]]'
+run --window 7d 90
+assert "7d 88.0 vs 90 -> UNDER (exit 0)"  '[[ $RC -eq 0 ]]'
+run --window 7d 85
+assert "7d 88.0 vs 85 -> OVER (exit 10)"  '[[ $RC -eq 10 ]]'
+
+# 7d unavailable (sub-object absent, or its used_percentage null) -> exit 2.
+mkstate "{\"resets_at\":$reset,\"used_percentage\":42.7,\"captured_at\":$now}"
+run --window 7d
+assert "--window 7d, no seven_day -> exit 2" '[[ $RC -eq 2 ]]'
+mkstate "{\"resets_at\":$reset,\"used_percentage\":42.7,\"captured_at\":$now,\"seven_day\":{\"resets_at\":null,\"used_percentage\":null}}"
+run --window 7d
+assert "--window 7d, null 7d used_pct -> exit 2" '[[ $RC -eq 2 ]]'
+
+# bad --window value -> exit 64 (usage error)
+mkstate "{\"resets_at\":$reset,\"used_percentage\":42.7,\"captured_at\":$now}"
+run --window weekly
+assert "bad --window -> exit 64"          '[[ $RC -eq 64 ]]'
+
+# trailing --window with no value must error (not hang on a failed `shift 2`)
+run --window
+assert "--window with no value -> exit 64" '[[ $RC -eq 64 ]]'
+
 echo "----"
 echo "check-usage: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
