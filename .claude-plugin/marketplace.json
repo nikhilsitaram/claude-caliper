@@ -8,7 +8,7 @@
     {
       "name": "claude-caliper",
       "description": "claude-caliper bundle",
-      "version": "1.51.0",
+      "version": "1.52.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
@@ -59,7 +59,7 @@
     {
       "name": "claude-caliper-tooling",
       "description": "Standalone tools: codebase audit, test audit, skill evaluation, and usage-window scheduling (queue / usage-guard)",
-      "version": "1.50.0",
+      "version": "1.51.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
