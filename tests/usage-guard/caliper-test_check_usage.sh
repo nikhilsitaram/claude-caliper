@@ -120,6 +120,10 @@ mkstate "{\"resets_at\":$reset,\"used_percentage\":42.7,\"captured_at\":$now}"
 run --window weekly
 assert "bad --window -> exit 64"          '[[ $RC -eq 64 ]]'
 
+# trailing --window with no value must error (not hang on a failed `shift 2`)
+run --window
+assert "--window with no value -> exit 64" '[[ $RC -eq 64 ]]'
+
 echo "----"
 echo "check-usage: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

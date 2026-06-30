@@ -27,10 +27,11 @@ mkdir -p "$(dirname "$STATE_FILE")"
 input="$(cat)"
 
 # One jq pass pulls everything we need — both windows' tap fields plus the render
-# fields — joined on US (0x1f). A non-whitespace separator is deliberate: tab is
-# an IFS-whitespace char, which would collapse the leading empty fields when
-# rate_limits is absent (mis-shifting model/dir); 0x1f preserves empty fields
-# and can't occur in a model name or path.
+# fields — joined on US (\u001f, 0x1f). A non-whitespace separator is deliberate:
+# tab is an IFS-whitespace char, which would collapse the leading empty fields
+# when rate_limits is absent (mis-shifting model/dir); 0x1f preserves empty fields
+# and can't occur in a model name or path. Use jq's \u001f escape, not a literal
+# control byte, so the source stays readable and editor/git-safe.
 IFS=$'\x1f' read -r resets_at used seven_resets seven_used model dir <<EOF
 $(printf '%s' "$input" | jq -r '[
     (.rate_limits.five_hour.resets_at // ""),
@@ -39,7 +40,7 @@ $(printf '%s' "$input" | jq -r '[
     (.rate_limits.seven_day.used_percentage // ""),
     (.model.display_name // .model.id // ""),
     (.workspace.current_dir // .cwd // "")
-  ] | map(tostring) | join("")' 2>/dev/null)
+  ] | map(tostring) | join("\u001f")' 2>/dev/null)
 EOF
 
 # Normalize the numeric fields once, shared by the tap and the render below.
@@ -60,9 +61,19 @@ case "$seven_used" in ''|.*|*.|*[!0-9.]*|*.*.*) seven_used="" ;; esac
 # .used_percentage unchanged); seven_day is always written as a sub-object so the
 # shape is stable, with null fields when that window is absent. A missing window's
 # resets_at is null, which the consumers treat as "data unavailable".
+#
+# Write via a temp file + atomic mv: this renders every ~10s and the consumers
+# (check-usage.sh / compute-fire.sh) read the file concurrently, so a direct `>`
+# redirect could expose a half-written file and make a consumer misreport
+# "data unavailable". mv on the same filesystem is atomic.
 if [ -n "$resets_at" ] || [ -n "$seven_resets" ]; then
-  printf '{"resets_at":%s,"used_percentage":%s,"captured_at":%s,"seven_day":{"resets_at":%s,"used_percentage":%s}}\n' \
-    "${resets_at:-null}" "${used:-null}" "$(date +%s)" "${seven_resets:-null}" "${seven_used:-null}" > "$STATE_FILE"
+  tmp="$STATE_FILE.tmp.$$"
+  if printf '{"resets_at":%s,"used_percentage":%s,"captured_at":%s,"seven_day":{"resets_at":%s,"used_percentage":%s}}\n' \
+      "${resets_at:-null}" "${used:-null}" "$(date +%s)" "${seven_resets:-null}" "${seven_used:-null}" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$STATE_FILE"
+  else
+    rm -f "$tmp"
+  fi
 fi
 
 # Render. Forward to an external renderer if asked; otherwise our own line.

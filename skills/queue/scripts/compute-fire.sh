@@ -36,9 +36,11 @@ WINDOW="5h"
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --epoch)    mode="epoch"; epoch="${2:-}"; shift 2 ;;
+    --epoch)    [ $# -ge 2 ] || { echo "ERROR: --epoch requires a value." >&2; exit 4; }
+                mode="epoch"; epoch="$2"; shift 2 ;;
     --epoch=*)  mode="epoch"; epoch="${1#*=}"; shift ;;
-    --window)   WINDOW="${2:-}"; shift 2 ;;
+    --window)   [ $# -ge 2 ] || { echo "ERROR: --window requires a value (5h|7d)." >&2; exit 4; }
+                WINDOW="$2"; shift 2 ;;
     --window=*) WINDOW="${1#*=}"; shift ;;
     *) echo "ERROR: unknown argument '$1' (usage: compute-fire.sh [--window 5h|7d] [--epoch <N>])." >&2; exit 4 ;;
   esac

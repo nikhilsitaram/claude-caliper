@@ -119,6 +119,12 @@ mkstate "{\"resets_at\":$future,\"captured_at\":$now}"
 run --window 9z
 assert "bad --window -> exit 4"            '[[ $RC -eq 4 ]]'
 
+# trailing flag with no value must error (not hang on a failed `shift 2`)
+run --window
+assert "--window with no value -> exit 4"  '[[ $RC -eq 4 ]]'
+run --epoch
+assert "--epoch with no value -> exit 4"   '[[ $RC -eq 4 ]]'
+
 echo "----"
 echo "compute-fire: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

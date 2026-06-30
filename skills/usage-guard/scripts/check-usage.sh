@@ -33,7 +33,8 @@ WINDOW="5h"
 THRESH=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --window)   WINDOW="${2:-}"; shift 2 ;;
+    --window)   [ $# -ge 2 ] || { echo "ERROR: --window requires a value (5h|7d)." >&2; exit 64; }
+                WINDOW="$2"; shift 2 ;;
     --window=*) WINDOW="${1#*=}"; shift ;;
     --)         shift; break ;;
     -*)         echo "ERROR: unknown flag '$1' (usage: check-usage.sh [--window 5h|7d] [threshold])." >&2; exit 64 ;;

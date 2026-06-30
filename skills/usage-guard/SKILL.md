@@ -1,6 +1,6 @@
 ---
 name: usage-guard
-description: Work a task autonomously and continuously, checking 5-hour usage-window consumption at each checkpoint, and stop when usage hits a threshold (default 99%) instead of getting rate-limited mid-action. Use when the user runs `/usage-guard <task>`, `/usage-guard --queue <task>`, says "keep going until I'm almost out of usage", "grind on this until the 5-hour limit", "use up my block on this", or "work until 99% then stop / then queue the rest".
+description: Work a task autonomously and continuously, checking usage-window consumption (the 5-hour block by default, or the 7-day/weekly cap with `--window 7d`) at each checkpoint, and stop when usage hits a threshold (default 99%) instead of getting rate-limited mid-action. Use when the user runs `/usage-guard <task>`, `/usage-guard --queue <task>`, `/usage-guard --window 7d <task>`, says "keep going until I'm almost out of usage", "grind on this until the 5-hour limit", "use up my block on this", "stop when I'm near my weekly/7-day limit", or "work until 99% then stop / then queue the rest".
 ---
 
 # /usage-guard — work until the 5-hour usage window is nearly spent
