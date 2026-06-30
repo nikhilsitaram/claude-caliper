@@ -30,6 +30,8 @@ cron fires in the machine's local timezone, so no conversion is needed; let
   ./skills/queue/scripts/compute-fire.sh
   ```
   (Invoke it directly — it's executable. Do NOT prefix with `bash`.)
+  For the **weekly** reset instead (e.g. "queue this for next week's reset"), add
+  `--window 7d` so it fires after the 7-day window resets.
 
 - **A duration** ("in 2h", "in 90m", "2h30m") or **clock time** ("3pm", "15:00",
   "3:30pm") or **natural language** ("10am tomorrow", "tomorrow at 9",

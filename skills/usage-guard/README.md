@@ -18,8 +18,10 @@ instead of getting rate-limited mid-action.
 
 Reads usage from the **`queue` skill's** state file (`~/.claude/queue/state.json`),
 kept fresh by its statusline wrapper. Set that up first — see `../queue/README.md`.
-`scripts/check-usage.sh` reads the file and exits `0` (under) / `10` (at/over) /
-`1|2` (no data). Honors `QUEUE_STATE_FILE`. macOS/BSD only.
+`scripts/check-usage.sh [--window 5h|7d] [threshold]` reads the file and exits
+`0` (under) / `10` (at/over) / `1|2` (no data) / `64` (bad flag). `--window 7d`
+guards the weekly cap instead of the 5-hour block. Honors `QUEUE_STATE_FILE`.
+macOS/BSD only.
 
 ## How the stop works (honest limits)
 

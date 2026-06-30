@@ -3,13 +3,19 @@
 # macOS/BSD only: uses `date -r <epoch>` and `date -j -f` (GNU date differs).
 #
 # Modes:
-#   (default, no args)   Fire ~90s AFTER the current 5-hour usage window resets.
-#                        Reads resets_at + captured_at from the state file (kept
-#                        fresh by statusline-wrapper.sh). Rounds up to a whole
-#                        minute and DODGES :00/:30 — the minutes where CronCreate
-#                        applies up-to-90s-EARLY jitter to one-shots — so it can
-#                        never fire before the window actually resets. Flags
-#                        STALE if the statusline hasn't rendered recently.
+#   (default, no args)   Fire ~90s AFTER the current usage window resets. Reads
+#                        the chosen window's resets_at + the shared captured_at
+#                        from the state file (kept fresh by statusline-wrapper.sh).
+#                        Rounds up to a whole minute and DODGES :00/:30 — the
+#                        minutes where CronCreate applies up-to-90s-EARLY jitter to
+#                        one-shots — so it can never fire before the window
+#                        actually resets. Flags STALE if the statusline hasn't
+#                        rendered recently.
+#
+#   --window 5h|7d       Which rolling window's reset to target in reset mode
+#                        (default 5h). `7d` reads .seven_day.resets_at so reset
+#                        mode can fire after the weekly reset. Ignored with
+#                        --epoch (an explicit target is window-agnostic).
 #
 #   --epoch <N>          Fire at the explicit local epoch N (a clock time / "in
 #                        2h" / "10am tomorrow" the caller already resolved).
@@ -26,14 +32,26 @@ STALE_SEC=90            # statusline refreshes ~every 10s; >90s ⇒ likely not r
 now="$(date +%s)"
 mode="reset"
 epoch=""
+WINDOW="5h"
 
-if [ "${1:-}" = "--epoch" ]; then
-  mode="epoch"
-  epoch="${2:-}"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --epoch)    mode="epoch"; epoch="${2:-}"; shift 2 ;;
+    --epoch=*)  mode="epoch"; epoch="${1#*=}"; shift ;;
+    --window)   WINDOW="${2:-}"; shift 2 ;;
+    --window=*) WINDOW="${1#*=}"; shift ;;
+    *) echo "ERROR: unknown argument '$1' (usage: compute-fire.sh [--window 5h|7d] [--epoch <N>])." >&2; exit 4 ;;
+  esac
+done
+if [ "$mode" = "epoch" ]; then
   case "$epoch" in
     ''|*[!0-9]*) echo "ERROR: --epoch needs an integer Unix timestamp, got '${epoch}'." >&2; exit 4 ;;
   esac
 fi
+case "$WINDOW" in
+  5h|7d) ;;
+  *) echo "ERROR: --window must be 5h or 7d, got '$WINDOW'." >&2; exit 4 ;;
+esac
 
 stale=""
 age=0
@@ -46,10 +64,16 @@ if [ "$mode" = "reset" ]; then
   # Must be a bare integer epoch: it feeds `fire=$(( resets_at + 90 ))` below, so
   # a non-numeric value (corrupt/hand-edited file) would otherwise reach
   # arithmetic. Guard at read; the empty/"null"/garbage cases all land here.
-  resets_at="$(jq -r '.resets_at // empty' "$STATE_FILE" 2>/dev/null)"
+  # The window selects where the reset epoch lives: five_hour at the top level,
+  # seven_day in the sub-object (null when that window is absent).
+  if [ "$WINDOW" = "7d" ]; then
+    resets_at="$(jq -r '.seven_day.resets_at // empty' "$STATE_FILE" 2>/dev/null)"
+  else
+    resets_at="$(jq -r '.resets_at // empty' "$STATE_FILE" 2>/dev/null)"
+  fi
   case "$resets_at" in
     ''|*[!0-9]*)
-      echo "ERROR: state file has no valid resets_at (rate_limits is Pro/Max-only, and appears after the first API response)." >&2
+      echo "ERROR: state file has no valid resets_at for the $WINDOW window (rate_limits is Pro/Max-only, and appears after the first API response; each window may be independently absent)." >&2
       exit 2 ;;
   esac
   # Staleness from captured_at; default 0 so a missing/non-numeric value reads as
@@ -89,7 +113,7 @@ if [ "$fire" -le "$now" ]; then
   if [ "$mode" = "epoch" ]; then
     echo "ERROR: target $(date -r "$epoch" '+%Y-%m-%d %H:%M:%S %Z') is in the past. Cron resolves to whole minutes — pick a time ≥1 minute out, and resolve bare clock times to the next future occurrence." >&2
   else
-    echo "ERROR: the 5h window already reset at $(date -r "$resets_at" '+%Y-%m-%d %H:%M:%S %Z'); nothing to wait for — run the commands now instead." >&2
+    echo "ERROR: the $WINDOW window already reset at $(date -r "$resets_at" '+%Y-%m-%d %H:%M:%S %Z'); nothing to wait for — run the commands now instead." >&2
   fi
   exit 3
 fi
@@ -121,6 +145,7 @@ echo "$basis_label=$basis_human"
 echo "SECONDS_AWAY=$secs"
 echo "MINUTES_AWAY=$(( secs / 60 ))"
 if [ "$mode" = "reset" ]; then
+  echo "WINDOW=$WINDOW"
   echo "CAPTURED_AGE_SEC=$age"
   echo "STALE=$stale"
 fi

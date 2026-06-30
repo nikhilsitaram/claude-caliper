@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# statusline-wrapper.sh — taps the 5-hour usage-window data into a state file,
-# then renders the statusline.
+# statusline-wrapper.sh — taps the usage-window data into a state file, then
+# renders the statusline.
 #
 # Claude Code pipes a JSON blob to the statusLine command on stdin. For Pro/Max
-# subscribers it includes `rate_limits.five_hour.{resets_at,used_percentage}` —
-# the moment the current 5h usage window flips and how much is consumed. That
-# data is NOT available to anything running inside a session, so we capture it
-# here from the one channel that carries it.
+# subscribers it includes BOTH rolling windows under `rate_limits`:
+# `five_hour.{resets_at,used_percentage}` and `seven_day.{resets_at,used_percentage}`
+# — the moment each window flips and how much is consumed. That data is NOT
+# available to anything running inside a session, so we capture it here from the
+# one channel that carries it.
 #
 # Rendering: with no external statusline tool the built-in compact line is used,
 # so these skills work standalone (no ccstatusline / bun required). Set
@@ -25,34 +26,43 @@ mkdir -p "$(dirname "$STATE_FILE")"
 
 input="$(cat)"
 
-# One jq pass pulls everything we need — the two tap fields plus the render
+# One jq pass pulls everything we need — both windows' tap fields plus the render
 # fields — joined on US (0x1f). A non-whitespace separator is deliberate: tab is
 # an IFS-whitespace char, which would collapse the leading empty fields when
 # rate_limits is absent (mis-shifting model/dir); 0x1f preserves empty fields
 # and can't occur in a model name or path.
-IFS=$'\x1f' read -r resets_at used model dir <<EOF
+IFS=$'\x1f' read -r resets_at used seven_resets seven_used model dir <<EOF
 $(printf '%s' "$input" | jq -r '[
     (.rate_limits.five_hour.resets_at // ""),
     (.rate_limits.five_hour.used_percentage // ""),
+    (.rate_limits.seven_day.resets_at // ""),
+    (.rate_limits.seven_day.used_percentage // ""),
     (.model.display_name // .model.id // ""),
     (.workspace.current_dir // .cwd // "")
-  ] | map(tostring) | join("\u001f")' 2>/dev/null)
+  ] | map(tostring) | join("")' 2>/dev/null)
 EOF
 
-# Normalize the two numeric fields once, shared by the tap and the render below.
-# resets_at is interpolated raw into JSON, so a non-numeric value (e.g. an
-# ISO-8601 string) would corrupt the state file — worse than no file, since both
-# consumers would then jq-fail to empty and misreport the cause. Guard it to a
-# bare integer epoch; guard used to a well-formed JSON number. The leading- and
-# trailing-dot cases (.5, 40., .) matter: they'd be a non-numeric percentage AND
-# invalid JSON if interpolated raw, so they must reduce to null like any garbage.
+# Normalize the numeric fields once, shared by the tap and the render below.
+# Each resets_at is interpolated raw into JSON, so a non-numeric value (e.g. an
+# ISO-8601 string) would corrupt the state file — worse than no file, since the
+# consumers would then jq-fail to empty and misreport the cause. Guard each to a
+# bare integer epoch; guard each used to a well-formed JSON number. The leading-
+# and trailing-dot cases (.5, 40., .) matter: they'd be a non-numeric percentage
+# AND invalid JSON if interpolated raw, so they must reduce to null like garbage.
+# The two windows are independent — either may be present without the other.
 case "$resets_at" in ''|*[!0-9]*) resets_at="" ;; esac
 case "$used" in ''|.*|*.|*[!0-9.]*|*.*.*) used="" ;; esac
+case "$seven_resets" in ''|*[!0-9]*) seven_resets="" ;; esac
+case "$seven_used" in ''|.*|*.|*[!0-9.]*|*.*.*) seven_used="" ;; esac
 
-# Tap: only persist a real window (resets_at present); used falls back to null.
-if [ -n "$resets_at" ]; then
-  printf '{"resets_at":%s,"used_percentage":%s,"captured_at":%s}\n' \
-    "$resets_at" "${used:-null}" "$(date +%s)" > "$STATE_FILE"
+# Tap: persist whenever either window has a real reset time. five_hour stays the
+# top-level shape (backward compatible — existing consumers read .resets_at /
+# .used_percentage unchanged); seven_day is always written as a sub-object so the
+# shape is stable, with null fields when that window is absent. A missing window's
+# resets_at is null, which the consumers treat as "data unavailable".
+if [ -n "$resets_at" ] || [ -n "$seven_resets" ]; then
+  printf '{"resets_at":%s,"used_percentage":%s,"captured_at":%s,"seven_day":{"resets_at":%s,"used_percentage":%s}}\n' \
+    "${resets_at:-null}" "${used:-null}" "$(date +%s)" "${seven_resets:-null}" "${seven_used:-null}" > "$STATE_FILE"
 fi
 
 # Render. Forward to an external renderer if asked; otherwise our own line.

@@ -23,12 +23,16 @@ actions don't trip a real rate limit mid-action.
 
 ## How usage is read
 
-`./skills/usage-guard/scripts/check-usage.sh [threshold]` (invoke
-directly — executable, no `bash` prefix) reads `~/.claude/queue/state.json`,
-kept fresh by the queue skill's statusline wrapper. It prints `USED_PCT=`,
+`./skills/usage-guard/scripts/check-usage.sh [--window 5h|7d] [threshold]`
+(invoke directly — executable, no `bash` prefix) reads `~/.claude/queue/state.json`,
+kept fresh by the queue skill's statusline wrapper. It prints `WINDOW=`, `USED_PCT=`,
 `VERDICT=` (UNDER/OVER), `CAPTURED_AGE_SEC=`, `STALE=` (yes/no), `RESETS_AT_HUMAN=`,
 `RESETS_IN_MIN=` and exits **0 = under**, **10 = at/over**, **1/2 = data unavailable**.
 
+- `--window` selects the rolling window (default `5h`). Pass `--window 7d` to guard
+  the **weekly** cap instead — e.g. "stop when I'm near my 7-day limit". The work
+  loop is otherwise identical; just thread the same `--window` value through every
+  check this run so cadence and the threshold branch track one window.
 - This depends on the **queue skill's statusline wrapper** being wired in. If
   check-usage exits 1/2, relay its stderr and stop — usage can't be read.
 - `STALE=yes` (the same >90s cutoff `compute-fire.sh` uses) means the statusline

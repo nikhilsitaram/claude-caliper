@@ -124,6 +124,50 @@ assert "compute-fire reports no-data (exit 1) not corruption" '[[ $RC -eq 1 ]]'
 produce '{"model":{"id":"x"}}'
 assert "blob without rate_limits -> no state file" '[[ ! -f "$STATE" ]]'
 
+# --- seven_day window captured alongside five_hour (#260) ---
+future7=$(( future + 7*86400 ))              # a distinct 7-day reset, a week out
+produce "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$future,\"used_percentage\":40.5},\"seven_day\":{\"resets_at\":$future7,\"used_percentage\":12.3}}}"
+assert "both windows -> valid JSON"               'jq -e . "$STATE" >/dev/null'
+assert "five_hour stays top-level (backcompat)"   "[[ \"\$(jq -r .resets_at \"\$STATE\")\" == \"$future\" ]]"
+assert "seven_day.resets_at captured"             "[[ \"\$(jq -r .seven_day.resets_at \"\$STATE\")\" == \"$future7\" ]]"
+assert "seven_day.used_percentage captured"       '[[ "$(jq -r .seven_day.used_percentage "$STATE")" == "12.3" ]]'
+# check-usage targets each window independently via --window.
+run "$CHECK_USAGE"
+assert "check-usage default reads 5h (40.5)"      '[[ "$(field USED_PCT)" == "40.5" ]]'
+assert "check-usage default WINDOW=5h"            '[[ "$(field WINDOW)" == "5h" ]]'
+run "$CHECK_USAGE" --window 7d
+assert "check-usage --window 7d reads 7d (12.3)"  '[[ "$(field USED_PCT)" == "12.3" ]]'
+assert "check-usage --window 7d WINDOW=7d"        '[[ "$(field WINDOW)" == "7d" ]]'
+assert "check-usage --window 7d UNDER (exit 0)"   '[[ $RC -eq 0 ]]'
+# compute-fire reset mode can target the weekly reset.
+run "$COMPUTE_FIRE" --window 7d
+assert "compute-fire --window 7d exit 0"          '[[ $RC -eq 0 ]]'
+assert "compute-fire --window 7d MODE=reset"      '[[ "$(field MODE)" == "reset" ]]'
+assert "compute-fire --window 7d WINDOW=7d"       '[[ "$(field WINDOW)" == "7d" ]]'
+
+# --- five_hour present, seven_day absent: stable shape, 7d reads as unavailable ---
+produce "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$future,\"used_percentage\":40.5}}}"
+assert "seven_day sub-object always written"      '[[ "$(jq -r "has(\"seven_day\")" "$STATE")" == "true" ]]'
+assert "absent 7d -> seven_day.resets_at null"    '[[ "$(jq -r .seven_day.resets_at "$STATE")" == "null" ]]'
+run "$CHECK_USAGE" --window 7d
+assert "check-usage --window 7d -> exit 2 (no 7d)" '[[ $RC -eq 2 ]]'
+run "$COMPUTE_FIRE" --window 7d
+assert "compute-fire --window 7d -> exit 2 (no 7d)" '[[ $RC -eq 2 ]]'
+
+# --- seven_day present, five_hour absent: file still written, 5h reads as null ---
+produce "{\"rate_limits\":{\"seven_day\":{\"resets_at\":$future7,\"used_percentage\":12.3}}}"
+assert "only-7d blob still writes state file"     '[[ -f "$STATE" ]]'
+assert "only-7d -> top-level resets_at null"      '[[ "$(jq -r .resets_at "$STATE")" == "null" ]]'
+assert "only-7d -> seven_day populated"           "[[ \"\$(jq -r .seven_day.resets_at \"\$STATE\")\" == \"$future7\" ]]"
+run "$CHECK_USAGE"
+assert "check-usage default -> exit 2 (no 5h)"    '[[ $RC -eq 2 ]]'
+run "$CHECK_USAGE" --window 7d
+assert "check-usage --window 7d reads 7d (exit 0)" '[[ $RC -eq 0 ]]'
+run "$COMPUTE_FIRE"
+assert "compute-fire default -> exit 2 (no 5h)"   '[[ $RC -eq 2 ]]'
+run "$COMPUTE_FIRE" --window 7d
+assert "compute-fire --window 7d exit 0 (has 7d)" '[[ $RC -eq 0 ]]'
+
 # --- Built-in render path (no external statusline tool installed) ---
 # Works standalone: the wrapper renders its own line and still taps the state.
 tmpdir="$(mktemp -d)"; trap 'rm -f "$STATE"; rm -rf "$tmpdir"' EXIT   # non-git dir
