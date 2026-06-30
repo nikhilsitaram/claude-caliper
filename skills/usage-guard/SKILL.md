@@ -44,10 +44,12 @@ kept fresh by the queue skill's statusline wrapper. It prints `WINDOW=`, `USED_P
 1. **Set up a ledger.** Use the task list (TaskCreate/TaskUpdate) to break the
    TASK into trackable sub-tasks and keep it current. This ledger IS your
    "what's done / what's still open" for the stop report and the queue payload.
+   In `--queue` mode, also write the rate-limit backstop marker once now (see
+   "Rate-limit backstop"), and — at the very start of any run — check for a
+   leftover breadcrumb from a previously interrupted run.
 2. **Do a chunk** of the work (a sub-task, or a small batch of steps).
 3. **Update the ledger** (mark finished items done) — do this *before* the usage
-   check so the check/branch always sees a current ledger. In `--queue` mode, also
-   refresh the rate-limit backstop marker here (see "Rate-limit backstop").
+   check so the check/branch always sees a current ledger.
 4. **Check usage** by running check-usage.sh:
    - Exit 0 (UNDER) → continue to the next chunk.
    - Exit 10 (OVER) → go to "At the threshold".
@@ -122,23 +124,22 @@ protect.)
 
 ## Rate-limit backstop (`--queue`, opt-in hook)
 
-The checks above are checkpoint-granular, so one oversized action can trip a real
-rate limit *before* the next check queues the work. An opt-in `StopFailure` hook
-(matcher `rate_limit`) rescues that case — but only when it knows a `--queue` run
-is live. So in `--queue` mode, maintain the run marker:
+usage-guard's job is to **stop** before the limit; this is just a light safety net
+for the overshoot case (one oversized action trips a real rate limit before the
+next check). An opt-in `StopFailure` hook (matcher `rate_limit`) records — it does
+NOT auto-resume — so an interrupted `--queue` run isn't silently lost.
 
-- **At run start and after each ledger update**, refresh it with the current
-  continuation payload (same fields as the CONTINUATION PAYLOAD above):
-  `printf '%s' "<PAYLOAD>" | ./skills/usage-guard/scripts/guard-marker.sh set`
+- **At `--queue` run start**, write the marker once with the original task + the
+  environment needed to resume (working dir, branch/worktree, key paths/IDs):
+  `printf '%s' "<task + env>" | ./skills/usage-guard/scripts/guard-marker.sh set`
 - **Clear it** the moment the run ends — task completion, a clean stop, or right
-  after the CronCreate above (steps 4/6).
+  after the CronCreate above (steps 4/6): `guard-marker.sh clear`.
 
-If a rate limit hits while the marker is live, the hook records the remaining work
-to `pending-resume.json` keyed off the last-known reset time, and a `SessionStart`
-hook surfaces it next session. **On a cold resume, if you're handed a "pending
-resume" context, act on its payload, then delete the named `pending-resume.json`
-so it can't be resumed twice.** Both hooks are opt-in (a plugin can't edit
-settings.json) — wiring + caveats in the README.
+If a rate limit hits while the marker is live, the hook copies it to
+`~/.claude/queue/pending-resume.json` (a breadcrumb). **At the start of any
+`/usage-guard` run, check for that file; if present, fold its task/env into this
+run and delete it** so it isn't picked up twice. The hook is opt-in (a plugin
+can't edit settings.json) — wiring + caveats in the README.
 
 ## Caveats (state these when stopping)
 

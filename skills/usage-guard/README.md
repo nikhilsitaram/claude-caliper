@@ -34,20 +34,20 @@ macOS/BSD only.
 - A resumed block starts **cold**; the chain is only as good as the continuation
   payload (the skill requires a fixed set of fields in it).
 
-## Rate-limit backstop (opt-in)
+## Rate-limit backstop (opt-in breadcrumb)
 
-The proactive stop is checkpoint-granular, so one oversized action can trip a real
-rate limit before the next check queues the work. Claude Code fires a `StopFailure`
-hook (matcher `rate_limit`) when a turn ends that way. `scripts/stopfailure-resume.sh`
-is a defense-in-depth backstop: **only while a `--queue` run is active** (the skill
-keeps an `active-guard.json` marker live via `guard-marker.sh`), it records the
-remaining work to `pending-resume.json`, keyed off the **last-known `resets_at`**
-in the state file (the hook payload carries no quota data). `scripts/pending-resume.sh`
-is a `SessionStart` hook that surfaces a due record so the next session resumes
-`/usage-guard --queue`. Outside an active run, both no-op.
+The point of usage-guard is to **stop** before the limit; this is a light safety
+net, not a second scheduler. The proactive stop is checkpoint-granular, so one
+oversized action can trip a real rate limit before the next check. Claude Code
+fires a `StopFailure` hook (matcher `rate_limit`) when a turn ends that way.
+`scripts/stopfailure-resume.sh` is a single opt-in hook that — **only while a
+`--queue` run is active** (the skill keeps an `active-guard.json` marker live via
+`guard-marker.sh`) — copies that marker to `pending-resume.json` as a breadcrumb.
+It does **not** auto-resume: the next `/usage-guard` run checks for the breadcrumb
+and offers to pick the work back up. Outside an active run it no-ops.
 
-A plugin can't edit your `settings.json`, so this is opt-in — wire both hooks
-yourself (copy the scripts to a stable path, as with the queue statusline tap):
+A plugin can't edit your `settings.json`, so this is opt-in — wire the one hook
+yourself (copy the script to a stable path, as with the queue statusline tap):
 
 ```jsonc
 // ~/.claude/settings.json
@@ -55,24 +55,20 @@ yourself (copy the scripts to a stable path, as with the queue statusline tap):
   "StopFailure": [
     { "matcher": "rate_limit",
       "hooks": [{ "type": "command", "command": "bash ~/.claude/queue/stopfailure-resume.sh" }] }
-  ],
-  "SessionStart": [
-    { "hooks": [{ "type": "command", "command": "bash ~/.claude/queue/pending-resume.sh" }] }
   ]
 }
 ```
 
-Caveats: macOS/BSD only; the `StopFailure` payload has **no reset time**, so the
-backstop relies on a previously-captured `resets_at` (a stale/absent one surfaces
-the resume as "due now" on the next session rather than losing it); it only acts
-during an active `--queue` run and stays silent otherwise.
+Caveats: it only records during an active `--queue` run and stays silent
+otherwise; resume is **manual** (picked up on the next `/usage-guard` run), not
+automatic; the `StopFailure` payload carries no quota data, so the breadcrumb is
+just the marker (original task + env) plus when the limit hit.
 
 ## Files
 
 - `SKILL.md` — model-facing instructions (work loop, threshold branches, `--queue` chaining, backstop marker).
 - `scripts/check-usage.sh` — reads usage state, float-safe threshold compare, staleness signal.
 - `scripts/guard-marker.sh` — set/clear the active-`--queue`-run marker the backstop keys on.
-- `scripts/stopfailure-resume.sh` — `StopFailure`/`rate_limit` hook; records a pending resume.
-- `scripts/pending-resume.sh` — `SessionStart` hook; surfaces a due pending resume.
+- `scripts/stopfailure-resume.sh` — opt-in `StopFailure`/`rate_limit` hook; records an interrupted-run breadcrumb.
 
 Tests: `tests/usage-guard/caliper-test_check_usage.sh`, `tests/usage-guard/caliper-test_stopfailure.sh`.
