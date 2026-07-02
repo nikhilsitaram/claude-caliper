@@ -46,7 +46,7 @@ Phase 2: Parallel scope reviews (one claude-caliper:codebase-auditor subagent pe
 Phase 3: Cross-scope reconciliation (one claude-caliper:codebase-auditor subagent, sees all findings)
          |
          v
-Phase 4: Aggregate + route (write report, create issues, or hand off to draft-plan)
+Phase 4: Aggregate + route (write report; inline fixes implemented directly, complex fixes → issues or draft-plan)
 ```
 
 ### Team mode flow
@@ -58,7 +58,7 @@ Mode detection → Init (artifact dir, team name) → TeamCreate
 Phase 1: 3 parallel reviewers (full repo each) → write reviewer_N.md → idle
          |
          v
-Phase 2: Lead DMs phase2_start → each reviewer reads 2 peer files,
+Phase 2: Lead DMs prose Phase 2 start → each reviewer reads 2 peer files,
          re-verifies, disputes peer-to-peer, writes crosscheck_N.md → idle
          |
          v
@@ -89,10 +89,10 @@ Merges all findings, deduplicates, and ranks by severity. Writes a report to `do
 
 Routes by **fix complexity** (not severity):
 
-- **Inline fixes** — automatically invokes `draft-plan` on the grouped findings, then `plan-review`, then proceeds to execution. No user prompt.
-- **Complex fixes** — `AskUserQuestion`: create GitHub issues (one per group) or write plans now. User chooses.
+- **Inline fixes** (1–5 line changes, no design decision) — implemented directly in a worktree from the findings table (which already carries `file:line` + fix direction, cross-verified in Phase 2), then run through the normal review gates (`/code-review`, tests). No `draft-plan`/`plan-review` — that would re-derive context the findings table already holds. No user prompt.
+- **Complex fixes** (multi-file refactors or fixes needing a design decision) — `AskUserQuestion`: create GitHub issues (one per group) or write plans now via `draft-plan`. User chooses.
 
-A Critical one-liner goes inline; a Medium refactoring across 10 files gets an issue or plan.
+A Critical one-liner is implemented inline; a Medium refactoring across 10 files gets an issue or plan.
 
 ## Review categories
 

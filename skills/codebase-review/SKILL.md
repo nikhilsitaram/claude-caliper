@@ -123,7 +123,7 @@ A medium repo (~100 files) on Opus typically completes in 5-15 minutes; consider
 
 When all 3 are idle, check each artifact file:
 
-- Failure signal A: reviewer is idle but `$ARTIFACT_DIR/reviewer_N.md` does not exist.
+- Failure signal A: reviewer is idle but `$ARTIFACT_DIR/reviewer_N.md` does not exist. A reviewer that fanned out to `Explore` subagents can look idle while its file is still pending, so idle-with-no-file is ambiguous. **Send one prose nudge DM** ("you appear idle but reviewer_N.md isn't written — finish and write it") and wait for it to go idle again. Only if the file is still absent after the nudge is it a real Phase 1 failure.
 - Failure signal B: file exists but its first non-blank line begins with `ERROR:`.
 - A literal `No findings.` file is NOT a failure — it is a valid empty result per the agent's quality bar.
 
@@ -135,7 +135,7 @@ Apply the degraded-run policy:
 
 ### Phase 2 trigger
 
-For each surviving reviewer N, send: `SendMessage({to: "cbr-rev-N", message: {type: "phase2_start", peer_files: [<absolute path of peer file 1>, <absolute path of peer file 2>]}})`. The peer files are the OTHER two surviving reviewers' `reviewer_M.md` paths. Example for reviewer 2 with all 3 alive: `peer_files: ["$ARTIFACT_DIR/reviewer_1.md", "$ARTIFACT_DIR/reviewer_3.md"]`.
+For each surviving reviewer N, send a **prose** message naming the OTHER two survivors' `reviewer_M.md` absolute paths as its peer files, e.g. `SendMessage({to: "cbr-rev-2", message: "Start Phase 2. Peer files: $ARTIFACT_DIR/reviewer_1.md and $ARTIFACT_DIR/reviewer_3.md"})`. Must be prose, not a structured object — the mailbox validator accepts only the shutdown/plan-approval protocol objects, and a bare JSON string is auto-parsed into an object and rejected too.
 
 ### Wait for Phase 2 completion
 
@@ -199,37 +199,18 @@ Send `SendMessage({to: "cbr-rev-N", message: {type: "shutdown_request"}})` to ea
 3. Group findings by overlapping file sets — findings that touch the same files belong in the same plan or issue
 4. Route by fix complexity:
 
-**Inline fixes** (automatically, no user prompt):
-- Invoke `draft-plan` with the grouped inline findings as requirements
-- Invoke `plan-review` on the resulting plan
-- Proceed to execution
+**Inline fixes** (1–5 line changes, no design decision — implement directly, no user prompt): the findings table *is* the plan — each row has an exact `file:line`, the problem, and a fix direction, cross-verified in Phase 2, already in your context. Skip `draft-plan`/`plan-review` (they'd re-derive that context at token cost); implement the grouped findings in a worktree and run the diff through the normal gates (`/code-review`, tests). Promote a finding to the complex path if opening the code reveals a design decision.
 
-**Complex fixes** (AskUserQuestion — pick one):
+**Complex fixes** (multi-file refactors, or any fix needing a design decision — AskUserQuestion, pick one):
 - **Create GitHub issues** — one issue per logical group → `gh issue create`
-- **Write plans now** — invoke `draft-plan` per group, then `plan-review`
+- **Write plans now** — `draft-plan` per group, then `plan-review`. A codebase-review-initiated plan has no design-review, so `draft-plan`'s entry gate fails unless you first write a `reviews.json` array with a design-review skip record: `[{"type":"design-review","scope":"design","verdict":"skip","reason":"codebase-review-initiated"}]` (the gate selects on both `type` and `scope`; a `skip` verdict needs a non-empty `reason`).
 
-Routing is based on fix COMPLEXITY, not severity. A Critical one-liner goes inline; a Medium refactoring across 10 files gets an issue or plan.
+Route by fix COMPLEXITY, not severity: a Critical one-liner goes inline; a Medium 10-file refactor gets an issue/plan.
 
 ## Report Structure
 
-```text
-# Codebase Review — YYYY-MM-DD
-Scope: [path] | Review units: [list]
-Summary: X findings (N Critical, N High, N Medium, N Low) | Y deferred → GH issues | Z inline → implementation
-
-## Findings by Severity
-| # | Category | Severity | File(s) | Description | Fix Complexity |
-
-## Deferred Work
-| # | Finding | Rationale | GitHub Issue # |
-```
+Single mode uses the team-mode master-doc schema above, minus the `Tier` column and `Lead Notes` section, plus `N Low` in the summary counts.
 
 ## Categories
 
-- **DRY** — duplicated logic, repeated constants
-- **YAGNI** — unused code, dead paths, speculative features
-- **Simplicity & Efficiency** — over-abstraction, unnecessary indirection
-- **Refactoring Opportunities** — SRP violations, God objects, deep nesting
-- **Consistency** — naming drift, style divergence
-
-Full category definitions, severity rubric, and output Finding template live in the `claude-caliper:codebase-auditor` agent's system prompt — that agent is dispatched in both modes.
+The five categories (DRY, YAGNI, Simplicity & Efficiency, Refactoring Opportunities, Consistency), their full definitions, the severity rubric, and the output Finding template live in the `claude-caliper:codebase-auditor` agent's system prompt — that agent is dispatched in both modes.
