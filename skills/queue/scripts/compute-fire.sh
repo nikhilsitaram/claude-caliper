@@ -29,6 +29,8 @@ set -u
 
 STATE_FILE="${QUEUE_STATE_FILE:-$HOME/.claude/queue/state.json}"
 STALE_SEC=90            # statusline refreshes ~every 10s; >90s ⇒ likely not rendering
+PAST_GRACE_SEC=120      # a resets_at slightly past is a just-reset window; well past
+                        # is a stale cross-session blob (see check-usage.sh)
 now="$(date +%s)"
 mode="reset"
 epoch=""
@@ -78,6 +80,14 @@ if [ "$mode" = "reset" ]; then
       echo "ERROR: state file has no valid resets_at for the $WINDOW window (rate_limits is Pro/Max-only, and appears after the first API response; each window may be independently absent)." >&2
       exit 2 ;;
   esac
+  # A resets_at well in the past (beyond PAST_GRACE_SEC) isn't a just-reset window
+  # — it's a stale cross-session blob. Distinguish it from a legitimately-just-reset
+  # window (handled below with "run now") so the caller retries for fresh data
+  # instead of being told a dead window's stamp means it can act immediately.
+  if [ "$resets_at" -lt $(( now - PAST_GRACE_SEC )) ]; then
+    echo "ERROR: the $WINDOW window's resets_at ($(date -r "$resets_at" '+%Y-%m-%d %H:%M:%S %Z')) is far in the past — the state file holds a stale cross-session blob, not a fresh reset time. Focus this terminal ~10-15s to re-render, then retry." >&2
+    exit 2
+  fi
   # Staleness from captured_at; default 0 so a missing/non-numeric value reads as
   # very stale (not falsely fresh).
   captured="$(jq -r '.captured_at // 0' "$STATE_FILE" 2>/dev/null)"

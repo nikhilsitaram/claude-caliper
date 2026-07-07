@@ -61,18 +61,37 @@ case "$seven_used" in ''|.*|*.|*[!0-9.]*|*.*.*) seven_used="" ;; esac
 # .used_percentage unchanged); seven_day is always written as a sub-object so the
 # shape is stable, with null fields when that window is absent. A missing window's
 # resets_at is null, which the consumers treat as "data unavailable".
-#
-# Write via a temp file + atomic mv: this renders every ~10s and the consumers
-# (check-usage.sh / compute-fire.sh) read the file concurrently, so a direct `>`
-# redirect could expose a half-written file and make a consumer misreport
-# "data unavailable". mv on the same filesystem is atomic.
 if [ -n "$resets_at" ] || [ -n "$seven_resets" ]; then
-  tmp="$STATE_FILE.tmp.$$"
-  if printf '{"resets_at":%s,"used_percentage":%s,"captured_at":%s,"seven_day":{"resets_at":%s,"used_percentage":%s}}\n' \
-      "${resets_at:-null}" "${used:-null}" "$(date +%s)" "${seven_resets:-null}" "${seven_used:-null}" > "$tmp" 2>/dev/null; then
-    mv "$tmp" "$STATE_FILE"
-  else
-    rm -f "$tmp"
+  # Cross-session regression guard. state.json is shared by EVERY Claude session on
+  # the machine, and captured_at is stamped at write time — so an idle session still
+  # holding a STALE rate_limits blob (a window that reset long ago) would otherwise
+  # overwrite an active session's fresh data and stamp it fresh, poisoning every
+  # consumer with no staleness signal to catch it. A window's resets_at only ever
+  # moves forward, so an incoming value OLDER than what's on disk means this render
+  # is the stale one: skip the write. Equal/newer still writes, so used_percentage
+  # keeps updating within a window and a genuine reset (resets_at jumps forward) lands.
+  skip=""
+  if [ -f "$STATE_FILE" ]; then
+    cur_resets="$(jq -r '.resets_at // empty' "$STATE_FILE" 2>/dev/null)"
+    cur_seven="$(jq -r '.seven_day.resets_at // empty' "$STATE_FILE" 2>/dev/null)"
+    case "$cur_resets" in ''|*[!0-9]*) cur_resets="" ;; esac
+    case "$cur_seven" in ''|*[!0-9]*) cur_seven="" ;; esac
+    { [ -n "$resets_at" ] && [ -n "$cur_resets" ] && [ "$resets_at" -lt "$cur_resets" ]; } && skip="yes"
+    { [ -n "$seven_resets" ] && [ -n "$cur_seven" ] && [ "$seven_resets" -lt "$cur_seven" ]; } && skip="yes"
+  fi
+
+  # Write via a temp file + atomic mv: this renders every ~10s and the consumers
+  # (check-usage.sh / compute-fire.sh) read the file concurrently, so a direct `>`
+  # redirect could expose a half-written file and make a consumer misreport
+  # "data unavailable". mv on the same filesystem is atomic.
+  if [ -z "$skip" ]; then
+    tmp="$STATE_FILE.tmp.$$"
+    if printf '{"resets_at":%s,"used_percentage":%s,"captured_at":%s,"seven_day":{"resets_at":%s,"used_percentage":%s}}\n' \
+        "${resets_at:-null}" "${used:-null}" "$(date +%s)" "${seven_resets:-null}" "${seven_used:-null}" > "$tmp" 2>/dev/null; then
+      mv "$tmp" "$STATE_FILE"
+    else
+      rm -f "$tmp"
+    fi
   fi
 fi
 

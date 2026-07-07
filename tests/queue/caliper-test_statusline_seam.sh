@@ -168,6 +168,31 @@ assert "compute-fire default -> exit 2 (no 5h)"   '[[ $RC -eq 2 ]]'
 run "$COMPUTE_FIRE" --window 7d
 assert "compute-fire --window 7d exit 0 (has 7d)" '[[ $RC -eq 0 ]]'
 
+# --- Cross-session regression guard: a stale render can't poison a fresh one (#265) ---
+# state.json is shared by every session; an idle session holding a stale rate_limits
+# blob (a long-reset window) must NOT overwrite an active session's fresh data — the
+# wrapper stamps captured_at at write time, so nothing downstream could catch it.
+# feed pipes a blob WITHOUT clearing $STATE first, so the guard sees prior contents.
+feed() { printf '%s' "$1" | env QUEUE_STATE_FILE="$STATE" QUEUE_STATUSLINE="cat" \
+  PATH="$PATH" HOME="$HOME" bash "$WRAPPER" >/dev/null; }
+older=$(( future - 3*7*86400 ))                              # ~3 weeks before $future
+produce "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$future,\"used_percentage\":42.0}}}"
+feed    "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$older,\"used_percentage\":100.0}}}"
+assert "stale 5h render is skipped (resets_at unchanged)" "jq -e '.resets_at == $future' \"\$STATE\" >/dev/null"
+assert "stale 5h render is skipped (used_pct unchanged)"  'jq -e ".used_percentage == 42" "$STATE" >/dev/null'
+# equal resets_at with a new used_percentage still writes (in-window progress).
+feed    "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$future,\"used_percentage\":58.0}}}"
+assert "same-window used_pct update is written"           'jq -e ".used_percentage == 58" "$STATE" >/dev/null'
+# a genuine reset (resets_at moves forward) is written.
+newer5=$(( future + 5*3600 ))
+feed    "{\"rate_limits\":{\"five_hour\":{\"resets_at\":$newer5,\"used_percentage\":2.0}}}"
+assert "genuine reset (newer resets_at) is written"       "jq -e '.resets_at == $newer5' \"\$STATE\" >/dev/null"
+# the 7d window is guarded independently.
+produce "{\"rate_limits\":{\"seven_day\":{\"resets_at\":$future7,\"used_percentage\":30.0}}}"
+older7=$(( future7 - 14*86400 ))
+feed    "{\"rate_limits\":{\"seven_day\":{\"resets_at\":$older7,\"used_percentage\":99.0}}}"
+assert "stale 7d render is skipped (resets_at unchanged)"  "jq -e '.seven_day.resets_at == $future7' \"\$STATE\" >/dev/null"
+
 # --- Built-in render path (no external statusline tool installed) ---
 # Works standalone: the wrapper renders its own line and still taps the state.
 tmpdir="$(mktemp -d)"; trap 'rm -f "$STATE"; rm -rf "$tmpdir"' EXIT   # non-git dir
