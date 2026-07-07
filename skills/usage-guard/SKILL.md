@@ -34,7 +34,10 @@ kept fresh by the queue skill's statusline wrapper. It prints `WINDOW=`, `USED_P
   loop is otherwise identical; just thread the same `--window` value through every
   check this run so cadence and the threshold branch track one window.
 - This depends on the **queue skill's statusline wrapper** being wired in. If
-  check-usage exits 1/2, relay its stderr and stop — usage can't be read.
+  check-usage exits 1/2, relay its stderr and stop — usage can't be read. One
+  exception: exit 2 with a *past `resets_at`* stderr is a transient cross-session
+  glitch (a stale blob from another session, overwritten within ~10s). Re-run once
+  after ~5s before stopping; only stop if it repeats.
 - `STALE=yes` (the same >90s cutoff `compute-fire.sh` uses) means the statusline
   hasn't rendered recently — terminal idle/unfocused — so `USED_PCT` lags reality.
   Note it; the number may be behind.

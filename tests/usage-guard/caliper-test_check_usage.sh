@@ -115,6 +115,25 @@ mkstate "{\"resets_at\":$reset,\"used_percentage\":42.7,\"captured_at\":$now,\"s
 run --window 7d
 assert "--window 7d, null 7d used_pct -> exit 2" '[[ $RC -eq 2 ]]'
 
+# --- past resets_at is self-contradictory: exit 2, never a trusted verdict (#265) ---
+# The state file is shared across sessions; an idle session with a stale rate_limits
+# blob can overwrite it with a long-reset window, stamped captured_at=now (STALE=no).
+# A resets_at in the past means used_percentage describes a dead window — fail to
+# data-unavailable so callers retry instead of acting on a false OVER.
+past=$(( now - 3*7*86400 ))            # ~3 weeks ago (the observed poison payload)
+mkstate "{\"resets_at\":$past,\"used_percentage\":100.0,\"captured_at\":$now}"
+run
+assert "past 5h resets_at -> exit 2 (not false OVER)" '[[ $RC -eq 2 ]]'
+mkstate "{\"resets_at\":$reset,\"used_percentage\":42.7,\"captured_at\":$now,\"seven_day\":{\"resets_at\":$past,\"used_percentage\":100.0}}"
+run --window 7d
+assert "past 7d resets_at -> exit 2"      '[[ $RC -eq 2 ]]'
+# A resets_at just barely in the past (within the grace window) is a just-reset
+# window, not poison — still trusted.
+justpast=$(( now - 30 ))
+mkstate "{\"resets_at\":$justpast,\"used_percentage\":42.7,\"captured_at\":$now}"
+run
+assert "just-reset (within grace) still trusted -> exit 0" '[[ $RC -eq 0 ]]'
+
 # bad --window value -> exit 64 (usage error)
 mkstate "{\"resets_at\":$reset,\"used_percentage\":42.7,\"captured_at\":$now}"
 run --window weekly

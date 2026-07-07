@@ -12,8 +12,9 @@
 #   0  = UNDER threshold (keep going)
 #   10 = AT/OVER threshold (stop / queue)
 #   1  = no state file (wrapper not wired in, or no render yet)
-#   2  = no used_percentage for the chosen window (Pro/Max only, after first API
-#        response — and each window may be independently absent)
+#   2  = data unavailable for the chosen window: no used_percentage (Pro/Max only,
+#        after first API response — each window may be independently absent), OR a
+#        resets_at already in the past (a self-contradictory reading — see below)
 #   64 = usage error (bad flag / unknown --window value)
 #
 # CAPTURED_AGE_SEC is the staleness signal: large ⇒ the statusline isn't
@@ -26,6 +27,8 @@ set -u
 
 STATE_FILE="${QUEUE_STATE_FILE:-$HOME/.claude/queue/state.json}"
 STALE_SEC=90            # statusline refreshes ~every 10s; >90s ⇒ likely not rendering
+PAST_GRACE_SEC=120      # allow a window's resets_at to sit slightly in the past
+                        # (clock skew + the ~90s reset lag) before calling it stale
 
 # Parse flags. --window selects the rolling window; the lone positional is the
 # threshold (kept positional for backward compatibility with existing callers).
@@ -80,6 +83,19 @@ case "$captured" in ''|*[!0-9]*) captured=0 ;; esac
 
 now="$(date +%s)"
 age=$(( now - captured ))
+
+# A reading whose window has ALREADY reset is self-contradictory: resets_at is the
+# payload's own timestamp, so if it's in the past the used_percentage describes a
+# window that no longer exists. This is the cross-session poisoning signature — the
+# state file is shared by every session, and an idle session holding a stale
+# rate_limits blob can overwrite it with a long-reset window, stamped captured_at=now
+# so STALE can't catch it (the write IS recent; only the payload is old). Treat a
+# past resets_at (beyond PAST_GRACE_SEC) as data-unavailable → exit 2, so callers
+# fall into the retry/relay path instead of trusting a false OVER on a dead window.
+if [ -n "$resets_at" ] && [ "$resets_at" -lt $(( now - PAST_GRACE_SEC )) ]; then
+  echo "ERROR: the $WINDOW window's resets_at ($(date -r "$resets_at" '+%Y-%m-%d %H:%M %Z')) is in the past — its used_percentage describes an already-reset window (likely a stale cross-session blob). Retry in ~5s for a fresh render." >&2
+  exit 2
+fi
 
 # Display value rounded to 1 decimal (statusline can carry float noise like
 # 28.000000000000004); keep raw $used for the threshold compare.

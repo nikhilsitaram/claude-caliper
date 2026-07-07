@@ -74,6 +74,23 @@ rm -f "$STATE"
 run
 assert "no state file -> exit 1"     '[[ $RC -eq 1 ]]'
 
+# --- reset mode: far-past resets_at is a stale cross-session blob, not a fresh
+# reset (#265). Distinguished from a legitimately-just-reset window by the grace
+# window: far past -> exit 2 (retry for fresh data); just past -> exit 3 (run now).
+past=$(( now - 3*7*86400 ))                                 # ~3 weeks ago
+mkstate "{\"resets_at\":$past,\"used_percentage\":100,\"captured_at\":$now}"
+run
+assert "far-past resets_at -> exit 2 (stale blob)" '[[ $RC -eq 2 ]]'
+assert "far-past message mentions stale/cross-session" '[[ "$STDERR" == *"stale cross-session"* ]]'
+# A window reset only seconds ago is within the grace band — a real just-reset
+# window, not a stale blob. It must NOT be flagged as data-unavailable (exit 2);
+# it either schedules a fire (exit 0) or, if reset+90 already elapsed, says run-now
+# (exit 3) — both mean "the reading is trusted".
+justpast=$(( now - 30 ))                                    # within PAST_GRACE_SEC
+mkstate "{\"resets_at\":$justpast,\"used_percentage\":40,\"captured_at\":$now}"
+run
+assert "just-reset window is trusted (exit != 2)" '[[ $RC -ne 2 ]]'
+
 # --- epoch mode ---
 tgt=$(( (now/3600 + 3)*3600 + 12*60 ))                      # future :12 local
 run --epoch "$tgt"
