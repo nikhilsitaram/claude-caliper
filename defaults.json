@@ -30,14 +30,7 @@
     "values": ["pr-create", "pr-merge", "orchestrate", "plan-only"],
     "prompt_required": true,
     "description": "Post-orchestration workflow (prompted each time unless explicitly set)",
-    "used_by": ["design", "orchestrate"]
-  },
-  "execution_mode": {
-    "type": "enum",
-    "values": ["subagents", "agent-teams"],
-    "prompt_required": true,
-    "description": "Execution mode for plan dispatch (prompted each time unless explicitly set)",
-    "used_by": ["design", "orchestrate"]
+    "used_by": ["design", "orchestrate", "implement"]
   },
   "planner_model": {
     "type": "enum",
@@ -65,12 +58,6 @@
     "description": "Poll timeout in minutes for pr-merge to wait for auto-merge to land (PR reaching MERGED). Kept separate from review_wait_minutes, which orchestrate overloads to 0 to mean merge-directly",
     "used_by": ["pr-merge"]
   },
-  "re_review_threshold": {
-    "type": "int",
-    "default": 5,
-    "description": "Issue count above which reviewer is re-dispatched after fixes",
-    "used_by": ["design", "orchestrate", "design-review", "plan-review", "implementation-review"]
-  },
   "design_reviewer_model": {
     "type": "enum",
     "values": ["opus", "sonnet", "haiku"],
@@ -84,13 +71,6 @@
     "default": "sonnet",
     "description": "Model for plan review",
     "used_by": ["design", "plan-review"]
-  },
-  "task_reviewer_model": {
-    "type": "enum",
-    "values": ["opus", "sonnet", "haiku"],
-    "default": "sonnet",
-    "description": "Model for per-task review in orchestrate",
-    "used_by": ["orchestrate"]
   },
   "implementation_reviewer_model": {
     "type": "enum",
