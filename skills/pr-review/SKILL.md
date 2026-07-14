@@ -83,7 +83,7 @@ These are your own (`$GH_USER`) comments — replying to them is intended, and i
 - `--automated-merge` from orchestrate: wait 90s, then poll every 30s.
 - User-selected automated (fix or merge): wait 60s warm-up, then poll every 60s.
 - Deliberate: no warm-up, poll every 60s.
-- Each poll queries `gh pr checks` AND all three feedback sources below (conversation comments, REST inline comments, reviews). Green checks alone don't mean bots are done: review bots like Gemini (`gemini-code-assist`) register no CI check and post no in-progress marker — their review simply appears as inline comments a few minutes after the PR opens. So don't conclude "no bot feedback" early; keep polling until the timeout elapses, and treat it as ready sooner only if every known review bot has posted (a review, or an explicit skip/paused comment like CodeRabbit's integrate/* skip).
+- Each poll queries `gh pr checks` AND all three feedback sources below (conversation comments, REST inline comments, reviews). Green checks alone don't mean bots are done: review bots like Gemini (`gemini-code-assist`) register no CI check and post no in-progress marker — their review simply appears as inline comments a few minutes after the PR opens. If the repository is known to use review bots (or any bot activity is detected on the PR), keep polling until the timeout elapses, treating it as ready sooner only once every known review bot has posted (a review, or an explicit skip/paused comment like CodeRabbit's integrate/* skip). If no review bots are used or active, proceed once standard CI checks complete.
 - Bot rate-limit warning = treat as ready.
 - Timeout: `caliper-settings get review_wait_minutes` (default: 5).
 
