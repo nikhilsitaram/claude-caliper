@@ -274,6 +274,17 @@ fi
 assert_pass "plan.md renders the handoff note" grep -qF "A1 exports foo() for B1 to call." "$DIR/plan.md"
 assert_pass "check-handoffs accepts the recorded handoff" "$VP" --check-handoffs "$DIR/plan.json" --phase A
 
+echo "Test 18: --add-handoff is idempotent — identical (task, from, note) not double-recorded"
+assert_pass "second identical add-handoff succeeds" "$VP" --add-handoff "$DIR/plan.json" --task B1 --from A1 --note "A1 exports foo() for B1 to call."
+HANDOFF_COUNT=$(jq '[.phases[] | select(.letter == "B") | .tasks[0].handoffs[] | select(.note == "A1 exports foo() for B1 to call.")] | length' "$DIR/plan.json")
+if [[ "$HANDOFF_COUNT" == "1" ]]; then
+  echo "PASS: identical handoff recorded exactly once across two calls"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: handoff count = '$HANDOFF_COUNT' (expected 1)"
+  FAIL=$((FAIL + 1))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]] || exit 1

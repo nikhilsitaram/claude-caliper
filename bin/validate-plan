@@ -1628,6 +1628,16 @@ do_add_handoff() {
     exit 1
   fi
 
+  local dup
+  dup=$(jq --arg id "$task_id" --arg from "$from_id" --arg note "$note" '
+    [.phases[].tasks[] | select(.id == $id) | (.handoffs // [])[] | select(.from == $from and .note == $note)] | length
+  ' "$plan_json")
+  if [[ "$dup" -gt 0 ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "handoff already recorded for $task_id from $from_id (no change)"
+    return 0
+  fi
+
   local tmp="${plan_json}.tmp.$$"
   jq --arg id "$task_id" --arg from "$from_id" --arg note "$note" '
     (.phases[].tasks[] | select(.id == $id) | .handoffs) |= ((. // []) + [{"from": $from, "note": $note}])
