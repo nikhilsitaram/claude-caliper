@@ -40,10 +40,6 @@ setup_valid_plan() {
   rm -rf "${dir:?}/"*
   cp -r "$FIXTURES/valid-plan/"* "$dir/"
   cp "$FIXTURES/valid-plan/plan.json" "$dir/plan.json"
-  ( cd "$dir" && git init -q 2>/dev/null ) || true
-  mkdir -p "$dir/src" "$dir/tests"
-  touch "$dir/src/core.ts" "$dir/src/validate.ts" "$dir/src/dashboard.ts"
-  touch "$dir/tests/core.test.ts" "$dir/tests/validate.test.ts" "$dir/tests/dashboard.test.ts"
 }
 
 TMPDIR=$(mktemp -d)
@@ -53,82 +49,43 @@ cd "$TMPDIR"
 echo "Test 1: Phase marked Complete with all tasks complete passes"
 setup_valid_plan "$TMPDIR"
 jq '.status = "In Development" | .phases[0].status = "Complete (2026-03-24)" | .phases[0].tasks[0].status = "complete" | .phases[0].tasks[1].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
-mkdir -p "$TMPDIR/phase-a"
-echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
-echo "# A2 Completion" > "$TMPDIR/phase-a/a2-completion.md"
-echo '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0},{"type":"task-review","scope":"A2","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_pass "phase complete with all tasks complete" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
 echo "Test 2: Phase marked Complete with a task still pending fails"
 setup_valid_plan "$TMPDIR"
 jq '.phases[0].status = "Complete (2026-03-24)" | .phases[0].tasks[0].status = "complete" | .phases[0].tasks[1].status = "pending"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
-mkdir -p "$TMPDIR/phase-a"
-echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
 assert_fail "phase complete with pending task" "status_inconsistency" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
 echo "Test 3: Plan marked Complete with all phases complete passes"
 setup_valid_plan "$TMPDIR"
 jq '.status = "Complete" | .phases[0].status = "Complete (2026-03-24)" | .phases[0].tasks[0].status = "complete" | .phases[0].tasks[1].status = "complete" | .phases[1].status = "Complete (2026-03-24)" | .phases[1].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
-mkdir -p "$TMPDIR/phase-a" "$TMPDIR/phase-b"
-echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
-echo "# A2 Completion" > "$TMPDIR/phase-a/a2-completion.md"
-echo "# B1 Completion" > "$TMPDIR/phase-b/b1-completion.md"
-echo '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0},{"type":"task-review","scope":"A2","verdict":"pass","remaining":0},{"type":"task-review","scope":"B1","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-b","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_pass "plan complete with all phases complete" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
 echo "Test 4: Plan marked Complete with a phase still Not Started fails"
 setup_valid_plan "$TMPDIR"
 jq '.status = "Complete" | .phases[0].status = "Complete (2026-03-24)" | .phases[0].tasks[0].status = "complete" | .phases[0].tasks[1].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
-mkdir -p "$TMPDIR/phase-a"
-echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
-echo "# A2 Completion" > "$TMPDIR/phase-a/a2-completion.md"
 assert_fail "plan complete with not-started phase" "status_inconsistency" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 5: Task marked complete with completion file present passes"
+echo "Test 5: Task marked complete passes schema (no per-task completion file required in schema v2)"
 setup_valid_plan "$TMPDIR"
 jq '.status = "In Development" | .phases[0].status = "In Progress" | .phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
-mkdir -p "$TMPDIR/phase-a"
-echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
-echo '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
-assert_pass "task complete with completion file" \
+assert_pass "task complete passes schema" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 6: Task marked complete without completion file fails"
-setup_valid_plan "$TMPDIR"
-jq '.phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
-assert_fail "task complete without completion file" "missing_task_completion_file" \
-  "$VALIDATE" --schema "$TMPDIR/plan.json"
-
-echo "Test 7: Orphaned .md file in phase directory fails"
+echo "Test 6: Extra .md file in phase directory does not fail schema (orphan-file check retired)"
 setup_valid_plan "$TMPDIR"
 echo "# Orphan" > "$TMPDIR/phase-a/orphan.md"
-assert_fail "orphaned md file in phase directory" "orphaned_task_file" \
+assert_pass "orphan md file in phase directory does not fail schema" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 8: Files listed in files.create exist on disk when task is complete passes"
+echo "Test 7: Files listed in files.create do not need to exist on disk (created-file check retired)"
 setup_valid_plan "$TMPDIR"
 jq '.status = "In Development" | .phases[0].status = "In Progress" | .phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
-mkdir -p "$TMPDIR/phase-a"
-echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
-echo '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
-git -C "$TMPDIR" init -q 2>/dev/null || true
-mkdir -p "$TMPDIR/src"
-echo "// core" > "$TMPDIR/src/core.ts"
-assert_pass "files.create exist on disk for complete task" \
-  "$VALIDATE" --schema "$TMPDIR/plan.json"
-
-echo "Test 9: Files listed in files.create missing on disk when task is complete fails"
-setup_valid_plan "$TMPDIR"
-jq '.status = "In Development" | .phases[0].status = "In Progress" | .phases[0].tasks[0].status = "complete"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
-mkdir -p "$TMPDIR/phase-a"
-echo "# A1 Completion" > "$TMPDIR/phase-a/a1-completion.md"
-echo '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
-rm -f "$TMPDIR/src/core.ts"
-assert_fail "files.create missing on disk for complete task" "missing_created_file" \
+assert_pass "files.create missing on disk for complete task still passes schema" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
 echo ""

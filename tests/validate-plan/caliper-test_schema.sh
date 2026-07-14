@@ -65,30 +65,6 @@ jq '.phases[1].tasks[0].files.create = ["src/core.ts"]' "$FIXTURES/valid-plan/pl
 assert_fail "duplicate create path" "duplicate_create_path" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 5: Missing task file"
-rm -rf "${TMPDIR:?}/"*
-cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
-cp "$FIXTURES/valid-plan/plan.json" "$TMPDIR/plan.json"
-rm "$TMPDIR/phase-a/a1.md"
-assert_fail "missing task file" "missing_task_file" \
-  "$VALIDATE" --schema "$TMPDIR/plan.json"
-
-echo "Test 6: H1 header mismatch"
-rm -rf "${TMPDIR:?}/"*
-cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
-cp "$FIXTURES/valid-plan/plan.json" "$TMPDIR/plan.json"
-echo "# A1: Wrong Name" > "$TMPDIR/phase-a/a1.md"
-assert_fail "H1 header mismatch" "h1_mismatch" \
-  "$VALIDATE" --schema "$TMPDIR/plan.json"
-
-echo "Test 7: Missing completion.md"
-rm -rf "${TMPDIR:?}/"*
-cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
-cp "$FIXTURES/valid-plan/plan.json" "$TMPDIR/plan.json"
-rm "$TMPDIR/phase-a/completion.md"
-assert_fail "missing completion.md" "missing_completion_file" \
-  "$VALIDATE" --schema "$TMPDIR/plan.json"
-
 echo "Test 8: Invalid task status"
 rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
@@ -209,8 +185,7 @@ rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
 mkdir -p "$TMPDIR/phase-c"
 touch "$TMPDIR/phase-c/completion.md"
-echo "# C1: Phase C task" > "$TMPDIR/phase-c/c1.md"
-jq '. + {"workflow": "pr-create"} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]} | .phases += [{"letter": "C", "name": "Integration", "status": "Not Started", "rationale": "Depends on A and B", "depends_on": ["A", "B"], "tasks": [{"id": "C1", "name": "Phase C task", "status": "pending", "complexity": "medium", "reviewer_needed": true, "depends_on": [], "files": {"create": ["src/c1.ts"], "modify": [], "test": ["tests/c1.test.ts"]}, "verification": "echo ok", "done_when": "C1 done", "success_criteria": []}]}]' \
+jq '. + {"workflow": "pr-create"} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]} | .phases += [{"letter": "C", "name": "Integration", "status": "Not Started", "rationale": "Depends on A and B", "depends_on": ["A", "B"], "tasks": [{"id": "C1", "name": "Phase C task", "status": "pending", "complexity": "medium", "intent": "Wire Phase A and Phase B outputs together into the integration surface.", "avoid": [], "depends_on": [], "files": {"create": ["src/c1.ts"], "modify": [], "test": ["tests/c1.test.ts"]}, "verification": "echo ok", "done_when": "C1 done", "success_criteria": []}]}]' \
   "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
 assert_pass "multi-phase depends_on C depends on A and B passes" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
@@ -261,24 +236,73 @@ jq '.phases[0].tasks[0].complexity = "extreme"' "$FIXTURES/valid-plan/plan.json"
 assert_fail "invalid complexity value fails" "invalid_complexity" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 26: Missing reviewer_needed field fails"
+echo "Test 26: Missing intent field fails"
 rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
-jq 'del(.phases[0].tasks[0].reviewer_needed)' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
-assert_fail "missing reviewer_needed fails" "missing_field" \
+jq 'del(.phases[0].tasks[0].intent)' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "missing intent fails" "missing_field.*intent" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 27: Invalid reviewer_needed value fails"
+echo "Test 26b: Empty intent field fails"
 rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
-jq '.phases[0].tasks[0].reviewer_needed = "yes"' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
-assert_fail "invalid reviewer_needed value fails" "invalid_reviewer_needed" \
+jq '.phases[0].tasks[0].intent = ""' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "empty intent fails" "missing_field.*intent" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
-echo "Test 28: Valid plan with all complexity values and reviewer_needed values passes"
+echo "Test 27: Missing avoid field fails"
 rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
-assert_pass "valid plan with complexity and reviewer_needed passes" \
+jq 'del(.phases[0].tasks[0].avoid)' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "missing avoid fails" "missing_field.*avoid" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 27b: avoid field that is not an array fails"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '.phases[0].tasks[0].avoid = "do not do this"' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "non-array avoid fails" "invalid_avoid" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 27c: avoid entry missing 'why' fails"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '.phases[0].tasks[0].avoid = [{"rule": "Don'"'"'t do X"}]' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "avoid entry missing why fails" "invalid_avoid" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 27d: avoid entry missing 'rule' fails"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '.phases[0].tasks[0].avoid = [{"why": "because reasons"}]' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "avoid entry missing rule fails" "invalid_avoid" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 27e: empty avoid array passes (not every task has a gotcha)"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '.phases[0].tasks[0].avoid = []' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_pass "empty avoid array passes" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 28: Valid plan with all complexity values and intent/avoid passes"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+assert_pass "valid plan with complexity and intent/avoid passes" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 29: schema-1 plan is rejected with a message naming schema v2"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '.schema = 1' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "schema-1 plan rejected naming schema 2" "schema 2" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 30: missing schema field fails"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq 'del(.schema)' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "missing schema field fails" "missing_field: schema" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
 echo ""

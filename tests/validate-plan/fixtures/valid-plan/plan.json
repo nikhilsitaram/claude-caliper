@@ -1,8 +1,7 @@
 {
-  "schema": 1,
+  "schema": 2,
   "status": "Not Yet Started",
   "workflow": "pr-create",
-  "execution_mode": "subagents",
   "goal": "Build a sample feature",
   "architecture": "Two-phase plan for testing validation",
   "tech_stack": "Bash, jq",
@@ -34,7 +33,13 @@
           "status": "pending",
           "depends_on": [],
           "complexity": "medium",
-          "reviewer_needed": true,
+          "intent": "Add the core module that exports the shared primitives the rest of the feature builds on. Other tasks import from it directly, so its public surface must be stable before A2 starts.",
+          "avoid": [
+            {
+              "rule": "Don't export mutable module-level state.",
+              "why": "Downstream consumers (A2, B1) import this module directly; shared mutable state would create hidden coupling between unrelated tasks."
+            }
+          ],
           "files": {
             "create": ["src/core.ts"],
             "modify": [],
@@ -56,7 +61,8 @@
           "status": "pending",
           "depends_on": ["A1"],
           "complexity": "low",
-          "reviewer_needed": false,
+          "intent": "Add input validation on top of the core module so callers get clear rejection errors for bad input instead of undefined behavior downstream.",
+          "avoid": [],
           "files": {
             "create": ["src/validate.ts"],
             "modify": [],
@@ -81,7 +87,13 @@
           "status": "pending",
           "depends_on": ["A2"],
           "complexity": "high",
-          "reviewer_needed": true,
+          "intent": "Build the dashboard view that renders validated core data end to end, giving users a working UI on top of the Phase A primitives.",
+          "avoid": [
+            {
+              "rule": "Don't duplicate the validation logic from A2 in the dashboard component.",
+              "why": "A2 already owns input validation; re-implementing it here would drift out of sync and double the maintenance surface."
+            }
+          ],
           "files": {
             "create": ["src/dashboard.ts"],
             "modify": [],
