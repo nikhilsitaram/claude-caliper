@@ -5,7 +5,7 @@ description: Use when a multi-task implementation is complete and ready for holi
 
 # Implementation Review
 
-Per-task reviews verify each piece works. This review verifies the pieces work **together**.
+This is the only fresh-eyes review of the work — there is no per-piece review upstream. It reviews the integrated diff as a whole: does everything work **together**, and does it deliver the intended feature. Together with the plan-reviewer's intent-quality check, it is the compensating control for the absence of a zero-context ambiguity pass on individual pieces.
 
 ## Two Modes
 
@@ -30,7 +30,7 @@ Skip if: single-module change or purely additive work with no cross-component in
 Before dispatching the reviewer:
 
 1. **Run integration tests** — broad acceptance tests and boundary tests at cross-component seams should pass. If any fail, fix before proceeding.
-2. **Fill gaps** — if any cross-component boundary lacks an executable (non-mocking) test, write one now. Don't dispatch until it passes; the reviewer's category-7 non-dismissibility rule will flag the gap as Important and trigger a re-dispatch loop.
+2. **Fill gaps** — if any cross-component boundary lacks an executable (non-mocking) test, write one now. Don't dispatch until it passes; the reviewer's category-7 non-dismissibility rule will flag the gap as Important, which forces a delta pass.
 
 ## Resolve the Diff Range
 
@@ -92,7 +92,7 @@ Address each:
 - **Fix** actionable findings — verify against the code first, since the reviewer can be wrong.
 - **Dismiss** false positives with a stated technical reason. Findings marked `non_dismissible: true` (category-7 seam-mock gaps) can't be dismissed — fix them or re-dispatch.
 
-Run the relevant tests after fixing, then apply the Re-Review Gate.
+Run the relevant tests after fixing, then apply the two-pass cap below.
 
 ## Post-Review: Plan Doc Updates (caliper only)
 
@@ -100,17 +100,27 @@ After review passes, the **orchestrator** updates the plan document. Skip this e
 
 1. **Document fixups** — append `### Implementation Review Changes` to `phase-{letter}/completion.md` listing each change. Omit if no fixups needed.
 
-2. **Handoff notes (multi-phase only)** — if future phases exist, the orchestrator writes inline handoff notes on downstream task files now (post-review), so notes reflect the shipped interface including any review-driven changes. See orchestrate's Phase Wrap-Up step for format and trigger conditions.
+2. **Handoff notes (multi-phase only)** — if future phases exist, the orchestrator records handoff notes into plan.json now (post-review) via `validate-plan --add-handoff`, so notes reflect the shipped interface including any review-driven changes. See orchestrate's Phase Wrap-Up step for format and trigger conditions.
 
-## Re-Review Gate
+## Review Loop Protocol (two-pass cap)
 
-Applies in both modes. Read the threshold: `caliper-settings get re_review_threshold` (default: 5). If the reviewer finds more issues than this threshold: after all fixes are applied, dispatch a fresh reviewer subagent with the same full review scope. This catches reviewer hallucination from compounding and new issues introduced by bulk fixes.
+Applies in both modes. Pass 1 is discovery. The lead fixes all findings and verifies each fix inline (grep/read, plus rerunning affected tests). A delta pass 2 is dispatched only if pass 1 found critical or high issues; after pass 2, any remaining findings are fixed inline and the loop records pass — never a third dispatch. Residual leakage is caught by the next downstream gate (PR review), not by additional same-gate passes.
 
-At or under the threshold, verify fixes and proceed without re-review.
+**Pass 1:**
+
+1. Dispatch the reviewer, extract its `json review-summary` block.
+2. Display all findings for visibility, then triage (fix vs dismiss with a stated technical reason) autonomously — don't stop for confirmation. Findings marked `non_dismissible: true` (category-7 seam-mock gaps) can't be dismissed — fix them.
+3. Apply all fixes in a single editing pass, verifying each inline (grep/read) and rerunning affected tests.
+4. If zero critical/high issues were found: done, the review passes.
+
+**Pass 2 (only if pass 1 found critical or high):**
+
+5. Re-dispatch a fresh reviewer subagent of the same type with the same full review scope, appending a `## Prior Issues` section listing the pass-1 issues each enriched with its resolution (`fixed` or `dismissed`, with the dismissal reason when dismissed). This catches reviewer hallucination compounding and new issues introduced by bulk fixes.
+6. Repeat triage + inline fix/verify for any newly reported issues, then record pass — no further dispatch regardless of what remains.
 
 ## Continue the Workflow
 
-By default the skill stops once the review passes and fixes land. These flags chain the next steps automatically — but only after the review fully passes (re-review gate included) and the user has seen the findings:
+By default the skill stops once the review passes and fixes land. These flags chain the next steps automatically — but only after the review fully passes (two-pass cap included) and the user has seen the findings:
 
 | Flag | Effect |
 |------|--------|

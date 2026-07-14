@@ -127,3 +127,4 @@ Rules for the summary block:
 - Be specific: file:line references, not vague suggestions
 - If zero issues found, say so -- don't invent problems
 - Read-only review -- do not modify files
+- **Class-generalize findings:** review is capped at two dispatches total, so a finding must be reported completely the first time. When an issue is one instance of a repo-wide class (e.g., one hardcoded port among several, one undocumented flag among several, one seam mocked identically in several tests), grep for every other instance of that class and report them as a single issue with all instances listed — not one instance per pass
