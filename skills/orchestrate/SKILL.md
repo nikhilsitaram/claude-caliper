@@ -5,23 +5,23 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Orchestrate
 
-Execute plans via the configured execution mode. Phases run sequentially; task dispatch within each phase depends on the mode.
+Execute plans by dispatching task-implementer subagents in parallel with worktree isolation. Phases run sequentially; tasks within a phase dispatch as their dependencies clear.
 
 **Core principle:** The lead coordinates — dispatched implementers touch code.
+
+Per-task review is not part of this flow. The single review gate is the per-phase implementation-review over the integrated diff (plus a final review across all phases). Implementers read the codebase directly at full context — plans carry intent, not pasted code.
 
 ## Prompt Templates
 
 | Template | Purpose |
 |----------|---------|
 | `./implementer-prompt.md` | Invocation template for `claude-caliper:task-implementer` |
-| `./task-reviewer-prompt.md` | Invocation template for `claude-caliper:task-reviewer` |
 | `skills/implementation-review/reviewer-prompt.md` | Invocation template for `claude-caliper:implementation-reviewer` |
 | `./dispatch-subagents.md` | Subagents dispatch protocol |
-| `./dispatch-agent-teams.md` | Agent teams dispatch protocol |
 
 ## Progress Tracking
 
-TaskCreate one entry per task in plan.json (e.g. "Implement A1", "Implement A2", ...) plus per phase "Phase {LETTER}: implementation review", and final "Create PR" / "Mark plan complete". Set `addBlockedBy` to mirror task `depends_on` and phase ordering. Mark `in_progress` when you dispatch a task and `completed` when its task review passes — granular per-task tracking surfaces stuck tasks immediately rather than hiding them inside a phase-wide "Execute tasks" entry.
+TaskCreate one entry per task in plan.json (e.g. "Implement A1", "Implement A2", ...) plus per phase "Phase {LETTER}: implementation review", and final "Create PR" / "Mark plan complete". Set `addBlockedBy` to mirror task `depends_on` and phase ordering. Mark `in_progress` when you dispatch a task and `completed` when its task branch merges — granular per-task tracking surfaces stuck tasks immediately rather than hiding them inside a phase-wide "Execute tasks" entry.
 
 ## Setup
 
@@ -35,13 +35,12 @@ Before first phase:
   ```
 
   The caller (design skill or user) supplies the absolute plan.json path — typically `$MAIN_ROOT/.claude/claude-caliper/<folder>/plan.json`. All references downstream must use the absolute `$PLAN_JSON` / `$PLAN_DIR` paths since phase worktrees don't have these files.
+- Resolve the design doc (implementers read it for feature-wide context): `DESIGN_DOC="$(ls "$PLAN_DIR"/design-*.md 2>/dev/null | head -1)"` — the design skill writes it as `$PLAN_DIR/design-<topic>.md`. Substituted into `{DESIGN_DOC}` in the implementer prompt.
 - Read workflow: `WORKFLOW=$(jq -r '.workflow' "$PLAN_JSON")`
-- Read execution mode: `EXEC_MODE=$(jq -r '.execution_mode' "$PLAN_JSON")`
-Note: `workflow` and `execution_mode` are read from plan.json (set by the design skill based on user selection and caliper-settings defaults), not from caliper-settings at runtime. This avoids two sources of truth — the plan is the single source once created.
+Note: `workflow` is read from plan.json (set by the design skill based on user selection and caliper-settings defaults), not from caliper-settings at runtime. This avoids two sources of truth — the plan is the single source once created.
 - Read task implementer model: `TASK_IMPLEMENTER_MODEL=$(caliper-settings get task_implementer_model)`
-- Read task reviewer model: `TASK_REVIEWER_MODEL=$(caliper-settings get task_reviewer_model)`
 - Read implementation reviewer model: `IMPL_REVIEWER_MODEL=$(caliper-settings get implementation_reviewer_model)`
-Note: These model settings are substituted into dispatch template variables `{TASK_IMPLEMENTER_MODEL}`, `{TASK_REVIEWER_MODEL}`, and `{IMPL_REVIEWER_MODEL}` when dispatching implementers, reviewers, and fix-cycle agents.
+Note: These model settings are substituted into dispatch template variables `{TASK_IMPLEMENTER_MODEL}` and `{IMPL_REVIEWER_MODEL}` when dispatching implementers and the phase implementation-review.
 - Count phases: `PHASE_COUNT=$(jq '.phases | length' "$PLAN_JSON")`
 - Validate schema: `validate-plan --schema "$PLAN_JSON"`
 - Validate entry gate: `validate-plan --check-entry "$PLAN_JSON" --stage execution`
@@ -51,7 +50,7 @@ Note: These model settings are substituted into dispatch template variables `{TA
 - `PLAN_BASE_SHA=$(git rev-parse HEAD)`
 - `[ -f "$PLAN_DIR/reviews.json" ] || echo '[]' > "$PLAN_DIR/reviews.json"`
 - Push branch: `git push -u origin HEAD`
-- Read the dispatch protocol for `EXEC_MODE`: **See:** `./dispatch-subagents.md` (subagents) or `./dispatch-agent-teams.md` (agent-teams) — read only the file matching `EXEC_MODE`
+- Read the dispatch protocol: **See:** `./dispatch-subagents.md`
 
 ## Per-Phase Execution (Sequential)
 
@@ -65,17 +64,15 @@ Process phases in order (A, B, C...). For each phase:
 2. Re-validate base branch: `validate-plan --check-base "$PLAN_JSON"` (multi-phase only — ensures dispatch happens from integration worktree, not main)
 3. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in worktree
 4. **Bootstrap dependencies** in the worktree. **See:** skills/design/dependency-bootstrap.md
-5. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure) — prior-phase handoff notes are already inlined in this phase's task .md files (written at prior phase's wrap-up)
+5. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure) — prior-phase handoff notes are recorded in plan.json (written at prior phase's wrap-up via `--add-handoff`) and render into plan.md
 6. Set phase to "In Progress": `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "In Progress"` — required before any task can be marked in_progress (transition gate rejects task advancement when parent phase is "Not Started")
 
-### Dispatch, Complete, and Review Tasks
+### Dispatch and Complete Tasks
 
-Follow the dispatch protocol from the mode-specific file read during setup. Both modes share these invariants:
+Follow the dispatch protocol in `./dispatch-subagents.md`. Invariants:
 - Only dispatch tasks whose dependencies are met (`validate-plan --check-deps "$PLAN_JSON"`)
-- Each task gets reviewed after implementation (reviewer always uses `./task-reviewer-prompt.md`)
-- After review passes: validate criteria (`validate-plan --criteria "$PLAN_JSON" --task {TASK_ID}`), merge task branch, check for newly unblocked tasks
-
-The dispatch file specifies how tasks are dispatched (teammates vs subagents), how completions are detected (push vs background notification), and how review fixes are communicated (mailbox vs fresh agent).
+- On implementer completion: verify the commit landed on the task branch, validate criteria (`validate-plan --criteria "$PLAN_JSON" --task {TASK_ID}`), merge the task branch directly into the phase branch, then check for newly unblocked tasks
+- No per-task review — the phase implementation-review (Phase Wrap-Up) is the review gate
 
 ### Phase Wrap-Up
 
@@ -85,24 +82,19 @@ After all tasks complete and branches merged:
 3. Append review changes to `${PHASE_DIR}/completion.md`
 4. Run phase criteria: `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}`
 5. Update status: `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
-6. **Write cross-phase handoff notes** for downstream tasks. For each task in a future phase whose `depends_on` references a task from this phase, append a handoff section to `{PLAN_DIR}/phase-{next_letter}/{target_task_id_lower}.md` describing the shipped interface — names, paths, signatures, usage. Writing post-wrap-up (rather than before next-phase dispatch) means notes reflect the shipped reality, including any review-driven interface changes. Insert after the H1, before existing prose:
+6. **Record cross-phase handoff notes** for downstream tasks. For each task in a future phase whose `depends_on` references a task from this phase, record a handoff in plan.json describing the shipped interface — names, paths, signatures, usage. Recording post-wrap-up (rather than before next-phase dispatch) means notes reflect the shipped reality, including any review-driven interface changes:
 
-   ````markdown
-   # B1: Dashboard page
+   ```bash
+   validate-plan --add-handoff "$PLAN_JSON" --task {DOWNSTREAM_ID} --from {SOURCE_ID} --note "Auth middleware exports validateToken() from src/auth/middleware.ts. Use as Hono middleware: app.use('/dashboard/*', validateToken())."
+   ```
 
-   ## Handoff from A2
+   This writes the handoff into plan.json (the single source of truth) and re-renders it into plan.md — no task `.md` files are touched.
 
-   Auth middleware exports `validateToken()` from `src/auth/middleware.ts`.
-   Use as Hono middleware: `app.use('/dashboard/*', validateToken())`.
-
-   **Avoid:** ...
-   ````
-
-   **Ad-hoc handoffs (no current `depends_on` link).** When implementation surfaces context useful to a future task that wasn't anticipated at design time, register the dependency before writing the note: `validate-plan --add-dep "$PLAN_JSON" --task {DOWNSTREAM_ID} --depends-on {SOURCE_ID}`. This keeps plan.json the single source of truth for the dependency graph and re-renders plan.md. Then write the `## Handoff from {SOURCE_ID}` section as above.
+   **Ad-hoc handoffs (no current `depends_on` link).** When implementation surfaces context useful to a future task that wasn't anticipated at design time, register the dependency first: `validate-plan --add-dep "$PLAN_JSON" --task {DOWNSTREAM_ID} --depends-on {SOURCE_ID}`, then record the handoff with `--add-handoff` as above.
 
    **Opt-out.** If downstream tasks can derive everything they need from `completion.md` alone, append a `## Handoff Notes` section to `{PHASE_DIR}/completion.md` whose first content line starts with `None` (e.g., `None — downstream tasks derive context from completion.md.`).
 
-   **Validate:** `validate-plan --check-handoffs "$PLAN_JSON" --phase {LETTER}` — fails if any cross-phase `depends_on` link into this phase lacks a matching `## Handoff from` section AND no opt-out block exists.
+   **Validate:** `validate-plan --check-handoffs "$PLAN_JSON" --phase {LETTER}` — fails if any cross-phase `depends_on` link into this phase lacks a recorded handoff AND no opt-out block exists.
 7. (Multi-phase) Merge phase PR into integration branch — runs unconditionally for every phase including the last, regardless of `workflow` setting. The final integrate->main PR is created separately in "After All Phases".
    a. Open the phase PR: if one already exists and is open (`gh pr list --head phase-<letter> --state open --json url --jq '.[0].url'`), reuse it; otherwise run `pr-create --base integrate/<feature>`.
    b. `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`
@@ -111,20 +103,20 @@ After all tasks complete and branches merged:
    e. Remove phase worktree if it still exists (pr-merge typically removes it during cleanup; on resumption it may already be gone): `if git worktree list --porcelain | grep -q "^branch refs/heads/phase-<letter>$"; then git worktree remove "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>"; fi` — anchored on the `branch refs/heads/...` porcelain line (avoids matching the worktree-path line). No `--force`; missing worktree is silent-continue, while a failed `git worktree remove` (uncommitted content) propagates non-zero exit so the orchestrator can stop and surface the path.
    f. Continuity: only Rule 4 deviations stop the loop. Review feedback is auto-fixed by `pr-review --automated-merge`.
 
-## Review Loop Protocol
+## Review Loop Protocol (Two-Pass Cap)
 
-Read the re-review threshold: `RE_REVIEW_THRESHOLD=$(caliper-settings get re_review_threshold)` (default: 5).
+The review loop is capped at two dispatches. Pass 1 is discovery. The lead fixes all findings and verifies each fix inline (grep/read). A delta pass 2 is dispatched only if pass 1 found critical or high issues; after pass 2, any remaining findings are fixed inline and the loop records pass — never a third dispatch. Residual leakage is caught by the next downstream gate (the final cross-phase review, then PR review), not by additional same-gate passes.
 
-After each impl-review dispatch:
+For each dispatch:
 
-1. Extract last `json review-summary` fenced block from response. Missing/malformed -> verdict:fail, re-dispatch.
-2. Triage issues: "fix" (dispatch implementer) or "dismiss" (with reasoning). **Issues with `non_dismissible: true` must take the 'fix' branch** — dismissing them invalidates the review record and triggers re-dispatch. This rule exists to prevent the dismissal pattern from gh issue #243 (impl-review #1 there dismissed a "kv_launcher↔kv_fetch boundary test missing" finding as low-severity; the seam then leaked 22+ commits of contract-drift bugs).
-3. actionable == 0 -> write reviews.json record with verdict:pass, advance
-4. actionable 1-$RE_REVIEW_THRESHOLD -> fix all, verify, write record verdict:pass, advance
-5. actionable > $RE_REVIEW_THRESHOLD -> fix all, write record verdict:fail, re-dispatch (max 3 iterations, then escalate via AskUserQuestion)
+1. Extract the last `json review-summary` fenced block from the response. Missing/malformed on pass 1 -> re-dispatch once (that consumes the pass-2 slot); missing on pass 2 -> escalate via AskUserQuestion.
+2. Triage issues: "fix" or "dismiss" (with reasoning). **Issues with `non_dismissible: true` must take the 'fix' branch** — dismissing them invalidates the review record. This prevents the dismissal pattern from gh issue #243 (impl-review #1 there dismissed a "kv_launcher↔kv_fetch boundary test missing" finding as low-severity; the seam then leaked 22+ commits of contract-drift bugs).
+3. Fix all actionable findings and verify each inline (grep/read).
+4. If this was pass 1 AND pass 1 surfaced any critical or high issue -> dispatch delta pass 2 over the same scope. Otherwise -> write the reviews.json pass record and advance.
+5. After pass 2 -> fix any remaining findings inline, write the reviews.json pass record, advance. No third dispatch.
 
 Append record to `{PLAN_DIR}/reviews.json`:
-`{"type":"impl-review","scope":"{SCOPE}","iteration":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass|fail","timestamp":"ISO8601"}`
+`{"type":"impl-review","scope":"{SCOPE}","pass":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass","timestamp":"ISO8601"}`
 
 ## Single-Phase Plans
 
@@ -158,7 +150,6 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 | Constraint | Why |
 |------------|-----|
 | Resolve `PLAN_JSON` as absolute path at setup | Plan artifacts are gitignored — phase worktrees won't have them. Absolute path ensures all agents access the same file. |
-| Read `execution_mode` from plan.json at setup | Determines which dispatch protocol to follow |
 | Validate schema before execution | Catches file-set overlap and structural issues early |
 | Record PLAN_BASE_SHA before first phase | Final cross-phase review needs total diff |
 | Record PHASE_BASE_SHA per phase | Per-phase review needs exact phase start |

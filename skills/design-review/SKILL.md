@@ -49,13 +49,9 @@ Reviewer produces:
 **Pass:** Zero issues, or all issues fixed and confirmed clean
 **Fail:** Return to design skill to fix, then re-run design-review
 
-**Re-review gate (design-review):** The design skill controls the review loop with these rules:
-- **Batch-fix discipline:** All issues from a review are triaged (fix or dismiss with reasoning) in one pass before re-dispatching
-- **Delta context (iter ≥2):** Follow-up reviewers receive the prior iteration's issues with resolution status, enabling verify-then-scan instead of full re-discovery
-- **Model step-down (iter ≥3):** When `design_reviewer_model` is `opus`, re-dispatches at iter ≥ 3 use `sonnet` instead — verification-heavy passes don't justify the opus cost
-- **Severity-gated termination (after iter 3):** Remaining `low` and `medium` issues are auto-dismissed; only `high` and `critical` issues block planning past iteration 3
+**Review loop (two-pass cap):** The design skill controls the loop: pass 1 is discovery. The lead fixes all findings and verifies each fix inline (grep/read). A delta pass 2 is dispatched only if pass 1 found critical or high issues; after pass 2, any remaining findings are fixed inline and the loop records pass — never a third dispatch. Delta dispatches receive the prior pass's issues with resolution status, enabling verify-then-scan instead of full re-discovery.
 
-Note: Plan-review uses a separate gate — `caliper-settings get re_review_threshold`. That gate is unchanged.
+Note: Plan-review runs the same two-pass cap (see `skills/plan-review/SKILL.md`).
 
 ## Integration
 

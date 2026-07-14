@@ -1,6 +1,6 @@
-# Dispatch Protocol: Subagents Mode
+# Dispatch Protocol
 
-Parallel task execution via Agent tool dispatches with worktree isolation. No experimental env var needed.
+Parallel task execution via Agent tool dispatches with worktree isolation.
 
 ## Dispatch Implementers
 
@@ -16,7 +16,6 @@ TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 link-agent-memory "$TASK_WORKTREE"  # symlink .claude/agent-memory → $MAIN_ROOT so memory: project subagents persist across worktree cleanup (issue #244)
 TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
 TASK_COMPLEXITY=$(echo "$TASK_METADATA" | jq -r '.complexity')
-REVIEWER_NEEDED=$(echo "$TASK_METADATA" | jq -r '.reviewer_needed')
 case "$TASK_COMPLEXITY" in
   low)    COMPLEXITY_GUIDANCE="Be efficient -- minimal implementation, avoid over-engineering." ;;
   medium) COMPLEXITY_GUIDANCE="Standard thoroughness -- test the happy path and key edge cases." ;;
@@ -25,7 +24,7 @@ case "$TASK_COMPLEXITY" in
 esac
 ```
 
-`TASK_COMPLEXITY` and `COMPLEXITY_GUIDANCE` are substituted into `{TASK_COMPLEXITY}` and `{COMPLEXITY_GUIDANCE}` in the implementer and reviewer prompts. `REVIEWER_NEEDED` gates reviewer dispatch in "Process Completions".
+`TASK_COMPLEXITY` and `COMPLEXITY_GUIDANCE` are substituted into `{TASK_COMPLEXITY}` and `{COMPLEXITY_GUIDANCE}` in the implementer prompt.
 
 Then dispatch **all ready implementers in a single message** with multiple Agent tool calls — one per task. Splitting them across turns breaks parallelism and forces cache reloads for each agent.
 
@@ -80,57 +79,22 @@ When a background agent completes (push notification — do not poll):
     git -C "$PARENT_WORKTREE" update-ref "refs/heads/$PARENT_BRANCH" "$PRE_TASK_SHA" "$WRONG_HEAD"
     git -C "$PARENT_WORKTREE" switch "$PARENT_BRANCH"
     ```
-3. Check `REVIEWER_NEEDED`:
-   - If `"false"`: record a skip in reviews.json (`"verdict":"skip","reason":"reviewer_needed: false"`) and proceed directly to step 2 of "After Review Passes" (skip step 1 — verdict already recorded). Skip steps 4-5.
-   - If `"true"`: dispatch a reviewer (synchronous — override background with `run_in_background: false` so the lead waits for results):
+3. Proceed directly to "After Completion" — there is no per-task review. The phase implementation-review (orchestrate Phase Wrap-Up) is the review gate over the integrated diff.
 
-```text
-Agent(
-  name: "review-{TASK_ID_LOWER}",
-  subagent_type: "claude-caliper:task-reviewer",
-  model: "{TASK_REVIEWER_MODEL}",
-  mode: "acceptEdits",
-  run_in_background: false,
-  prompt: "<substitute task-reviewer-prompt.md, filling {TASK_COMPLEXITY}, {COMPLEXITY_GUIDANCE}, and all other {VARIABLES}>"
-)
-```
+## After Completion
 
-4. Extract the last `json review-summary` block from reviewer output
-5. Triage issues: "fix" or "dismiss" (with reasoning)
-
-## Review Fix Cycle
-
-If fixes needed, dispatch a new `claude-caliper:task-implementer` agent (with `mode: "acceptEdits"`) into the same worktree to apply fixes — the lead coordinates, implementers touch code.
-
-1. Read the reviewer's findings
-2. Dispatch a fix agent with the reviewer's findings and the task context, targeting the existing worktree path
-3. When the fix agent completes, re-dispatch reviewer with updated HEAD_SHA
-4. Repeat until review passes (max 3 cycles, then escalate to user)
-
-## After Review Passes (or Skip)
-
-When `REVIEWER_NEEDED` was `"false"`, skip step 1 — the skip verdict was already recorded in step 2 of Process Completions. Start at step 2.
-
-1. Record the task-review in `reviews.json` (in the plan directory alongside plan.json):
-   ```bash
-   jq '. += [{"type":"task-review","scope":"{TASK_ID}","verdict":"pass","remaining":0}]' "$PLAN_DIR/reviews.json" > "$PLAN_DIR/reviews.json.tmp" && mv "$PLAN_DIR/reviews.json.tmp" "$PLAN_DIR/reviews.json"
-   ```
-   If `reviews.json` doesn't exist yet, create it: `echo '[]' > "$PLAN_DIR/reviews.json"` first.
-2. Mark task complete: `validate-plan --update-status plan.json --task {TASK_ID} --status complete`
-3. Validate criteria: `validate-plan --criteria plan.json --task {TASK_ID}`
-4. Merge and clean up the agent's worktree:
+1. Mark task complete: `validate-plan --update-status plan.json --task {TASK_ID} --status complete`
+2. Validate criteria: `validate-plan --criteria plan.json --task {TASK_ID}`
+3. Merge and clean up the agent's worktree:
    - Never `cd` into an agent worktree — always use `git -C <agent-worktree-path>` for inspection commands (`git log`, `git status`, `git diff`). This prevents CWD from pointing at a path that gets deleted during cleanup.
    - Guard before merge: `PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)` — then `[[ "$PARENT_BRANCH" == integrate/* ]] && { echo "ERROR: PARENT_WORKTREE is on the integration branch. Task branches must merge into the phase branch; integration happens only in Phase Wrap-Up step 7." >&2; exit 1; }`. This catches state drift from the wrong-worktree recovery path where the phase branch was reset to integration HEAD.
    - Merge: `git -C "$PARENT_WORKTREE" merge {TASK_ID_LOWER}` (task branch into the phase branch, never directly into integration)
    - Clean up: `git worktree remove <agent-worktree-path>` then `git branch -d <agent-branch>`
    - Reset CWD after removal: `cd <feature-worktree-path> && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted
-5. Check if dependent tasks are now unblocked (`validate-plan --check-deps`)
-6. Dispatch newly unblocked tasks (same pattern as above)
+4. Check if dependent tasks are now unblocked (`validate-plan --check-deps`)
+5. Dispatch newly unblocked tasks (same pattern as above)
 
-## Key Differences from Agent Teams
+## Worktree Placement
 
-- No mailbox idle notifications (agent-teams concept) — use background agent completion events instead
-- No mailbox messaging — lead dispatches fix agents into the existing worktree
-- Worktrees are created by the orchestrator via `git worktree add` from the feature branch
-- Fix agents are dispatched into existing worktrees — the lead coordinates, implementers touch code
+- Worktrees are created by the orchestrator via `git worktree add` from the parent (feature or phase) branch; the implementer works inside the worktree it is handed.
 - Task worktrees must nest **inside** the parent (feature or phase) worktree — anchor `git worktree add` with `git -C "$PARENT_WORKTREE"` so CWD drift never produces siblings under the main repo. Background subagents writing into a sibling worktree get silent permission denials because Claude Code scopes write permission to the parent session's project root, and they cannot answer the cross-directory prompt.

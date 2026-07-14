@@ -64,11 +64,6 @@ mark_tasks_complete() {
   jq --arg letter "$phase_letter" '(.phases[] | select(.letter == $letter) | .tasks[].status) = "complete"' "$plan_json" > "$tmp" && mv "$tmp" "$plan_json"
 }
 
-all_task_reviews_for_phase() {
-  local plan_json="$1" phase_letter="$2"
-  jq -r --arg letter "$phase_letter" '[.phases[] | select(.letter == $letter) | .tasks[] | {"type":"task-review","scope":.id,"verdict":"pass","remaining":0}] | .[]' "$plan_json" | jq -s '.'
-}
-
 activate_plan() {
   local plan_json="$1"
   local tmp="${plan_json}.tmp.$$"
@@ -76,26 +71,13 @@ activate_plan() {
 }
 
 echo "=== Task completion gates ==="
+echo "(per-task review is retired — task completion is no longer gated on a task-review record; see impl-review below for the surviving review gate)"
 
-echo "Test T1: Task completion blocked without task-review"
+echo "Test T1: Task completion succeeds without any review record (per-task review retired)"
 setup_plan_dir
 activate_plan "$TMPDIR/plan.json"
 rm -f "$TMPDIR/reviews.json"
-assert_fail "task complete blocked — no reviews.json" "cannot mark task A1 complete" \
-  "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status complete
-
-echo "Test T2: Task completion blocked with failing task-review"
-setup_plan_dir
-activate_plan "$TMPDIR/plan.json"
-printf '[{"type":"task-review","scope":"A1","verdict":"fail","remaining":2}]' > "$TMPDIR/reviews.json"
-assert_fail "task complete blocked — task-review verdict:fail" "cannot mark task A1 complete" \
-  "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status complete
-
-echo "Test T3: Task completion succeeds with passing task-review"
-setup_plan_dir
-activate_plan "$TMPDIR/plan.json"
-printf '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
-assert_pass "task complete allowed with passing task-review" \
+assert_pass "task complete allowed with no reviews.json at all" \
   "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status complete
 
 echo "Test T4: Task in_progress not gated on reviews"
@@ -126,7 +108,7 @@ assert_fail "task blocked — dependency A1 not complete" "dependencies not comp
 echo "Test T8: Task allowed when dependency is complete"
 setup_plan_dir
 activate_plan "$TMPDIR/plan.json"
-printf '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+rm -f "$TMPDIR/reviews.json"
 "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status complete
 assert_pass "task allowed — dependency A1 is complete" \
   "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A2 --status in_progress
@@ -147,9 +129,10 @@ activate_plan_only() {
   jq '.status = "In Development"' "$plan_json" > "$tmp" && mv "$tmp" "$plan_json"
 }
 
-echo "Test P1: Phase completion blocked without reviews.json"
+echo "Test P1: Phase completion blocked without reviews.json (impl-review still required)"
 setup_plan_dir
 activate_plan_only "$TMPDIR/plan.json"
+mark_tasks_complete "$TMPDIR/plan.json" A
 rm -f "$TMPDIR/reviews.json"
 assert_fail "phase complete blocked — no reviews.json" "cannot mark phase A complete" \
   "$VALIDATE" --update-status "$TMPDIR/plan.json" --phase A --status "Complete (2026-03-23)"
@@ -158,9 +141,7 @@ echo "Test P2: Phase completion blocked with failing impl-review"
 setup_plan_dir
 activate_plan_only "$TMPDIR/plan.json"
 mark_tasks_complete "$TMPDIR/plan.json" A
-local_reviews=$(all_task_reviews_for_phase "$TMPDIR/plan.json" A)
-local_reviews=$(echo "$local_reviews" | jq '. + [{"type":"impl-review","scope":"phase-a","verdict":"fail","remaining":3}]')
-echo "$local_reviews" > "$TMPDIR/reviews.json"
+printf '[{"type":"impl-review","scope":"phase-a","verdict":"fail","remaining":3}]' > "$TMPDIR/reviews.json"
 assert_fail "phase complete blocked — impl-review verdict:fail" "cannot mark phase A complete" \
   "$VALIDATE" --update-status "$TMPDIR/plan.json" --phase A --status "Complete (2026-03-23)"
 
@@ -171,22 +152,12 @@ printf '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}
 assert_fail "phase complete blocked — tasks pending" "cannot mark phase A complete" \
   "$VALIDATE" --update-status "$TMPDIR/plan.json" --phase A --status "Complete (2026-03-23)"
 
-echo "Test P4: Phase completion blocked when task-reviews missing"
+echo "Test P5: Phase completion succeeds with all tasks complete and impl-review passing (no per-task review needed)"
 setup_plan_dir
 activate_plan_only "$TMPDIR/plan.json"
 mark_tasks_complete "$TMPDIR/plan.json" A
 printf '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
-assert_fail "phase complete blocked — missing task-reviews" "cannot mark phase A complete" \
-  "$VALIDATE" --update-status "$TMPDIR/plan.json" --phase A --status "Complete (2026-03-23)"
-
-echo "Test P5: Phase completion succeeds with all gates satisfied"
-setup_plan_dir
-activate_plan_only "$TMPDIR/plan.json"
-mark_tasks_complete "$TMPDIR/plan.json" A
-local_reviews=$(all_task_reviews_for_phase "$TMPDIR/plan.json" A)
-local_reviews=$(echo "$local_reviews" | jq '. + [{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]')
-echo "$local_reviews" > "$TMPDIR/reviews.json"
-assert_pass "phase complete allowed with all gates" \
+assert_pass "phase complete allowed with impl-review only" \
   "$VALIDATE" --update-status "$TMPDIR/plan.json" --phase A --status "Complete (2026-03-23)"
 
 echo "Test P6: Phase In Progress succeeds when plan is In Development"
@@ -196,12 +167,12 @@ rm -f "$TMPDIR/reviews.json"
 assert_pass "phase In Progress allowed when plan active" \
   "$VALIDATE" --update-status "$TMPDIR/plan.json" --phase A --status "In Progress"
 
-echo "Test P7: Phase completion allows skipped tasks without task-review"
+echo "Test P7: Phase completion allows skipped tasks (no review needed for skipped or complete tasks)"
 setup_plan_dir
 activate_plan_only "$TMPDIR/plan.json"
 jq '(.phases[] | select(.letter == "A") | .tasks[0].status) = "complete" | (.phases[] | select(.letter == "A") | .tasks[1].status) = "skipped"' "$TMPDIR/plan.json" > "$TMPDIR/plan_tmp.json" && mv "$TMPDIR/plan_tmp.json" "$TMPDIR/plan.json"
-printf '[{"type":"task-review","scope":"A1","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
-assert_pass "phase complete with skipped task (no review needed for skipped)" \
+printf '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+assert_pass "phase complete with a skipped task" \
   "$VALIDATE" --update-status "$TMPDIR/plan.json" --phase A --status "Complete (2026-03-23)"
 
 echo "Test P8: Phase blocked when plan is Not Yet Started"

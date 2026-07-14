@@ -19,18 +19,11 @@ make_plan_dir() {
   echo "$dir"
 }
 
-make_task_file() {
-  local dir="$1" phase_dir="$2" task_id="$3" task_name="$4"
-  local id_lower
-  id_lower=$(echo "$task_id" | tr '[:upper:]' '[:lower:]')
-  echo "# $task_id: $task_name" > "$dir/$phase_dir/$id_lower.md"
-}
-
 write_two_phase_plan() {
   local dir="$1" b1_deps="$2"
   cat > "$dir/plan.json" <<JSON
 {
-  "schema": 1, "status": "In Development", "workflow": "pr-create",
+  "schema": 2, "status": "In Development", "workflow": "pr-create",
   "goal": "test", "architecture": "test", "tech_stack": "test",
   "phases": [
     {
@@ -56,8 +49,6 @@ write_two_phase_plan() {
   ]
 }
 JSON
-  make_task_file "$dir" "phase-a" "A1" "Task A1"
-  make_task_file "$dir" "phase-b" "B1" "Task B1"
 }
 
 assert_pass() {
@@ -85,22 +76,16 @@ assert_fail() {
   fi
 }
 
-echo "Test 1: --check-handoffs passes when target task has matching handoff section"
+echo "Test 1: --check-handoffs passes when target task has a matching --add-handoff record"
 DIR=$(make_plan_dir)
 write_two_phase_plan "$DIR" '["A1"]'
-{
-  echo "# B1: Task B1"
-  echo ""
-  echo "## Handoff from A1"
-  echo ""
-  echo "A1 exports foo()."
-} > "$DIR/phase-b/b1.md"
-assert_pass "handoff section present" "$VP" --check-handoffs "$DIR/plan.json" --phase A
+"$VP" --add-handoff "$DIR/plan.json" --task B1 --from A1 --note "A1 exports foo()." >/dev/null
+assert_pass "handoff record present" "$VP" --check-handoffs "$DIR/plan.json" --phase A
 
-echo "Test 2: --check-handoffs fails when target task is missing handoff section"
+echo "Test 2: --check-handoffs fails when target task is missing a handoff record"
 DIR=$(make_plan_dir)
 write_two_phase_plan "$DIR" '["A1"]'
-assert_fail "handoff section absent" "$VP" --check-handoffs "$DIR/plan.json" --phase A
+assert_fail "handoff record absent" "$VP" --check-handoffs "$DIR/plan.json" --phase A
 
 echo "Test 3: --check-handoffs passes when completion.md has Handoff Notes / None opt-out"
 DIR=$(make_plan_dir)
@@ -161,23 +146,24 @@ DIR=$(make_plan_dir)
 write_two_phase_plan "$DIR" '["A1"]'
 assert_fail "nonexistent phase" "$VP" --check-handoffs "$DIR/plan.json" --phase Z
 
-echo "Test 6: --check-handoffs fails when target file is missing entirely"
+echo "Test 6: --add-handoff fails when target task doesn't exist"
 DIR=$(make_plan_dir)
 write_two_phase_plan "$DIR" '["A1"]'
-rm "$DIR/phase-b/b1.md"
-assert_fail "target file missing" "$VP" --check-handoffs "$DIR/plan.json" --phase A
+assert_fail "add-handoff on unknown task" "$VP" --add-handoff "$DIR/plan.json" --task Z9 --from A1 --note "note"
 
-echo "Test 7: --check-handoffs requires exact source ID in heading"
+echo "Test 6b: --add-handoff fails when source task doesn't exist"
 DIR=$(make_plan_dir)
 write_two_phase_plan "$DIR" '["A1"]'
-{
-  echo "# B1: Task B1"
-  echo ""
-  echo "## Handoff from A11"
-  echo ""
-  echo "wrong source id"
-} > "$DIR/phase-b/b1.md"
-assert_fail "heading matches different source id" "$VP" --check-handoffs "$DIR/plan.json" --phase A
+assert_fail "add-handoff from unknown source" "$VP" --add-handoff "$DIR/plan.json" --task B1 --from Z9 --note "note"
+
+echo "Test 7: --check-handoffs requires an exact source ID match in the handoff record"
+DIR=$(make_plan_dir)
+write_two_phase_plan "$DIR" '["A1"]'
+# Inject a handoff recorded against the wrong source directly (bypassing --add-handoff's
+# task-existence validation) to isolate --check-handoffs' own source-matching logic.
+jq '(.phases[] | select(.letter == "B") | .tasks[0].handoffs) = [{"from": "WRONG", "note": "wrong source id"}]' \
+  "$DIR/plan.json" > "$DIR/plan.json.tmp" && mv "$DIR/plan.json.tmp" "$DIR/plan.json"
+assert_fail "handoff recorded with different source id" "$VP" --check-handoffs "$DIR/plan.json" --phase A
 
 echo "Test 8: --add-dep adds dep to pending downstream task"
 DIR=$(make_plan_dir)
@@ -231,7 +217,7 @@ echo "Test 14: --add-dep rejects reverse-phase dep (source in later phase)"
 DIR=$(make_plan_dir)
 cat > "$DIR/plan.json" <<'JSON'
 {
-  "schema": 1, "status": "In Development", "workflow": "pr-create",
+  "schema": 2, "status": "In Development", "workflow": "pr-create",
   "goal": "test", "architecture": "test", "tech_stack": "test",
   "phases": [
     {
@@ -257,8 +243,6 @@ cat > "$DIR/plan.json" <<'JSON'
   ]
 }
 JSON
-make_task_file "$DIR" "phase-a" "A1" "Task A1"
-make_task_file "$DIR" "phase-b" "B1" "Task B1"
 assert_fail "A1 cannot depend on B1" "$VP" --add-dep "$DIR/plan.json" --task A1 --depends-on B1
 
 echo "Test 15: --add-dep rejects when downstream is complete"
@@ -272,14 +256,34 @@ DIR=$(make_plan_dir)
 write_two_phase_plan "$DIR" '[]'
 "$VP" --add-dep "$DIR/plan.json" --task B1 --depends-on A1 >/dev/null
 assert_fail "missing handoff after ad-hoc dep added" "$VP" --check-handoffs "$DIR/plan.json" --phase A
-{
-  echo "# B1: Task B1"
-  echo ""
-  echo "## Handoff from A1"
-  echo ""
-  echo "ad-hoc handoff content"
-} > "$DIR/phase-b/b1.md"
+"$VP" --add-handoff "$DIR/plan.json" --task B1 --from A1 --note "ad-hoc handoff content" >/dev/null
 assert_pass "handoff written satisfies check" "$VP" --check-handoffs "$DIR/plan.json" --phase A
+
+echo "Test 17: --add-handoff writes plan.json, --render shows it in plan.md, and --check-handoffs accepts it (real-CLI round trip)"
+DIR=$(make_plan_dir)
+write_two_phase_plan "$DIR" '["A1"]'
+assert_pass "add-handoff succeeds" "$VP" --add-handoff "$DIR/plan.json" --task B1 --from A1 --note "A1 exports foo() for B1 to call."
+HANDOFF_NOTE=$(jq -r '.phases[] | select(.letter == "B") | .tasks[0].handoffs[0].note' "$DIR/plan.json")
+if [[ "$HANDOFF_NOTE" == "A1 exports foo() for B1 to call." ]]; then
+  echo "PASS: plan.json records the handoff note"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: plan.json handoff note = '$HANDOFF_NOTE'"
+  FAIL=$((FAIL + 1))
+fi
+assert_pass "plan.md renders the handoff note" grep -qF "A1 exports foo() for B1 to call." "$DIR/plan.md"
+assert_pass "check-handoffs accepts the recorded handoff" "$VP" --check-handoffs "$DIR/plan.json" --phase A
+
+echo "Test 18: --add-handoff is idempotent — identical (task, from, note) not double-recorded"
+assert_pass "second identical add-handoff succeeds" "$VP" --add-handoff "$DIR/plan.json" --task B1 --from A1 --note "A1 exports foo() for B1 to call."
+HANDOFF_COUNT=$(jq '[.phases[] | select(.letter == "B") | .tasks[0].handoffs[] | select(.note == "A1 exports foo() for B1 to call.")] | length' "$DIR/plan.json")
+if [[ "$HANDOFF_COUNT" == "1" ]]; then
+  echo "PASS: identical handoff recorded exactly once across two calls"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: handoff count = '$HANDOFF_COUNT' (expected 1)"
+  FAIL=$((FAIL + 1))
+fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

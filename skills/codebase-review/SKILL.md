@@ -66,7 +66,7 @@ This pass catches cross-directory DRY violations and naming drift that per-scope
 
 ## Team Mode (Phases 1-2 + lead synthesis)
 
-Runs 3 independent full-codebase Opus reviewers in parallel, a peer cross-verification round, and lead synthesis. Built on the agent-teams substrate documented in `skills/orchestrate/dispatch-agent-teams.md` (TeamCreate, named teammates, SendMessage mailbox, idle notifications).
+Runs 3 independent full-codebase Opus reviewers in parallel, a peer cross-verification round, and lead synthesis. Built on the agent-teams substrate documented in `skills/codebase-review/agent-teams-substrate.md` (TeamCreate, named teammates, SendMessage mailbox, idle notifications).
 
 ### Init
 
@@ -184,7 +184,7 @@ Sort findings by severity (Critical → Medium) with Tier as the secondary sort 
 
 ### Shutdown handshake
 
-Send `SendMessage({to: "cbr-rev-N", message: {type: "shutdown_request"}})` to each of the 3 teammates. Wait for each teammate's idle notification confirming shutdown. Then call `TeamDelete()`. Teammates must fully terminate before team deletion (matches the `skills/orchestrate/dispatch-agent-teams.md` substrate requirement).
+Send `SendMessage({to: "cbr-rev-N", message: {type: "shutdown_request"}})` to each of the 3 teammates. Wait for each teammate's idle notification confirming shutdown. Then call `TeamDelete()`. Teammates must fully terminate before team deletion (matches the `skills/codebase-review/agent-teams-substrate.md` substrate requirement).
 
 ### Artifact retention
 

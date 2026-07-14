@@ -27,9 +27,10 @@ Usage:
   validate-plan --add-file <plan.json> --task <ID> --kind <create|modify|test> --path <FILE>
   validate-plan --remove-file <plan.json> --task <ID> --kind <create|modify|test> --path <FILE>
   validate-plan --check-handoffs <plan.json> --phase <LETTER>
+  validate-plan --add-handoff <plan.json> --task <ID> --from <SOURCE_ID> --note <TEXT>
 
-  Valid types:  design-review, plan-review, task-review, impl-review
-  Valid scopes: design, plan, task-{ID}, phase-{letter}, final
+  Valid types:  design-review, plan-review, impl-review
+  Valid scopes: design, plan, phase-{letter}, final
   Valid stages: draft-plan, execution
 USAGE
   exit 1
@@ -69,8 +70,6 @@ find_timeout_cmd() {
 
 do_schema() {
   local plan_json="$1"
-  local plan_dir
-  plan_dir="$(cd "$(dirname "$plan_json")" && pwd)"
 
   local json
   json=$(cat "$plan_json")
@@ -84,7 +83,6 @@ do_schema() {
     (.architecture // ""),
     (.tech_stack // ""),
     (.workflow // ""),
-    (.execution_mode // ""),
     (has("integration_branch") | tostring),
     (.integration_branch | type),
     (if has("integration_branch") then (.integration_branch // "") | tostring else "" end),
@@ -94,11 +92,19 @@ do_schema() {
 
   local schema="${_top[0]}" status="${_top[1]}" goal="${_top[2]}"
   local architecture="${_top[3]}" tech_stack="${_top[4]}"
-  local workflow="${_top[5]}" execution_mode="${_top[6]}"
-  local ib_exists="${_top[7]}" ib_type="${_top[8]}" integration_branch="${_top[9]}"
-  local plan_criteria_count="${_top[10]}" phase_count="${_top[11]}"
+  local workflow="${_top[5]}"
+  local ib_exists="${_top[6]}" ib_type="${_top[7]}" integration_branch="${_top[8]}"
+  local plan_criteria_count="${_top[9]}" phase_count="${_top[10]}"
 
-  [[ -z "$schema" ]] && err "ERROR: missing_field: schema"
+  # Schema version gate: fail fast and clearly rather than let a schema-1 plan
+  # (no intent/avoid, per-task .md files) drown in a wall of unrelated field errors.
+  if [[ -z "$schema" ]]; then
+    err "ERROR: missing_field: schema"
+  elif [[ "$schema" != "2" ]]; then
+    echo "ERROR: unsupported_schema: plan.json declares schema $schema, but this version of validate-plan requires schema 2. Finish schema-1 plans on the previous plugin version — no migration tooling is provided." >&2
+    exit 1
+  fi
+
   [[ -z "$status" ]] && err "ERROR: missing_field: status"
   [[ -z "$goal" ]] && err "ERROR: missing_field: goal"
   [[ -z "$architecture" ]] && err "ERROR: missing_field: architecture"
@@ -110,15 +116,6 @@ do_schema() {
     case "$workflow" in
       "pr-create"|"pr-merge"|"orchestrate"|"plan-only") ;;
       *) err "ERROR: invalid_workflow: $workflow" ;;
-    esac
-  fi
-
-  if [[ -z "$execution_mode" ]]; then
-    err "ERROR: missing_field: execution_mode"
-  else
-    case "$execution_mode" in
-      "subagents"|"agent-teams") ;;
-      *) err "ERROR: invalid_execution_mode: $execution_mode (expected: subagents or agent-teams)" ;;
     esac
   fi
 
@@ -175,7 +172,7 @@ do_schema() {
   _phase_criteria_json=$(echo "$json" | jq -c '[(.phases // [])[] | (.success_criteria // [])]')
 
   # --- Level 4: Bulk extract task scalars via NUL-delimited (1 jq call) ---
-  # Stride: 13 fields per task (pi, ti, id, name, status, verification, done_when, has_files, has_create, has_modify, has_test, complexity, reviewer_needed)
+  # Stride: 13 fields per task (pi, ti, id, name, status, verification, done_when, has_files, has_create, has_modify, has_test, complexity, intent)
   local _ts=()
   mapfile -d '' _ts < <(echo "$json" | jq -j '
     [.phases // [] | to_entries[] | .key as $pi |
@@ -189,7 +186,7 @@ do_schema() {
       ((.value.files // {}) | has("modify") | tostring),
       ((.value.files // {}) | has("test") | tostring),
       (.value.complexity // ""),
-      (if .value | has("reviewer_needed") then (.value.reviewer_needed | tostring) else "" end)
+      (.value.intent // "")
     ] | map(. + "\u0000") | join("")] | join("")')
   local _total_tasks=$(( ${#_ts[@]} / 13 ))
 
@@ -202,7 +199,8 @@ do_schema() {
       create: (.files.create // []),
       modify: (.files.modify // []),
       test_files: (.files.test // []),
-      criteria: (.success_criteria // [])
+      criteria: (.success_criteria // []),
+      avoid: (.avoid // null)
     }')
 
   # --- Level 5: Bulk extract BFS dependency graph (1 jq call) ---
@@ -283,14 +281,7 @@ do_schema() {
       done
     fi
 
-    local letter_lower="${letter,,}"
-    local phase_dir="phase-$letter_lower"
-    if [[ ! -f "$plan_dir/$phase_dir/completion.md" ]]; then
-      err "ERROR: missing_completion_file: $phase_dir/completion.md"
-    fi
-
     # --- Validate tasks for this phase from pre-extracted scalars ---
-    local _phase_task_ids=()
     local _phase_file_paths=()
     local _phase_file_tids=()
     for ((ti=0; ti<_total_tasks; ti++)); do
@@ -337,7 +328,7 @@ do_schema() {
       fi
 
       local complexity="${_ts[$((tbase+11))]}"
-      local reviewer_needed="${_ts[$((tbase+12))]}"
+      local intent="${_ts[$((tbase+12))]}"
 
       if [[ -z "$complexity" ]]; then
         err "ERROR: missing_field: phases[$p].tasks[$t].complexity"
@@ -348,14 +339,7 @@ do_schema() {
         esac
       fi
 
-      if [[ -z "$reviewer_needed" ]]; then
-        err "ERROR: missing_field: phases[$p].tasks[$t].reviewer_needed"
-      else
-        case "$reviewer_needed" in
-          true|false) ;;
-          *) err "ERROR: invalid_reviewer_needed: task $id reviewer_needed='$reviewer_needed' (expected: true or false)" ;;
-        esac
-      fi
+      [[ -z "$intent" ]] && err "ERROR: missing_field: phases[$p].tasks[$t].intent"
 
       if [[ "$files_exists" != "true" ]]; then
         err "ERROR: missing_field: phases[$p].tasks[$t].files"
@@ -367,6 +351,28 @@ do_schema() {
 
       # Task arrays — direct index into pre-split array (no jq per task)
       local _tarr="${_task_arrays[$ti]}"
+
+      local _avoid_json
+      _avoid_json=$(echo "$_tarr" | jq -c '.avoid')
+      if [[ "$_avoid_json" == "null" ]]; then
+        err "ERROR: missing_field: phases[$p].tasks[$t].avoid"
+      else
+        local _avoid_is_array
+        _avoid_is_array=$(echo "$_avoid_json" | jq -r 'if type == "array" then "true" else "false" end')
+        if [[ "$_avoid_is_array" != "true" ]]; then
+          err "ERROR: invalid_avoid: task $id avoid must be an array of {rule, why} objects"
+        else
+          local _avoid_count
+          _avoid_count=$(echo "$_avoid_json" | jq 'length')
+          for ((av=0; av<_avoid_count; av++)); do
+            local _avoid_rule _avoid_why
+            _avoid_rule=$(echo "$_avoid_json" | jq -r ".[$av].rule // \"\"")
+            _avoid_why=$(echo "$_avoid_json" | jq -r ".[$av].why // \"\"")
+            [[ -z "$_avoid_rule" ]] && err "ERROR: invalid_avoid: task $id avoid[$av] missing non-empty 'rule'"
+            [[ -z "$_avoid_why" ]] && err "ERROR: invalid_avoid: task $id avoid[$av] missing non-empty 'why'"
+          done
+        fi
+      fi
 
       local _task_deps
       _task_deps=$(echo "$_tarr" | jq -r '.depends_on[]?')
@@ -435,62 +441,8 @@ do_schema() {
         fi
       done <<< "$_all_files"
 
-      local id_lower="${id,,}"
-      local task_file="$plan_dir/$phase_dir/$id_lower.md"
-      if [[ ! -f "$task_file" ]]; then
-        err "ERROR: missing_task_file: $phase_dir/$id_lower.md"
-      else
-        local first_line
-        first_line=$(head -n 1 "$task_file")
-        local expected_h1="# $id: $task_name"
-        if [[ "$first_line" != "$expected_h1" ]]; then
-          err "ERROR: h1_mismatch: $phase_dir/$id_lower.md first line is '$first_line', expected '$expected_h1'"
-        fi
-      fi
-
-      if [[ "$task_status" == "complete" ]]; then
-        local completion_file="$plan_dir/$phase_dir/${id_lower}-completion.md"
-        if [[ ! -f "$completion_file" ]]; then
-          err "ERROR: missing_task_completion_file: $phase_dir/${id_lower}-completion.md"
-        fi
-
-        local repo_root
-        repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-        if [[ -n "$repo_root" ]]; then
-          while IFS= read -r fc_path; do
-            [[ -z "$fc_path" ]] && continue
-            if [[ ! -f "$repo_root/$fc_path" ]]; then
-              err "ERROR: missing_created_file: task $id declares files.create '$fc_path' but file not found"
-            fi
-          done <<< "$_create_paths"
-        fi
-      fi
-
       all_task_ids+=("$id")
-      _phase_task_ids+=("$id")
     done
-
-    # Orphan file check using pre-extracted task IDs
-    local phase_full_dir="$plan_dir/$phase_dir"
-    if [[ -d "$phase_full_dir" ]]; then
-      for md_file in "$phase_full_dir"/*.md; do
-        [[ ! -f "$md_file" ]] && continue
-        local base_name
-        base_name=$(basename "$md_file" .md)
-        [[ "$base_name" == "completion" ]] && continue
-        [[ "$base_name" =~ -completion$ ]] && continue
-        local found_task=0
-        for tid in "${_phase_task_ids[@]}"; do
-          if [[ "$base_name" == "${tid,,}" ]]; then
-            found_task=1
-            break
-          fi
-        done
-        if [[ $found_task -eq 0 ]]; then
-          err "ERROR: orphaned_task_file: $phase_dir/$base_name.md has no matching task in plan.json"
-        fi
-      done
-    fi
 
   done
 
@@ -799,6 +751,15 @@ do_render() {
         fi
 
         printf -- '- %s %s: %s — *%s*\n' "$checkbox" "$tid" "$tname" "$done_when"
+
+        local handoff_count
+        handoff_count=$(jq ".phases[$i].tasks[$j].handoffs // [] | length" "$plan_json")
+        for ((h=0; h<handoff_count; h++)); do
+          local handoff_from handoff_note
+          handoff_from=$(jq -r ".phases[$i].tasks[$j].handoffs[$h].from" "$plan_json")
+          handoff_note=$(jq -r ".phases[$i].tasks[$j].handoffs[$h].note" "$plan_json")
+          printf '  - Handoff from %s: %s\n' "$handoff_from" "$handoff_note"
+        done
       done
     done
   } > "$tmp"
@@ -846,17 +807,6 @@ do_update_status_task() {
       unlock_plan "$plan_json"
       trap - EXIT
       echo "ERROR: cannot advance task $task_id — dependencies not complete: $incomplete_deps" >&2
-      exit 1
-    fi
-  fi
-  if [[ "$new_status" == "complete" ]]; then
-    local plan_dir
-    plan_dir="$(cd "$(dirname "$plan_json")" && pwd)"
-    local gate_result
-    if ! gate_result=$(check_review_record "$plan_dir" "task-review" "$task_id"); then
-      unlock_plan "$plan_json"
-      trap - EXIT
-      echo "ERROR: cannot mark task $task_id complete — $gate_result" >&2
       exit 1
     fi
   fi
@@ -909,10 +859,6 @@ do_update_status_phase() {
       [[ -z "$tid" ]] && continue
       if [[ "$tstatus" != "complete" && "$tstatus" != "skipped" ]]; then
         gate_errors+=("task $tid is '$tstatus'")
-      elif [[ "$tstatus" == "complete" ]]; then
-        if ! gate_result=$(check_review_record "$plan_dir" "task-review" "$tid"); then
-          gate_errors+=("task $tid: $gate_result")
-        fi
       fi
     done <<< "$task_data"
     if ! gate_result=$(check_review_record "$plan_dir" "impl-review" "phase-$phase_lower"); then
@@ -1606,35 +1552,32 @@ do_check_handoffs() {
     echo "ERROR: phase_not_found: '$phase_letter'" >&2
     exit 1
   fi
-  local source_ids triple_list combined
+  local source_ids pair_list combined
   combined=$(jq -r --arg letter "$phase_letter" '
     "SOURCES:" + ([.phases[] | select(.letter == $letter) | .tasks[].id] | join("|")),
-    "TRIPLES",
-    (.phases[] | select(.letter > $letter) | .letter as $tletter |
+    "PAIRS",
+    (.phases[] | select(.letter > $letter) |
       .tasks[] | .id as $tid |
-      (.depends_on // [])[] | "\($tid)|\(.)|\($tletter)")
+      (.depends_on // [])[] | "\($tid)|\(.)")
   ' "$plan_json")
   source_ids=$(echo "$combined" | awk -F: '/^SOURCES:/{print $2; exit}')
   source_ids="$source_ids|"
-  triple_list=$(echo "$combined" | awk '/^TRIPLES$/{found=1; next} found{print}')
+  pair_list=$(echo "$combined" | awk '/^PAIRS$/{found=1; next} found{print}')
   local missing=()
-  while IFS='|' read -r target_id source_id target_letter; do
+  while IFS='|' read -r target_id source_id; do
     [[ -z "$target_id" ]] && continue
     case "|$source_ids" in
       *"|$source_id|"*) ;;
       *) continue ;;
     esac
-    local target_lower="${target_letter,,}"
-    local target_id_lower="${target_id,,}"
-    local target_file="$plan_dir/phase-$target_lower/$target_id_lower.md"
-    if [[ ! -f "$target_file" ]]; then
-      missing+=("$source_id -> $target_id (target file missing: phase-$target_lower/$target_id_lower.md)")
-      continue
-    fi
-    if ! grep -q -E "^## Handoff from $source_id([[:space:]]|$)" "$target_file"; then
+    local has_handoff
+    has_handoff=$(jq -r --arg tid "$target_id" --arg sid "$source_id" '
+      [.phases[].tasks[] | select(.id == $tid) | (.handoffs // [])[] | select(.from == $sid)] | length
+    ' "$plan_json")
+    if [[ "$has_handoff" -eq 0 ]]; then
       missing+=("$source_id -> $target_id")
     fi
-  done <<< "$triple_list"
+  done <<< "$pair_list"
   if [[ ${#missing[@]} -eq 0 ]]; then
     exit 0
   fi
@@ -1659,8 +1602,50 @@ do_check_handoffs() {
   for m in "${missing[@]}"; do
     echo "  - $m" >&2
   done
-  echo "  Write '## Handoff from {SOURCE_ID}' sections in target task files, or add '## Handoff Notes' section to phase-$phase_lower/completion.md whose first content line starts with 'None' to opt out." >&2
+  echo "  Record it with 'validate-plan --add-handoff <plan.json> --task {TARGET_ID} --from {SOURCE_ID} --note {TEXT}', or add a '## Handoff Notes' section to phase-$phase_lower/completion.md whose first content line starts with 'None' to opt out." >&2
   exit 1
+}
+
+do_add_handoff() {
+  local plan_json="$1" task_id="$2" from_id="$3" note="$4"
+
+  lock_plan "$plan_json"
+  trap 'unlock_plan "'"$plan_json"'"' EXIT
+
+  local task_found
+  task_found=$(jq --arg id "$task_id" '[.phases[].tasks[] | select(.id == $id)] | length' "$plan_json")
+  if [[ "$task_found" -eq 0 ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: task_not_found: '$task_id'" >&2
+    exit 1
+  fi
+
+  local from_found
+  from_found=$(jq --arg id "$from_id" '[.phases[].tasks[] | select(.id == $id)] | length' "$plan_json")
+  if [[ "$from_found" -eq 0 ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: task_not_found: '$from_id'" >&2
+    exit 1
+  fi
+
+  local dup
+  dup=$(jq --arg id "$task_id" --arg from "$from_id" --arg note "$note" '
+    [.phases[].tasks[] | select(.id == $id) | (.handoffs // [])[] | select(.from == $from and .note == $note)] | length
+  ' "$plan_json")
+  if [[ "$dup" -gt 0 ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "handoff already recorded for $task_id from $from_id (no change)"
+    return 0
+  fi
+
+  local tmp="${plan_json}.tmp.$$"
+  jq --arg id "$task_id" --arg from "$from_id" --arg note "$note" '
+    (.phases[].tasks[] | select(.id == $id) | .handoffs) |= ((. // []) + [{"from": $from, "note": $note}])
+  ' "$plan_json" > "$tmp" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: jq update failed" >&2; exit 1; }
+  mv "$tmp" "$plan_json" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
+  do_render "$plan_json"
+  unlock_plan "$plan_json"
+  trap - EXIT
 }
 
 MODE=""
@@ -1673,6 +1658,8 @@ CHECK_REVIEW_SCOPE=""
 DEPENDS_ON_ID=""
 ADD_FILE_KIND=""
 ADD_FILE_PATH=""
+HANDOFF_FROM=""
+HANDOFF_NOTE=""
 # shellcheck disable=SC2034
 CHECK_ENTRY_STAGE=""
 
@@ -1817,6 +1804,14 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
+    --add-handoff)
+      MODE="add-handoff"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
     --depends-on)
       shift
       if [[ $# -gt 0 ]]; then
@@ -1835,6 +1830,20 @@ while [[ $# -gt 0 ]]; do
       shift
       if [[ $# -gt 0 ]]; then
         ADD_FILE_PATH="$1"
+        shift
+      fi
+      ;;
+    --from)
+      shift
+      if [[ $# -gt 0 ]]; then
+        HANDOFF_FROM="$1"
+        shift
+      fi
+      ;;
+    --note)
+      shift
+      if [[ $# -gt 0 ]]; then
+        HANDOFF_NOTE="$1"
         shift
       fi
       ;;
@@ -1938,6 +1947,13 @@ case "$MODE" in
       exit 2
     fi
     do_check_handoffs "$PLAN_JSON" "$UPDATE_ID"
+    ;;
+  add-handoff)
+    if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" || -z "$HANDOFF_FROM" || -z "$HANDOFF_NOTE" ]]; then
+      echo "ERROR: --add-handoff requires --task <ID> --from <SOURCE_ID> --note <TEXT>" >&2
+      exit 2
+    fi
+    do_add_handoff "$PLAN_JSON" "$UPDATE_ID" "$HANDOFF_FROM" "$HANDOFF_NOTE"
     ;;
   *) usage ;;
 esac
