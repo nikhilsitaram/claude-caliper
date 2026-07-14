@@ -80,10 +80,10 @@ These are your own (`$GH_USER`) comments — replying to them is intended, and i
 ### Step 5: External Feedback
 
 **Wait for bots:**
-- `--automated-merge` from orchestrate: wait 90s, then poll `gh pr checks` every 30s (timeout: 5 min).
+- `--automated-merge` from orchestrate: wait 90s, then poll every 30s.
 - User-selected automated (fix or merge): wait 60s warm-up, then poll every 60s.
 - Deliberate: no warm-up, poll every 60s.
-- Poll until all checks complete and no "processing"/"in progress" indicators in comments.
+- Each poll queries `gh pr checks` AND all three feedback sources below (conversation comments, REST inline comments, reviews). Green checks alone don't mean bots are done: review bots like Gemini (`gemini-code-assist`) register no CI check and post no in-progress marker — their review simply appears as inline comments a few minutes after the PR opens. So don't conclude "no bot feedback" early; keep polling until the timeout elapses, and treat it as ready sooner only if every known review bot has posted (a review, or an explicit skip/paused comment like CodeRabbit's integrate/* skip).
 - Bot rate-limit warning = treat as ready.
 - Timeout: `caliper-settings get review_wait_minutes` (default: 5).
 
