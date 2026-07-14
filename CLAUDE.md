@@ -2,7 +2,7 @@
 
 ## What This Repo Is
 
-A Claude Code plugin containing composable agent skills for software development workflows (TDD, design, draft-plan, orchestrate, pr-create). Skills live in `skills/<name>/SKILL.md` with optional supporting files alongside.
+A Claude Code plugin containing composable agent skills for software development workflows (TDD, design, implement, draft-plan, orchestrate, pr-create). Skills live in `skills/<name>/SKILL.md` with optional supporting files alongside.
 
 ## Skill Conventions
 
@@ -62,11 +62,15 @@ In `hooks/hooks.json`, `command`-type hooks always require a `command` string �
 
 ## Development Workflow
 
-This repo uses its own skills. The typical flow: design -> worktree -> draft-plan -> orchestrate -> pr-create -> pr-review -> pr-merge.
+This repo uses its own skills. The design skill routes work into one of three tiers by its actual shape, so ceremony scales with size:
 
-Orchestrate supports two execution modes: subagents (parallel Agent tool dispatches) and agent teams (parallel teammates). The design skill recommends a mode based on plan complexity. Agent teams requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- **Small** (≤~2 files, obvious approach) — in-conversation design + explicit approval, then the `implement` skill runs inline TDD in the main session. No plan artifacts.
+- **Medium** (one coherent change, fits one context, no genuine parallelism; the default when in doubt) — a short design doc + one design-review pass, then `implement` inline TDD.
+- **Large** (genuine parallelism, dependency layers, or bulk beyond one sitting) — full ceremony: design doc + design-review, then draft-plan -> orchestrate.
 
-In agent-teams mode, multi-phase plans branch phase worktrees off the integration worktree's HEAD (so phase B sees phase A's merged work). For this to work, set `worktree.baseRef: "head"` in `~/.claude/settings.json` — the default `"fresh"` branches new worktrees from `origin/<default>`, which skips locally-merged phases.
+Every tier ends with one independent implementation-review over the integrated diff, then the PR chain (pr-create -> pr-review -> pr-merge) per the `workflow` setting.
+
+Orchestrate (large tier only) dispatches each task as a parallel subagent with its own git worktree; file-set isolation keeps tasks in a phase conflict-free, and phases run sequentially so a later phase sees earlier phases' merged work. plan.json holds every task's metadata — there are no separate task `.md` files, and each task is not reviewed on its own; the per-phase implementation-review is the gate.
 
 ## Markdown
 
