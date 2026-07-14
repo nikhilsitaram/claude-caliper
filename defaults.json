@@ -3,87 +3,155 @@
     "type": "bool",
     "default": false,
     "description": "Skip test suite before committing",
-    "used_by": ["pr-create"]
+    "used_by": [
+      "pr-create"
+    ]
   },
   "review_mode": {
     "type": "enum",
-    "values": ["automated-fix", "automated-merge", "deliberate"],
+    "values": [
+      "automated-fix",
+      "automated-merge",
+      "deliberate"
+    ],
     "prompt_required": true,
     "description": "PR review mode (prompted each time unless explicitly set)",
-    "used_by": ["pr-review"]
+    "used_by": [
+      "pr-review"
+    ]
   },
   "skip_review": {
     "type": "bool",
     "default": false,
     "description": "Skip PR reviewer subagent dispatch",
-    "used_by": ["pr-review"]
+    "used_by": [
+      "pr-review"
+    ]
   },
   "merge_strategy": {
     "type": "enum",
-    "values": ["squash", "rebase"],
+    "values": [
+      "squash",
+      "rebase"
+    ],
     "default": "squash",
     "description": "Default merge strategy for standard PRs (integration branches and phase PRs retain auto-detected strategy)",
-    "used_by": ["pr-merge"]
+    "used_by": [
+      "pr-merge"
+    ]
   },
   "workflow": {
     "type": "enum",
-    "values": ["pr-create", "pr-merge", "orchestrate", "plan-only"],
+    "values": [
+      "pr-create",
+      "pr-merge",
+      "orchestrate",
+      "plan-only"
+    ],
     "prompt_required": true,
     "description": "Post-orchestration workflow (prompted each time unless explicitly set)",
-    "used_by": ["design", "orchestrate", "implement"]
+    "used_by": [
+      "design",
+      "orchestrate",
+      "implement"
+    ]
   },
   "planner_model": {
     "type": "enum",
-    "values": ["opus", "sonnet", "haiku"],
+    "values": [
+      "opus",
+      "sonnet",
+      "haiku"
+    ],
     "default": "opus",
     "description": "Model for draft-plan writer",
-    "used_by": ["design"]
+    "used_by": [
+      "design"
+    ]
   },
   "task_implementer_model": {
     "type": "enum",
-    "values": ["opus", "sonnet", "haiku"],
+    "values": [
+      "opus",
+      "sonnet",
+      "haiku"
+    ],
     "default": "sonnet",
     "description": "Model for task execution in orchestrate",
-    "used_by": ["orchestrate"]
+    "used_by": [
+      "orchestrate"
+    ]
   },
   "review_wait_minutes": {
     "type": "int",
     "default": 5,
     "description": "Poll timeout in minutes for external review bot comments (warm-up periods remain fixed)",
-    "used_by": ["orchestrate", "pr-review"]
+    "used_by": [
+      "orchestrate",
+      "pr-review"
+    ]
   },
   "merge_wait_minutes": {
     "type": "int",
     "default": 10,
     "description": "Poll timeout in minutes for pr-merge to wait for auto-merge to land (PR reaching MERGED). Kept separate from review_wait_minutes, which orchestrate overloads to 0 to mean merge-directly",
-    "used_by": ["pr-merge"]
+    "used_by": [
+      "pr-merge"
+    ]
   },
   "design_reviewer_model": {
     "type": "enum",
-    "values": ["opus", "sonnet", "haiku"],
+    "values": [
+      "opus",
+      "sonnet",
+      "haiku"
+    ],
     "default": "opus",
-    "description": "Model for design review (iter 1–2). When set to opus, re-dispatches at iter ≥ 3 step down to sonnet automatically — verification passes don't justify opus cost.",
-    "used_by": ["design", "design-review"]
+    "description": "Model for design review. Used for both passes of the two-pass review cap.",
+    "used_by": [
+      "design",
+      "design-review"
+    ]
   },
   "plan_reviewer_model": {
     "type": "enum",
-    "values": ["opus", "sonnet", "haiku"],
+    "values": [
+      "opus",
+      "sonnet",
+      "haiku"
+    ],
     "default": "sonnet",
     "description": "Model for plan review",
-    "used_by": ["design", "plan-review"]
+    "used_by": [
+      "design",
+      "plan-review"
+    ]
   },
   "implementation_reviewer_model": {
     "type": "enum",
-    "values": ["opus", "sonnet", "haiku"],
+    "values": [
+      "opus",
+      "sonnet",
+      "haiku"
+    ],
     "default": "opus",
     "description": "Model for cross-task implementation review",
-    "used_by": ["orchestrate", "implementation-review"]
+    "used_by": [
+      "orchestrate",
+      "implementation-review"
+    ]
   },
   "pr_reviewer_model": {
     "type": "enum",
-    "values": ["opus", "sonnet", "haiku"],
+    "values": [
+      "opus",
+      "sonnet",
+      "haiku"
+    ],
     "default": "opus",
     "description": "Model for PR review",
-    "used_by": ["pr-review"]
+    "used_by": [
+      "pr-review"
+    ]
   }
 }

@@ -40,4 +40,4 @@ Create `src/handler.ts`, `src/validator.ts`, and `tests/handler.test.ts` (contai
 
 ## Scope Estimate
 
-Single phase, 3 tasks. Recommended execution mode: subagents.
+Single phase, 3 tasks. Recommended tier: Medium (one coherent change, no genuine parallelism).
