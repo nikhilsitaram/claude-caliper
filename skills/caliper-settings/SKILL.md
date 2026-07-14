@@ -43,7 +43,7 @@ Removes a user override so the setting falls back to its shipped default. With n
 | `task_implementer_model` | enum | `sonnet` | orchestrate |
 | `design_reviewer_model` | enum | `opus` | design, design-review |
 | `plan_reviewer_model` | enum | `sonnet` | design, plan-review |
-| `implementation_reviewer_model` | enum | `sonnet` | orchestrate, implementation-review |
+| `implementation_reviewer_model` | enum | `opus` | orchestrate, implementation-review |
 | `pr_reviewer_model` | enum | `opus` | pr-review |
 | `review_wait_minutes` | int | `5` | orchestrate, pr-review |
 
