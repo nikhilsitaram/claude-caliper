@@ -40,7 +40,7 @@ Removes a user override so the setting falls back to its shipped default. With n
 | `merge_strategy` | enum | `squash` | pr-merge |
 | `workflow` | enum | *(prompt)* | design, orchestrate, implement |
 | `planner_model` | enum | `opus` | design |
-| `task_implementer_model` | enum | `opus` | orchestrate |
+| `task_implementer_model` | enum | `sonnet` | orchestrate |
 | `design_reviewer_model` | enum | `opus` | design, design-review |
 | `plan_reviewer_model` | enum | `sonnet` | design, plan-review |
 | `implementation_reviewer_model` | enum | `sonnet` | orchestrate, implementation-review |
