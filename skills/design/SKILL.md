@@ -23,7 +23,10 @@ Complete in order:
 2. **Challenge assumptions** — question the framing before accepting it
 3. **Ask clarifying questions** — smart batches (see below)
 4. **Propose 2-3 approaches** — trade-offs and your recommendation
-5. **Present design** — sections scaled to complexity, approval after each
+5. **Recommend a tier, then present the design** — sections scaled to complexity, approval after each. Recommend a tier from these signals (default to **Medium** when in doubt — the cheapest tier with an audit trail):
+   - **Small** — ≤~2 files, obvious approach. No design doc, no plan artifacts; approved in conversation.
+   - **Medium** — one coherent change, fits one context, no genuine parallelism. Short design doc + one design-reviewer pass.
+   - **Large** — genuine parallelism, dependency layers, or bulk beyond one sitting. Full ceremony: design-review loop, draft-plan, plan-review, orchestrate.
 6. **Set up worktree** — `EnterWorktree` enables session-aware cleanup via `ExitWorktree`:
    - `EnterWorktree(name: "<feature>")` — creates `.claude/worktrees/<feature>` with branch `<feature>`
    - Resolve persistent path variables (plans live in main repo, code work happens in worktree):
@@ -37,8 +40,8 @@ Complete in order:
      ```
 
      `$PLAN_DIR` lives in the main repo (gitignored) so plan artifacts survive worktree cleanup. Use `$PLAN_DIR` and `$WORKTREE` — not relative paths — in every dispatch prompt and `jq` write below; subagents inherit worktree CWD and relative `.claude/claude-caliper/...` won't resolve. The `settings.local.json` write registers `$MAIN_ROOT` as an additional directory so future sessions started inside the worktree (e.g. a fresh `claude` launched there) don't trigger per-command permission prompts when reading/writing `$PLAN_DIR`. `link-agent-memory` symlinks `$WORKTREE/.claude/agent-memory` to `$MAIN_ROOT/.claude/agent-memory` so subagents with `memory: project` (design-reviewer, plan-drafter, plan-reviewer, task-implementer, implementation-reviewer) persist memory through worktree cleanup.
-   - Multi-phase: rename to integration branch: `git branch -m integrate/<feature>` — phase worktrees created by orchestrate as siblings
-   - Single-phase: branch name `<feature>` is correct as-is; orchestrate works here directly, PRs to main
+   - Multi-phase (large tier only): rename to integration branch: `git branch -m integrate/<feature>` — phase worktrees created by orchestrate as siblings
+   - Single-phase: branch name `<feature>` is correct as-is; execution works here directly, PRs to main
    1. Bootstrap dependencies per **See:** ./dependency-bootstrap.md
    2. Run tests to establish a clean baseline
 7. **Configure and approve** — single AskUserQuestion with 3 questions:
@@ -46,22 +49,24 @@ Complete in order:
     **Q1 — Workflow** (header: "Workflow"):
     Run `caliper-settings get workflow`.
     - If a value is returned (e.g. `pr-create`): skip this question. Message: "Using your configured workflow: <value>".
-    - If `PROMPT_REQUIRED`: include in AskUserQuestion with recommended option marked "(Recommended)":
-      - **Create PR** — Orchestrate → pr-create (Recommended)
-      - **Merge PR** — Orchestrate → pr-create → pr-review → pr-merge
-      - **Orchestrate only** — Orchestrate → stop after implementation review (work stays in worktree)
-      - **Plan only** — Stop after plan is reviewed
+    - If `PROMPT_REQUIRED`: options depend on the tier recommended in step 5 (mark the recommended option "(Recommended)"):
+      - **Small or Medium tier:** `Plan only` is meaningless on the plan-less fast path — omit it:
+        - **Create PR** — Implement → pr-create (Recommended)
+        - **Merge PR** — Implement → pr-create → pr-review → pr-merge
+        - **Orchestrate only** — Implement → stop after implementation review (work stays in worktree)
+      - **Large tier:** all four options:
+        - **Create PR** — Orchestrate → pr-create (Recommended)
+        - **Merge PR** — Orchestrate → pr-create → pr-review → pr-merge
+        - **Orchestrate only** — Orchestrate → stop after implementation review (work stays in worktree)
+        - **Plan only** — Stop after plan is reviewed
 
-    **Q2 — Execution mode** (header: "Exec mode"):
-    Run `caliper-settings get execution_mode`.
-    - If a value is returned (e.g. `subagents`): skip this question. Message: "Using your configured execution mode: <value>".
-    - If `PROMPT_REQUIRED`: include in AskUserQuestion. Recommend based on design complexity:
-      - ≤10 tasks AND single phase → recommend `Subagents`
-      - >10 tasks OR multi-phase → recommend `Agent teams`
+    **Q2 — Tier** (header: "Tier"):
+    Mark the tier recommended in step 5 "(Recommended)". Options:
+    - **Small** — no design doc; approve now, hand off straight to `implement`
+    - **Medium** — short design doc + one design-reviewer pass, then hand off to `implement`
+    - **Large** — full ceremony: design-review, draft-plan, plan-review, orchestrate
 
-      Mark the recommended option with "(Recommended)". Options:
-      - **Subagents** — Parallel Agent tool dispatches with worktree isolation. No special env var needed.
-      - **Agent teams** — Parallel teammates with push notifications and mailbox messaging. Requires env var.
+    If the answer moves the tier across the small/medium ↔ large boundary from what Q1's options assumed, ask one quick follow-up AskUserQuestion to confirm the workflow choice with the corrected option set before proceeding.
 
     **Q3 — Approval** (header: "Approval"):
     - **Approve design (auto turn on acceptEdits)**
@@ -69,34 +74,45 @@ Complete in order:
 
     If "Needs changes" on Q3, return to step 5.
 
-    **Agent teams fallback:** If user picks "Agent teams", check `$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`. If not `1`, use AskUserQuestion to explain: "Agent teams requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`. To enable: run `echo 'export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1' >> ~/.zshrc && source ~/.zshrc`, then restart Claude Code." Offer: "Continue with subagents" or "Stop (I'll restart with agent teams)". If they choose subagents, override the Q2 answer to `Subagents` before step 11 writes plan.json. If they stop, tell them the exact command to resume: `claude --continue` in the worktree directory.
+    On approval, create sentinel: `mkdir -p "$PLAN_DIR" && touch "$PLAN_DIR/.design-approved"` (this enables `acceptEdits` for the session regardless of tier; see `hooks/permission-request-accept-edits.sh`).
+8. **Route by tier:**
 
-    On approval, create sentinel: `mkdir -p "$PLAN_DIR" && touch "$PLAN_DIR/.design-approved"`
-8. **Write design doc** — `$PLAN_DIR/design-<topic>.md` (no commit — gitignored transient state, lives in main repo)
+   - **Small:** No design doc, no design-review dispatch. Invoke the `implement` skill directly in this session, passing `$WORKTREE` and the mapped workflow value (see Route Workflow below). The design already presented and approved in step 5/7 stands in for `implement`'s own compressed design gate.
+   - **Medium:** Write the design doc (below), self-review it, then dispatch design-review with the **Review Loop Protocol** (below). No draft-plan, no plan.json, no plan-review. Once design-review passes, invoke the `implement` skill directly, passing `$PLAN_DIR/design-<topic>.md`, `$WORKTREE`, and the mapped workflow value.
+   - **Large:** Write the design doc, self-review it, dispatch design-review with the **Review Loop Protocol**, dispatch draft-plan, then dispatch plan-review with the same protocol. Then **Route Workflow** (below).
 
-   Before dispatching design-review, verify the doc satisfies this quality checklist (catches the most common reviewer findings on first pass):
-   - Success criteria are behavioral outcomes, not implementation details ("users can log in" not "tests pass" or "middleware installed")
-   - Non-goals each include a brief rationale for why they're excluded
-   - Every file mentioned in the implementation approach is covered in the architecture section (and vice versa)
-   - Test Strategy names a non-mocking integration test for every cross-module data flow (or explicitly notes "no cross-module seam" for single-module designs)
-   - Test impact is noted for every behavior change
-   - Migration/operational steps are captured if the change touches data or config
+**Write design doc** (Medium/Large only) — `$PLAN_DIR/design-<topic>.md` (no commit — gitignored transient state, lives in main repo)
 
-   Run `validate-design --check <path>` and fix any errors before proceeding to self-review.
-9. **Self-review pass** — before dispatching the external reviewer, read through the design doc yourself against the 9-point checklist in `agents/design-reviewer.md`. Fix any issues you find. Goal: catch obvious gaps so the external reviewer surfaces only non-obvious ones. This is an inline check, not a subagent dispatch — no output format required, just fix what you find.
-10. **Dispatch design-review subagent** — fresh reviewer agent validates design before planning (hard gate)
-11. **Dispatch draft-plan subagent** — fresh implementer agent with design doc path and worktree path (zero design context)
-12. **Route workflow** — Map step 7 choices to schema values:
-    - Workflow: `Create PR` → `pr-create`, `Merge PR` → `pr-merge`, `Orchestrate only` → `orchestrate`, `Plan only` → `plan-only`
-    - Exec mode: `Subagents` → `subagents`, `Agent teams` → `agent-teams`
+Before dispatching design-review, verify the doc satisfies this quality checklist (catches the most common reviewer findings on first pass):
+- Success criteria are behavioral outcomes, not implementation details ("users can log in" not "tests pass" or "middleware installed")
+- Non-goals each include a brief rationale for why they're excluded
+- Every file mentioned in the implementation approach is covered in the architecture section (and vice versa)
+- Test Strategy names a non-mocking integration test for every cross-module data flow (or explicitly notes "no cross-module seam" for single-module designs)
+- Test impact is noted for every behavior change
+- Migration/operational steps are captured if the change touches data or config
 
-    Write both: `jq --arg w "<workflow>" --arg e "<exec-mode>" '.workflow = $w | .execution_mode = $e' "$PLAN_DIR/plan.json" > "$PLAN_DIR/plan.json.tmp" && mv "$PLAN_DIR/plan.json.tmp" "$PLAN_DIR/plan.json"`
+Run `validate-design --check <path>` and fix any errors before proceeding to self-review.
 
-    For multi-phase plans, also write the integration branch name:
-    `jq --arg ib "integrate/<feature>" '.integration_branch = $ib' "$PLAN_DIR/plan.json" > "$PLAN_DIR/plan.json.tmp" && mv "$PLAN_DIR/plan.json.tmp" "$PLAN_DIR/plan.json"`
+**Self-review pass** (Medium/Large only) — before dispatching the external reviewer, read through the design doc yourself against the 9-point checklist in `agents/design-reviewer.md`. Fix any issues you find. Goal: catch obvious gaps so the external reviewer surfaces only non-obvious ones. This is an inline check, not a subagent dispatch — no output format required, just fix what you find.
 
-    For **Create PR**, **Merge PR**, or **Orchestrate only**: invoke orchestrate, passing `$PLAN_DIR/plan.json` as the absolute plan path (orchestrate's CWD is the worktree, where plan.json does not exist).
-    For **Plan only**: run `validate-plan --check-workflow "$PLAN_DIR/plan.json"` to verify design-review and plan-review passed. Report the plan file path and stop.
+## Review Loop Protocol (two-pass cap)
+
+Shared by the design-review dispatch (Medium/Large) and the plan-review dispatch (Large): pass 1 is discovery. The lead fixes all findings and verifies each fix inline (grep/read). A delta pass 2 is dispatched only if pass 1 found critical or high issues; after pass 2, any remaining findings are fixed inline and the loop records pass — never a third dispatch.
+
+**Pass 1:**
+1. Dispatch the reviewer (prompt shown at each call site below).
+2. Extract the `json review-summary` block from the response.
+3. Present all issues for visibility, then make triage decisions (fix vs dismiss with reasoning) autonomously — do not stop to ask the user. The user sees the issues and your decisions but the workflow continues without blocking on user input.
+4. Apply all fixes and dismissals in a single editing pass, verifying each fix inline (grep/read the changed file) — do not dispatch a reviewer between individual fixes.
+5. Initialize `reviews.json` with `[]` if it doesn't exist, then write the pass-1 record: `jq --argjson entry '{"type":"<design-review|plan-review>","scope":"<design|plan>","iteration":1,"issues_found":N,"severity":{"critical":C,"high":H,"medium":M,"low":L},"actionable":N,"dismissed":D,"dismissals":[{"id":ID,"reasoning":"..."}],"fixed":F,"remaining":0,"verdict":"<pass|delta>","timestamp":"<ISO8601>"}' '. += [$entry]' "$PLAN_DIR/reviews.json" > tmp && mv tmp "$PLAN_DIR/reviews.json"` — `verdict` is `"pass"` if zero `critical`/`high` were found (no pass 2 needed), `"delta"` if a pass 2 follows.
+6. If zero `critical`/`high` remain: done, proceed to the next checklist step.
+
+**Pass 2 (only if pass 1 found critical or high):**
+7. Re-dispatch the same reviewer subagent type with `## Prior Issues` appended after the context lines in the prompt: a JSON array of the prior issues, each enriched with `resolution` (`"fixed"` or `"dismissed"`) and `dismissal_reason` (present only when dismissed).
+8. Repeat triage + inline fix/verify (steps 3–4) for any newly reported issues.
+9. Write the final `reviews.json` record (`"iteration":2`, `"verdict":"pass"`, `"remaining":0`) — no further dispatch regardless of what remains.
+
+**Design-review dispatch** (Medium/Large):
 
 Read the design reviewer model: `DESIGN_REVIEWER_MODEL=$(caliper-settings get design_reviewer_model)`
 
@@ -110,49 +126,7 @@ Agent(
 )
 ```
 
-**Iteration tracking:** Initialize `ITER=1` at first dispatch (step 10). Increment `ITER` by 1 on each re-dispatch (step 6 of "If reviewer finds issues" below). Use `ITER` as `N` in all reviews.json writes and in the `iter ≥2` / `after iteration 3` conditions below.
-
-After each reviewer dispatch, extract the `json review-summary` block from the response.
-
-**Per-iteration reviews.json write:** Write a record after EVERY iteration (not just the final pass). Initialize `reviews.json` with `[]` if it doesn't exist. `actionable` = issues_found minus dismissed. Each record:
-
-`jq --argjson entry '{"type":"design-review","scope":"design","iteration":N,"issues_found":N,"severity":{"critical":C,"high":H,"medium":M,"low":L},"actionable":N,"dismissed":D,"dismissals":[{"id":ID,"reasoning":"..."}],"fixed":F,"remaining":0,"verdict":"pass|fail","timestamp":"<ISO8601>"}' '. += [$entry]' reviews.json > tmp && mv tmp reviews.json`
-
-**If reviewer finds issues:**
-
-1. **Extract ALL issues** from the `json review-summary` `issues[]` array
-2. **Present all issues** for visibility, then make triage decisions (fix vs dismiss with reasoning) autonomously — do not stop to ask the user. The user sees the issues and your decisions but the workflow continues without blocking on user input during review triage.
-3. **Apply all fixes and dismissals in a single editing pass** — do not dispatch a reviewer between individual fixes
-4. **Apply severity-gated termination:**
-   - **Iterations 1–3, only `medium`/`low` remain:** if all remaining issues are `medium` or `low` (no `critical` or `high`), you may fix all issues, write verdict `"pass"`, and proceed directly to step 11 — or fix all issues and re-dispatch for another pass if there are many issues or you want more confidence.
-   - **After iteration 3 (`ITER > 3`), only `medium`/`low` remain:** fix all remaining issues, write the reviews.json record with verdict `"pass"` (skip step 5's `fail` path), and skip step 6 (no re-dispatch). Proceed to step 11.
-5. **Write the iteration record** to reviews.json — verdict is `fail`; `remaining` is always 0 (all issues are fixed or dismissed after steps 3–4).
-6. **Construct delta context and re-dispatch** (`ITER` += 1): enrich the reviewer's `issues[]` array from the prior iteration with two fields based on triage decisions:
-   - `resolution`: `"fixed"` or `"dismissed"`
-   - `dismissal_reason`: present only when dismissed
-
-   **Model step-down for iter ≥ 3:** Re-reviews past iter 2 are verification-heavy (did the prior issues get fixed?) rather than discovery-heavy, and don't justify the opus cost. When `ITER ≥ 3` and `DESIGN_REVIEWER_MODEL` is `opus`, use `sonnet` for the re-dispatch instead. Resolve with:
-
-   ```bash
-   if [ "$ITER" -ge 3 ] && [ "$DESIGN_REVIEWER_MODEL" = "opus" ]; then ITER_MODEL=sonnet; else ITER_MODEL="$DESIGN_REVIEWER_MODEL"; fi
-   ```
-
-   Dispatch with `## Prior Issues` appended after the "Codebase root" line:
-
-   ```text
-   Agent(
-     subagent_type: "claude-caliper:design-reviewer",
-     model: "$ITER_MODEL",
-     prompt: "Review the design doc at $PLAN_DIR/design-<topic>.md
-
-       Codebase root: $WORKTREE
-
-       ## Prior Issues
-       <json array: id, severity, category, problem, fix, resolution, dismissal_reason?>"
-   )
-   ```
-
-**If reviewer passes (zero issues):** Write the passing record to reviews.json (`ITER`, `remaining`:0, verdict: pass) and proceed to step 11.
+**Draft-plan dispatch** (Large only, after design-review passes):
 
 Read the planner model: `PLANNER_MODEL=$(caliper-settings get planner_model)`
 
@@ -169,7 +143,7 @@ Agent(
 )
 ```
 
-After draft-plan returns, dispatch plan-review with the same review loop protocol:
+**Plan-review dispatch** (Large only, after draft-plan returns), same Review Loop Protocol as design-review:
 
 Read the plan reviewer model: `PLAN_REVIEWER_MODEL=$(caliper-settings get plan_reviewer_model)`
 
@@ -184,8 +158,18 @@ Agent(
 )
 ```
 
-Extract the `json review-summary` block from the response. Triage issues (fix plan files or dismiss with reasoning). Read the threshold: `caliper-settings get re_review_threshold`. If actionable issues exceed this threshold, fix and re-dispatch reviewer (max 3 iterations, then escalate to user). Write review record to `{PLAN_DIR}/reviews.json`: `{"type":"plan-review","scope":"plan","iteration":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass","timestamp":"ISO8601"}` (Note: plan-review intentionally uses the `re_review_threshold`-based gate, not severity-gated termination — the two loops use different termination models by design.)
+## Route Workflow
 
+Map the Q1 answer to a schema value: `Create PR` → `pr-create`, `Merge PR` → `pr-merge`, `Orchestrate only` → `orchestrate`, `Plan only` → `plan-only` (large tier only).
+
+- **Small/Medium:** No plan.json exists. Invoke the `implement` skill directly, passing the mapped workflow value so it knows how to chain after implementation-review.
+- **Large:** Write `.workflow` into plan.json: `jq --arg w "<workflow>" '.workflow = $w' "$PLAN_DIR/plan.json" > "$PLAN_DIR/plan.json.tmp" && mv "$PLAN_DIR/plan.json.tmp" "$PLAN_DIR/plan.json"`
+
+  For multi-phase plans, also write the integration branch name:
+  `jq --arg ib "integrate/<feature>" '.integration_branch = $ib' "$PLAN_DIR/plan.json" > "$PLAN_DIR/plan.json.tmp" && mv "$PLAN_DIR/plan.json.tmp" "$PLAN_DIR/plan.json"`
+
+  For **Create PR**, **Merge PR**, or **Orchestrate only**: invoke orchestrate, passing `$PLAN_DIR/plan.json` as the absolute plan path (orchestrate's CWD is the worktree, where plan.json does not exist).
+  For **Plan only**: run `validate-plan --check-workflow "$PLAN_DIR/plan.json"` to verify design-review and plan-review passed. Report the plan file path and stop.
 
 ## Challenging Assumptions
 
@@ -212,7 +196,7 @@ Before clarifying questions, challenge the framing like a senior PM:
 - Cover: architecture, components, data flow, error handling, testing
 - Note shared foundations as **phasing candidates**
 
-**Phasing** (after all sections):
+**Phasing** (after all sections, large tier only):
 - Simple: "Single phase, no dependency layers. Sound right?"
 - Complex: "N dependency layers. Phase 1 — [name], Phase 2 — ... Adjust?"
 
