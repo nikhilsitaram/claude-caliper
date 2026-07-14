@@ -7,24 +7,22 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 # Writing Plans
 
-Write implementation plans assuming the executor has zero codebase context. Document everything: which files to touch, exact code, how to test, what to avoid and why.
+A plan is `plan.json` — a structured manifest of phases and tasks. Each task carries *intent*, not code: enough for a fresh Claude, reading the codebase directly at full context, to execute it unambiguously. Plans never paste implementation code and never spawn per-task `.md` files. `plan.md` is rendered from `plan.json`; you don't write it by hand.
 
 **Save to:** the absolute `$PLAN_DIR` injected by the dispatcher (resolves to `$MAIN_ROOT/.claude/claude-caliper/YYYY-MM-DD-<topic>/` in the main repo, not the worktree). Plans are gitignored but persist across worktree cleanup.
 
 ## Workflow
 
 1. **Initialize** — `TaskList` to check for prior session context
-2. **Entry gate** — `validate-plan --check-entry $PLAN_DIR/plan.json --stage draft-plan` (exits early if design-review hasn't passed; the plan.json file need not exist yet — only reviews.json is read)
-3. **Explore codebase** — Understand patterns, find exact file paths
+2. **Entry gate** — `validate-plan --check-entry $PLAN_DIR/plan.json --stage draft-plan` (exits early if design-review hasn't passed; plan.json need not exist yet — only reviews.json is read)
+3. **Explore codebase** — Understand patterns, find exact file paths. You know the codebase so the implementer's `intent` can be terse and precise.
 4. **Decide phasing** — Single vs multi-phase (see Phasing below)
-5. **Write plan.json** — Structured manifest with all task metadata
-6. **Write task .md files** — Prose for each task (Avoid+WHY, Steps). Each step shows complete code, not verbs like "add X" or "handle Y". Avoid sections explain *why*, not just *what*.
-7. **Create completion.md stubs** — Empty files, one per phase
-8. **Run validate-plan --schema** — Fix any structural errors
-9. **Run validate-plan --render** — Generates plan.md deterministically
-10. **Self-review** — Re-read every task file and check against the Self-Review Gate below. Fix findings before handoff.
-11. **Skip** — plan artifacts are under `$MAIN_ROOT/.claude/claude-caliper/` (main repo root, gitignored), no commit needed
-12. **Hand off** — Report plan path to caller. Plan-review is dispatched by the design skill after draft-plan returns.
+5. **Write plan.json** — All task metadata, including `intent` and `avoid` (see Task Structure)
+6. **Run validate-plan --schema** — Fix any structural errors
+7. **Run validate-plan --render** — Generates plan.md deterministically
+8. **Self-review** — Re-read every task entry against the Self-Review Gate below. Fix findings before handoff.
+9. **Skip commit** — plan artifacts live under `$MAIN_ROOT/.claude/claude-caliper/` (gitignored)
+10. **Hand off** — Report plan path to caller. Plan-review is dispatched by the design skill after draft-plan returns.
 
 ## Plan Structure
 
@@ -33,24 +31,18 @@ Write implementation plans assuming the executor has zero codebase context. Docu
 ```text
 .claude/claude-caliper/YYYY-MM-DD-topic/
 ├── plan.json             # Structured manifest (source of truth)
-├── plan.md               # Generated outline (DO NOT edit)
-├── phase-a/
-│   ├── completion.md     # Empty stub (lead aggregates per-task completions)
-│   ├── a1.md             # Task prose
-│   └── a2.md
-└── phase-b/
-    ├── completion.md
-    └── b1.md
+└── plan.md               # Generated outline (DO NOT edit)
 ```
 
-**plan.json fields:**
+`plan.json` is the only artifact you write. `plan.md` is rendered. Per-phase `completion.md` files are created later by the orchestrate lead as the reviewer's aggregation point — not by draft-plan.
+
+**plan.json shape:**
 
 ```json
 {
-  "schema": 1,
+  "schema": 2,
   "status": "Not Yet Started",
   "workflow": "pr-create",
-  "execution_mode": "subagents",
   "goal": "One sentence",
   "architecture": "2-3 sentences",
   "tech_stack": "Key technologies",
@@ -66,16 +58,15 @@ Write implementation plans assuming the executor has zero codebase context. Docu
           "id": "A1",
           "name": "Setup route handlers",
           "status": "pending",
+          "intent": "Add the HTTP route handlers exposing health and auth endpoints so downstream consumers have a stable surface. Foundation task — nothing else in the phase wires up until these routes return well-formed responses.",
           "depends_on": [],
           "complexity": "medium",
-          "reviewer_needed": true,
-          "files": {
-            "create": ["src/routes.ts"],
-            "modify": [],
-            "test": ["tests/routes.test.ts"]
-          },
+          "files": { "create": ["src/routes.ts"], "modify": [], "test": ["tests/routes.test.ts"] },
           "verification": "npx jest tests/routes.test.ts",
-          "done_when": "Handler returns 200, 2/2 tests pass"
+          "done_when": "Handler returns 200, 2/2 tests pass",
+          "avoid": [
+            { "rule": "Don't use express", "why": "we're on Hono for edge-runtime compatibility" }
+          ]
         }
       ]
     }
@@ -83,25 +74,9 @@ Write implementation plans assuming the executor has zero codebase context. Docu
 }
 ```
 
-Optional: `success_criteria` at plan/phase/task levels. `workflow`: `pr-create` (default), `pr-merge`, or `plan-only` — set by design skill. `execution_mode`: `subagents` (default placeholder) or `agent-teams` — design skill overwrites after draft-plan. `review_wait_minutes`: max wait for external reviewers (default 5, 0 to skip).
+`workflow` (`pr-create` | `pr-merge` | `orchestrate` | `plan-only`) is set by the design skill, not chosen here. `success_criteria` is optional at plan/phase/task levels.
 
-**See:** `schema-reference.md` for full schema reference.
-
-**Task .md file structure:**
-
-```markdown
-# A1: Setup route handlers
-
-**Avoid:** Don't use express — we're on Hono. Edge runtime compatibility.
-
-## Steps
-
-### Step 1: Write failing test for GET /api/health
-
-(Full TDD cycle with code)
-```
-
-H1 header must match `# {id}: {name}` from plan.json. When a task consumes output from a prior phase, the orchestrate lead appends a handoff section after the H1 at the prior phase's wrap-up.
+**See:** `schema-reference.md` for the full field reference, status lifecycle, and `validate-plan` modes.
 
 ## Phasing
 
@@ -109,76 +84,65 @@ H1 header must match `# {id}: {name}` from plan.json. When a task consumes outpu
 
 **Gates:** 8+ tasks single-phase → look for hidden boundary. 7+ tasks per phase → examine cut points.
 
-Phase boundaries = meaningful "run full suite" points. Each phase gets `phase-{letter}/` with `completion.md` + task files. `depends_on` declares phase ordering. Tasks within a phase execute in parallel — file sets must be disjoint (`validate-plan --schema` enforces this).
+Phase boundaries = meaningful "run full suite" points. `depends_on` (phase level) declares phase ordering. Tasks within a phase execute in parallel — file sets must be disjoint (`validate-plan --schema` enforces this).
 
 Inherit phases from design doc if approved.
 
 ## Task Consolidation
 
-Each task carries fixed overhead: worktree creation, subagent dispatch, and a review cycle. Trivial tasks (single-line changes, import additions, config updates) don't justify that cost individually. Before finalizing tasks, scan for consolidation opportunities:
+Each task carries fixed overhead: worktree creation, subagent dispatch, and its share of the phase review. Trivial tasks (single-line changes, import additions, config updates) don't justify that cost individually. Before finalizing, scan for consolidation:
 
 - **Bundle mechanical changes:** If multiple files each need small, mechanical edits (renaming an export, adding an import, updating a config value), combine them into one task. A single task can span many files as long as the changes are cohesive and the verification is straightforward.
-- **Keep substantive tasks separate:** Changes that require design decisions, new logic, or non-trivial testing should remain their own task — consolidation is for rote work, not for collapsing genuinely independent features.
-- **Rule of thumb:** If a task's prose would be shorter than its plan.json metadata, it's too small — look for neighbors to merge with.
-- **TDD for consolidated tasks:** Mechanical changes don't need per-file red/green cycles. In the task prose, specify a single verification pass (e.g., "run the full test suite and confirm no regressions") rather than step-by-step TDD. The implementer follows whatever discipline the task prose prescribes.
+- **Keep substantive tasks separate:** Changes requiring design decisions, new logic, or non-trivial testing stay their own task — consolidation is for rote work, not for collapsing genuinely independent features.
+- **Rule of thumb:** If a task's `intent` would be shorter than the rest of its metadata, it's too small — look for neighbors to merge with.
+- **Discipline for consolidated tasks:** Mechanical changes don't need per-file red/green cycles. State a single verification pass in `intent` (e.g., "run the full test suite and confirm no regressions") rather than step-by-step TDD. The implementer follows whatever the task prescribes.
 
 ## Task Structure
 
-Every task splits metadata (plan.json) and prose (task .md file).
-
-**plan.json fields:**
+Every task is a single plan.json entry — no split prose file. The two fields that carry direction:
 
 | Field | Requirement | Good |
 |-------|-------------|------|
+| **intent** | 2–4 sentences: *what* to build and *why*. Names the component and its behavior; states how it fits the phase. No pasted code. | "Add JWT validation middleware that rejects expired/invalid tokens before the handler runs, so protected routes can trust `req.user`. Consumed by every task in Phase B." |
+| **avoid** | Array of `{rule, why}` — each pitfall with its reason | `{"rule": "Use jose not jsonwebtoken", "why": "jsonwebtoken has CJS/Edge issues on the target runtime"}` |
 | **files** | Exact paths (create/modify/test) | `{"create": ["src/auth/login.ts"], "test": ["tests/auth/login.test.ts"]}` |
 | **verification** | Runnable command, <60s | `pytest tests/auth/ -v` |
 | **done_when** | Measurable end state | `login returns JWT, 4/4 tests pass` |
-| **depends_on** | Task IDs this consumes | `["A1", "A2"]` (same phase for semantic ordering, prior phase for cross-phase deps) |
+| **depends_on** | Task IDs this consumes | `["A1"]` (same phase for ordering, prior phase for cross-phase deps) |
 | **complexity** | Enum: low, medium, high | `"medium"` |
-| **reviewer_needed** | Bool — false only for low-complexity mechanical tasks | `true` |
 
-**Task .md file content:**
-
-| Field | Requirement | Good |
-|-------|-------------|------|
-| **Avoid + WHY** | Pitfalls with reasoning | "Use jose not jsonwebtoken — CJS/Edge issues" |
-| **Steps** | TDD cycle per step (consolidated mechanical tasks: list changes + suite-level verification) | Write failing test, verify fail, implement, verify pass, commit |
-
-Write complete code in each step — not "add validation" or "implement the handler."
+The implementer reads the codebase directly, so `intent` states the outcome and seams — not line-by-line code.
 
 **Interface-first ordering:** Define contracts first, implement in middle tasks, wire consumers last.
 
-**Integration tests for cross-task seams:** When the design's `## Test Strategy` section names a seam (producer module → consumer module), the plan must include at least one task whose `done_when` exercises that seam end-to-end with no mock at the seam under test. The Test Strategy section is the trigger — the seams it names map 1:1 to integration tasks the plan must include. Multi-phase plans and plans with cross-task `depends_on` are where seams typically exist, but the design doc, not the plan structure, is the source of truth.
+**Integration tests for cross-task seams:** When the design's `## Test Strategy` section names a seam (producer module → consumer module), the plan must include at least one task whose `done_when` exercises that seam end-to-end with no mock at the seam under test. The Test Strategy section is the trigger — the seams it names map 1:1 to integration tasks. Multi-phase plans and plans with cross-task `depends_on` are where seams typically exist, but the design doc, not the plan structure, is the source of truth.
 
 **Placement rules — same-phase vs cross-phase seams:**
 
 - **Same-phase seam** (producer and consumer in the same phase, or single-phase plan): place as the phase's A1 task using double-loop TDD (broad tests stay RED until the last piece lands).
 - **Cross-phase seam** (Phase A producer → Phase B consumer): place as the final task of the consumer's phase (B-last), not A1. The A1 placement would make Phase A's impl-review fail because the consumer code doesn't exist yet when Phase A wraps up.
 
-Either placement works as long as the seam is exercised without mocking the producer.
+Either placement works as long as the seam is exercised without mocking the producer. Each integration task's `done_when` should name the seam explicitly: `"kv_launcher → kv_fetch seam runs end-to-end with real subprocess spawn, 1/1 test passes"` — not just `"integration tests pass"`. The named seam links the task back to design's Test Strategy and lets plan-review verify the contract.
 
-Each integration task's `done_when` should name the seam explicitly: `"kv_launcher → kv_fetch seam runs end-to-end with real subprocess spawn, 1/1 test passes"` — not just `"integration tests pass"`. The named seam links the task back to design's Test Strategy and lets plan-review verify the contract.
-
-**Handoff notes:** The orchestrate lead writes handoff sections to cross-phase task files at the source phase's wrap-up (post-review). Draft-plan doesn't write these.
+**Handoff notes:** When a task depends on a prior phase's task, the orchestrate lead records the shipped-interface note into plan.json via `validate-plan --add-handoff` at the source phase's wrap-up (post-review, so it reflects the real interface). Draft-plan doesn't write these — just declare the `depends_on`.
 
 ## Self-Review Gate
 
-Before handoff, re-read every task file and the plan.json. The plan-reviewer downstream applies an 8-point checklist; catch the prose-level items here so review is pass/fail, not an editing pass. Goal at handoff: zero or one remaining issues.
+Before handoff, re-read every task entry and the plan.json. The plan-reviewer downstream applies a checklist; catch these items here so review is pass/fail, not an editing pass. Goal at handoff: zero or one remaining issues.
 
 **Per task:**
 
-- **Different Claude Test** — Could a fresh Claude with zero context execute this unambiguously? No "the handler" or "the config" without a file path.
+- **Different Claude Test** — Could a fresh Claude with only this entry and codebase access execute it unambiguously? No "the handler" or "the config" without a file path; `intent` names the component and its behavior.
 - **Measurable `done_when`** — "4/4 tests pass" or "endpoint returns 200", not "auth works" or "feature complete".
-- **Complete code in steps** — Actual code, not "add validation" or "implement the handler".
-- **Avoid + WHY** — Every avoid section gives the reason, not just the prohibition.
-- **Artifact consistency** — Same file/function name everywhere. Every path in `plan.json` matches its prose references; every function referenced in prose matches its declaration.
-- **Verification is runnable** — The command exists in this codebase's tooling (npm vs yarn vs pnpm, pytest vs unittest).
+- **Intent is outcome, not code** — Describes what and why and the seams; no pasted implementation.
+- **Avoid + WHY** — Every `avoid` entry gives the reason, not just the prohibition.
+- **Artifact consistency** — Same file/function names across `intent`, `files`, `avoid`, and `done_when`. Every path referenced exists in `files`.
+- **Verification is runnable** — The command matches this codebase's tooling (npm vs yarn vs pnpm, pytest vs unittest).
 
 **Across the plan:**
 
 - **Design criteria map to tasks** — Each success criterion from the design doc is covered by at least one task's `done_when`. Missing criterion → add a task.
-- **Test Strategy seams map to integration tasks** — Every seam declared in the design's `## Test Strategy` section maps to a task whose `done_when` names the seam and the non-mocking constraint. If the design lists three seams, the plan needs at least one task per seam (or one task covering multiple seams) whose verification exercises them without mocking the producer.
-- **Consolidation sweep** — Any task whose prose is shorter than its plan.json metadata should merge with a neighbor (see Task Consolidation).
+- **Test Strategy seams map to integration tasks** — Every seam in the design's `## Test Strategy` maps to a task whose `done_when` names the seam and the non-mocking constraint.
+- **Consolidation sweep** — Any task whose `intent` is shorter than the rest of its metadata should merge with a neighbor.
 - **Complexity gates** — 8+ tasks single-phase or 7+ per phase → split.
 - **Interface-first ordering** — Tasks defining contracts precede tasks consuming them.
-
