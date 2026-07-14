@@ -38,17 +38,14 @@ Removes a user override so the setting falls back to its shipped default. With n
 | `review_mode` | enum | *(prompt)* | pr-review |
 | `skip_review` | bool | `false` | pr-review |
 | `merge_strategy` | enum | `squash` | pr-merge |
-| `workflow` | enum | *(prompt)* | design, orchestrate |
-| `execution_mode` | enum | *(prompt)* | design, orchestrate |
+| `workflow` | enum | *(prompt)* | design, orchestrate, implement |
 | `planner_model` | enum | `opus` | design |
 | `task_implementer_model` | enum | `opus` | orchestrate |
 | `design_reviewer_model` | enum | `opus` | design, design-review |
 | `plan_reviewer_model` | enum | `sonnet` | design, plan-review |
-| `task_reviewer_model` | enum | `sonnet` | orchestrate |
 | `implementation_reviewer_model` | enum | `sonnet` | orchestrate, implementation-review |
 | `pr_reviewer_model` | enum | `opus` | pr-review |
 | `review_wait_minutes` | int | `5` | orchestrate, pr-review |
-| `re_review_threshold` | int | `5` | design, orchestrate, review skills |
 
 ## How Settings Are Used
 

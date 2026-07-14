@@ -220,6 +220,17 @@ assert_eq "get after set with corrupt JSON" "true" "$(bash "$SCRIPT" get "$FIRST
 teardown
 
 echo ""
+echo "=== retired keys ==="
+
+setup
+for retired_key in execution_mode task_reviewer_model re_review_threshold; do
+  check_fail "get $retired_key fails (retired key)" bash "$SCRIPT" get "$retired_key"
+  output=$(bash "$SCRIPT" get "$retired_key" 2>&1 || true)
+  assert_contains "get $retired_key message (retired key)" "$output" "Unknown setting"
+done
+teardown
+
+echo ""
 echo "=== source ==="
 
 setup
