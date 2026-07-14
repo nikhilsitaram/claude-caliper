@@ -68,4 +68,3 @@ Resolve the value:
 ## Integration
 
 **Workflow:** design (small/medium tier) or direct invocation → **this skill** → implementation-review (standalone) → pr-create/pr-review/pr-merge
-**See:** `./tdd.md`
