@@ -127,9 +127,9 @@ All 9 sections are required, in this order. No section may be empty.
 **Required elements:**
 - Phase count (single phase or multi-phase, with brief rationale)
 - Rough task count per phase
-- Recommended execution mode: `subagents` (≤10 tasks, single phase) or `agent teams` (>10 tasks or multi-phase)
+- Recommended tier: `Small` (≤~2 files, obvious approach), `Medium` (one coherent change, fits one context, no genuine parallelism — default when in doubt), or `Large` (genuine parallelism, dependency layers, or bulk beyond one sitting)
 
-**Why this matters:** This is the user's primary decision point for scope and execution strategy before the plan is drafted. It must appear in the design doc — not just in conversation — so the plan-drafter has it as a calibration anchor.
+**Why this matters:** This is the user's primary decision point for scope and how it gets executed before the plan is drafted. It must appear in the design doc — not just in conversation — so the plan-drafter has it as a calibration anchor.
 
 ---
 
@@ -156,7 +156,7 @@ These three rules prevent the most common handoff failure:
 | Trade-off decisions and alternatives rejected | Code snippets that implement the change |
 | Non-goals and scope boundaries | Test fixture content |
 | Scope estimate and phase rationale | Per-task status tracking |
-| Execution mode recommendation | Completion notes format |
+| Tier recommendation | Completion notes format |
 
 File paths and structural code snippets can appear in both — the design describes **what** changes and **why**, the plan describes **how** to change it.
 

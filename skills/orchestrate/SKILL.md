@@ -169,4 +169,4 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 ## Integration
 
 **Workflow:** design → draft-plan → **this skill** → pr-create → pr-review → pr-merge
-**See:** `tdd.md`
+**See:** `skills/implement/tdd.md`

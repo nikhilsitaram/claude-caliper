@@ -213,3 +213,4 @@ Rules for the summary block:
 - READ-ONLY: Do not modify any files
 - DO check codebase when design references existing files or patterns
 - Success criteria are about outcomes, not implementation — flag any criterion that references code, tests, or tools
+- **Class-generalize findings:** review is capped at two dispatches total, so a finding must be reported completely the first time. When an issue is one instance of a repo-wide class (e.g., one stale file path among several, one missing test-impact note among several behavior changes), grep for every other instance of that class and report them as a single issue with all instances listed — not one instance per pass
