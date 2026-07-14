@@ -9,7 +9,7 @@
 A Claude Code plugin that turns your goal into a PR with as little friction as possible. It sizes the work first and applies only as much process as it needs, and every integrated diff is reviewed by a fresh-context subagent. You get a design-gated, test-driven PR — with three human decisions.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.20.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
+[![Version](https://img.shields.io/badge/version-1.53.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-6E40C9?logo=anthropic&logoColor=white)](https://claude.ai/code)
 [![Skills](https://img.shields.io/badge/16%20skills-included-2ea44f)](skills/)
 
