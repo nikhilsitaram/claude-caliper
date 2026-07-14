@@ -6,7 +6,7 @@
 
 **Measure twice, cut once.**
 
-A Claude Code plugin that turns your goal into a PR with as little friction as possible. Every step is reviewed with a fresh context subagent. You get a design-reviewed, plan-validated, test-driven PR — with three human decisions.
+A Claude Code plugin that turns your goal into a PR with as little friction as possible. It sizes the work first and applies only as much process as it needs, and every integrated diff is reviewed by a fresh-context subagent. You get a design-gated, test-driven PR — with three human decisions.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.20.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
