@@ -24,7 +24,7 @@ The same wrong-assumption failures that unexamined plans cause on a large featur
 
 ## Worktree Setup
 
-If design already ran its own worktree setup before handing off (medium tier), reuse that worktree — don't create a second one. On direct invocation, set one up:
+If design already ran its own worktree setup before handing off — it does this for both Small and Medium tiers, passing `$WORKTREE` — reuse that worktree; the signal is whether `$WORKTREE` was passed in, not the tier name. Don't create a second one. On direct invocation, set one up:
 
 - `EnterWorktree(name: "<feature>")` — creates `.claude/worktrees/<feature>` with branch `<feature>`
 - Resolve paths and register the main repo for permission-free access:
