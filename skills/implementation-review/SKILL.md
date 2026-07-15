@@ -30,7 +30,7 @@ Skip if: single-module change or purely additive work with no cross-component in
 Before dispatching the reviewer:
 
 1. **Run integration tests** — broad acceptance tests and boundary tests at cross-component seams should pass. If any fail, fix before proceeding.
-2. **Fill gaps** — if any cross-component boundary lacks an executable (non-mocking) test, write one now. Don't dispatch until it passes; the reviewer's category-7 non-dismissibility rule will flag the gap as Important, which forces a delta pass.
+2. **Fill gaps** — if any cross-component boundary lacks an executable (non-mocking) test, write one now. Don't dispatch until it passes; the reviewer's category-7 non-dismissibility rule will flag the gap as Important (high severity), which forces a delta pass.
 
 ## Resolve the Diff Range
 
@@ -116,7 +116,7 @@ Applies in both modes. Pass 1 is discovery. The lead fixes all findings and veri
 **Pass 2 (only if pass 1 found critical or high):**
 
 5. Re-dispatch a fresh reviewer subagent of the same type with the same full review scope, appending a `## Prior Issues` section listing the pass-1 issues each enriched with its resolution (`fixed` or `dismissed`, with the dismissal reason when dismissed). This catches reviewer hallucination compounding and new issues introduced by bulk fixes.
-6. Repeat triage + inline fix/verify for any newly reported issues, then record pass — no further dispatch regardless of what remains.
+6. Repeat triage + inline fix/verify for any newly reported issues, then record pass. Every finding is still fixed or dismissed with a stated reason — the cap limits reviewer dispatches, not fixes; pass-2 fixes are verified inline rather than by a third reviewer.
 
 ## Continue the Workflow
 

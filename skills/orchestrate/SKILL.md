@@ -81,8 +81,7 @@ After all tasks complete and branches merged:
 2. `validate-plan --check-review "$PLAN_JSON" --type impl-review --scope phase-{letter_lower}`
 3. Append review changes to `${PHASE_DIR}/completion.md`
 4. Run phase criteria: `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}`
-5. Update status: `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "Complete (YYYY-MM-DD)"`
-6. **Record cross-phase handoff notes** for downstream tasks. For each task in a future phase whose `depends_on` references a task from this phase, record a handoff in plan.json describing the shipped interface — names, paths, signatures, usage. Recording post-wrap-up (rather than before next-phase dispatch) means notes reflect the shipped reality, including any review-driven interface changes:
+5. **Record cross-phase handoff notes** for downstream tasks. For each task in a future phase whose `depends_on` references a task from this phase, record a handoff in plan.json describing the shipped interface — names, paths, signatures, usage. Recording post-wrap-up (rather than before next-phase dispatch) means notes reflect the shipped reality, including any review-driven interface changes:
 
    ```bash
    validate-plan --add-handoff "$PLAN_JSON" --task {DOWNSTREAM_ID} --from {SOURCE_ID} --note "Auth middleware exports validateToken() from src/auth/middleware.ts. Use as Hono middleware: app.use('/dashboard/*', validateToken())."
@@ -94,7 +93,8 @@ After all tasks complete and branches merged:
 
    **Opt-out.** If downstream tasks can derive everything they need from `completion.md` alone, append a `## Handoff Notes` section to `{PHASE_DIR}/completion.md` whose first content line starts with `None` (e.g., `None — downstream tasks derive context from completion.md.`).
 
-   **Validate:** `validate-plan --check-handoffs "$PLAN_JSON" --phase {LETTER}` — fails if any cross-phase `depends_on` link into this phase lacks a recorded handoff AND no opt-out block exists.
+   **Validate:** `validate-plan --check-handoffs "$PLAN_JSON" --phase {LETTER}` — fails if any later-phase task depending on a task in this phase lacks a recorded handoff AND no opt-out block exists.
+6. Update status: `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "Complete (YYYY-MM-DD)"` — only after criteria and handoff validation pass, so a resumed run never sees a phase claiming completion with gates unmet.
 7. (Multi-phase) Merge phase PR into integration branch — runs unconditionally for every phase including the last, regardless of `workflow` setting. The final integrate->main PR is created separately in "After All Phases".
    a. Open the phase PR: if one already exists and is open (`gh pr list --head phase-<letter> --state open --json url --jq '.[0].url'`), reuse it; otherwise run `pr-create --base integrate/<feature>`.
    b. `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`
