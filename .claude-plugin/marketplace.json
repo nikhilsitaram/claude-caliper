@@ -8,7 +8,7 @@
     {
       "name": "claude-caliper",
       "description": "claude-caliper bundle",
-      "version": "1.53.0",
+      "version": "2.0.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
