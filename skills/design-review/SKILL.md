@@ -51,7 +51,7 @@ Reviewer produces:
 
 **Review loop (two-pass cap):** The design skill controls the loop: pass 1 is discovery. The lead fixes all findings and verifies each fix inline (grep/read). A delta pass 2 is dispatched only if pass 1 found critical or high issues; after pass 2, any remaining findings are fixed inline and the loop records pass — never a third dispatch. Delta dispatches receive the prior pass's issues with resolution status, enabling verify-then-scan instead of full re-discovery.
 
-Note: Plan-review runs the same two-pass cap (see `skills/plan-review/SKILL.md`).
+Note: Plan-review runs the same two-pass cap.
 
 ## Integration
 

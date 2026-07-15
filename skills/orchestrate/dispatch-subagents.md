@@ -83,8 +83,8 @@ When a background agent completes (push notification — do not poll):
 
 ## After Completion
 
-1. Mark task complete: `validate-plan --update-status plan.json --task {TASK_ID} --status complete`
-2. Validate criteria: `validate-plan --criteria plan.json --task {TASK_ID}`
+1. Validate criteria: `validate-plan --criteria plan.json --task {TASK_ID}` — a failed criterion means the task is not done; send it back to the implementer instead of advancing status
+2. Mark task complete: `validate-plan --update-status plan.json --task {TASK_ID} --status complete`
 3. Merge and clean up the agent's worktree:
    - Never `cd` into an agent worktree — always use `git -C <agent-worktree-path>` for inspection commands (`git log`, `git status`, `git diff`). This prevents CWD from pointing at a path that gets deleted during cleanup.
    - Guard before merge: `PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)` — then `[[ "$PARENT_BRANCH" == integrate/* ]] && { echo "ERROR: PARENT_WORKTREE is on the integration branch. Task branches must merge into the phase branch; integration happens only in Phase Wrap-Up step 7." >&2; exit 1; }`. This catches state drift from the wrong-worktree recovery path where the phase branch was reset to integration HEAD.

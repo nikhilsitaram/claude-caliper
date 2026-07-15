@@ -30,8 +30,7 @@ Your prompt carries the task's plan.json entry — `intent`, `files`, `verificat
 5. Commit your work
 6. Self-review (see below)
 7. Write completion notes (see below)
-8. Mark task complete (see below)
-9. Report back
+8. Report back — the orchestrator owns plan.json status updates
 
 ## Deviation Rules
 

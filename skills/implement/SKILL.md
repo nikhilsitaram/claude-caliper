@@ -50,7 +50,7 @@ Commit frequently in small, logical, atomic units as work lands rather than batc
 
 ## Chain to Implementation Review
 
-Once the change is implemented and tests pass, invoke `skills/implementation-review/SKILL.md` in **standalone mode** over the feature branch diff — no `plan.json` exists on this path, so the mode-detection in that skill picks standalone automatically.
+**REQUIRED SUB-SKILL:** Use implementation-review — once the change is implemented and tests pass, invoke it in **standalone mode** over the feature branch diff. No `plan.json` exists on this path, so its mode-detection picks standalone automatically.
 
 Map the `workflow` setting to implementation-review's continuation flag (all four schema values, exactly):
 
