@@ -285,6 +285,34 @@ jq '.phases[0].tasks[0].avoid = []' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/
 assert_pass "empty avoid array passes" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
+echo "Test 27f: non-string intent fails"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '.phases[0].tasks[0].intent = 42' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "non-string intent fails" "invalid_intent" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 27g: non-string avoid rule fails"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '.phases[0].tasks[0].avoid = [{"rule": true, "why": "because reasons"}]' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "non-string avoid rule fails" "invalid_avoid" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 27h: non-string avoid why fails"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '.phases[0].tasks[0].avoid = [{"rule": "Do not do X", "why": 7}]' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "non-string avoid why fails" "invalid_avoid" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 27i: non-object avoid entry fails"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '.phases[0].tasks[0].avoid = ["just a string"]' "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_fail "non-object avoid entry fails" "invalid_avoid" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
 echo "Test 28: Valid plan with all complexity values and intent/avoid passes"
 rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
