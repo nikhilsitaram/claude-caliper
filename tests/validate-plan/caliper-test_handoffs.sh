@@ -31,6 +31,9 @@ write_two_phase_plan() {
       "depends_on": [], "rationale": "test",
       "tasks": [{
         "id": "A1", "name": "Task A1", "status": "complete",
+        "complexity": "low",
+        "intent": "Produce the Phase A output consumed by B1.",
+        "avoid": [],
         "depends_on": [],
         "files": {"create": [], "modify": ["a1.sh"], "test": []},
         "verification": "true", "done_when": "done"
@@ -41,6 +44,9 @@ write_two_phase_plan() {
       "depends_on": ["A"], "rationale": "test",
       "tasks": [{
         "id": "B1", "name": "Task B1", "status": "pending",
+        "complexity": "low",
+        "intent": "Consume the Phase A output through the recorded handoff.",
+        "avoid": [],
         "depends_on": $b1_deps,
         "files": {"create": [], "modify": ["b1.sh"], "test": []},
         "verification": "true", "done_when": "done"

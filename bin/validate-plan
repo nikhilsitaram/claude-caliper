@@ -164,7 +164,7 @@ do_schema() {
       (.value.rationale // ""),
       (.value | has("depends_on") | tostring),
       ((.value.tasks // []) | length | tostring)
-    ] | map(. + "\u0000") | join("")] | join("")')
+    ] | map(tostring + "\u0000") | join("")] | join("")')
 
   # --- Level 3b: Phase depends_on + criteria as JSON arrays (2 jq calls) ---
   local _phase_deps _phase_criteria_json
@@ -187,7 +187,7 @@ do_schema() {
       ((.value.files // {}) | has("test") | tostring),
       (.value.complexity // ""),
       (.value.intent // "")
-    ] | map(. + "\u0000") | join("")] | join("")')
+    ] | map(tostring + "\u0000") | join("")] | join("")')
   local _total_tasks=$(( ${#_ts[@]} / 13 ))
 
   # --- Level 4b: Task arrays as per-task JSON lines (1 jq call, no per-task jq) ---
@@ -200,7 +200,8 @@ do_schema() {
       modify: (.files.modify // []),
       test_files: (.files.test // []),
       criteria: (.success_criteria // []),
-      avoid: (.avoid // null)
+      avoid: (.avoid // null),
+      intent: (.intent // null)
     }')
 
   # --- Level 5: Bulk extract BFS dependency graph (1 jq call) ---
@@ -352,26 +353,35 @@ do_schema() {
       # Task arrays — direct index into pre-split array (no jq per task)
       local _tarr="${_task_arrays[$ti]}"
 
-      local _avoid_json
-      _avoid_json=$(echo "$_tarr" | jq -c '.avoid')
-      if [[ "$_avoid_json" == "null" ]]; then
-        err "ERROR: missing_field: phases[$p].tasks[$t].avoid"
-      else
-        local _avoid_is_array
-        _avoid_is_array=$(echo "$_avoid_json" | jq -r 'if type == "array" then "true" else "false" end')
-        if [[ "$_avoid_is_array" != "true" ]]; then
-          err "ERROR: invalid_avoid: task $id avoid must be an array of {rule, why} objects"
+      # intent type + full avoid structure in one jq per task; strict string
+      # checks because jq -r would coerce numbers/booleans into passing values
+      local _v2_errors
+      _v2_errors=$(echo "$_tarr" | jq -r --arg id "$id" --arg p "$p" --arg t "$t" '
+        (if .intent != null and (.intent | type) != "string" then
+          "ERROR: invalid_intent: task \($id) intent must be a string"
+        else empty end),
+        (if .avoid == null then
+          "ERROR: missing_field: phases[\($p)].tasks[\($t)].avoid"
+        elif (.avoid | type) != "array" then
+          "ERROR: invalid_avoid: task \($id) avoid must be an array of {rule, why} objects"
         else
-          local _avoid_count
-          _avoid_count=$(echo "$_avoid_json" | jq 'length')
-          for ((av=0; av<_avoid_count; av++)); do
-            local _avoid_rule _avoid_why
-            _avoid_rule=$(echo "$_avoid_json" | jq -r ".[$av].rule // \"\"")
-            _avoid_why=$(echo "$_avoid_json" | jq -r ".[$av].why // \"\"")
-            [[ -z "$_avoid_rule" ]] && err "ERROR: invalid_avoid: task $id avoid[$av] missing non-empty 'rule'"
-            [[ -z "$_avoid_why" ]] && err "ERROR: invalid_avoid: task $id avoid[$av] missing non-empty 'why'"
-          done
-        fi
+          .avoid | to_entries[] | .key as $av | .value as $a |
+          if ($a | type) != "object" then
+            "ERROR: invalid_avoid: task \($id) avoid[\($av)] must be a {rule, why} object"
+          else
+            (if ($a.rule | type) != "string" or $a.rule == "" then
+              "ERROR: invalid_avoid: task \($id) avoid[\($av)] missing non-empty string 'rule'"
+            else empty end),
+            (if ($a.why | type) != "string" or $a.why == "" then
+              "ERROR: invalid_avoid: task \($id) avoid[\($av)] missing non-empty string 'why'"
+            else empty end)
+          end
+        end)
+      ')
+      if [[ -n "$_v2_errors" ]]; then
+        while IFS= read -r _v2e; do
+          [[ -n "$_v2e" ]] && err "$_v2e"
+        done <<< "$_v2_errors"
       fi
 
       local _task_deps
@@ -521,7 +531,7 @@ do_consistency() {
   mapfile -d '' _cp < <(echo "$json" | jq -j '
     [.phases // [] | .[] | [
       (.letter // ""), (.status // ""), ((.tasks // []) | length | tostring)
-    ] | map(. + "\u0000") | join("")] | join("")')
+    ] | map(tostring + "\u0000") | join("")] | join("")')
 
   # Task scalars: stride 4 (phase_idx, id, status, depends_on comma-separated)
   local _ct=()
@@ -530,7 +540,7 @@ do_consistency() {
      (.value.tasks // [])[] | [
       ($pi | tostring), (.id // ""), (.status // ""),
       ((.depends_on // []) | join(","))
-    ] | map(. + "\u0000") | join("")] | join("")')
+    ] | map(tostring + "\u0000") | join("")] | join("")')
   local _total_ct=$(( ${#_ct[@]} / 4 ))
 
   # Build task status lookup for O(1) dependency checks
@@ -1137,15 +1147,6 @@ check_review_record() {
     return 0
   fi
 
-  if [[ "$review_type" == "design-review" && "$review_scope" == "design" ]]; then
-    local iteration critical high has_severity
-    read -r iteration critical high < <(echo "$record" | jq -r '[.iteration // 0, .severity.critical // 0, .severity.high // 0] | @tsv')
-    has_severity=$(echo "$record" | jq -r 'if (.severity | type) == "object" then "true" else "false" end')
-    if [[ "$has_severity" == "true" && "$iteration" -gt 3 && "$critical" -eq 0 && "$high" -eq 0 ]]; then
-      return 0
-    fi
-  fi
-
   echo "review gate failed — type=$review_type scope=$review_scope verdict=$verdict remaining=$remaining"
   return 1
 }
@@ -1552,32 +1553,19 @@ do_check_handoffs() {
     echo "ERROR: phase_not_found: '$phase_letter'" >&2
     exit 1
   fi
-  local source_ids pair_list combined
-  combined=$(jq -r --arg letter "$phase_letter" '
-    "SOURCES:" + ([.phases[] | select(.letter == $letter) | .tasks[].id] | join("|")),
-    "PAIRS",
-    (.phases[] | select(.letter > $letter) |
-      .tasks[] | .id as $tid |
-      (.depends_on // [])[] | "\($tid)|\(.)")
-  ' "$plan_json")
-  source_ids=$(echo "$combined" | awk -F: '/^SOURCES:/{print $2; exit}')
-  source_ids="$source_ids|"
-  pair_list=$(echo "$combined" | awk '/^PAIRS$/{found=1; next} found{print}')
   local missing=()
-  while IFS='|' read -r target_id source_id; do
-    [[ -z "$target_id" ]] && continue
-    case "|$source_ids" in
-      *"|$source_id|"*) ;;
-      *) continue ;;
-    esac
-    local has_handoff
-    has_handoff=$(jq -r --arg tid "$target_id" --arg sid "$source_id" '
-      [.phases[].tasks[] | select(.id == $tid) | (.handoffs // [])[] | select(.from == $sid)] | length
-    ' "$plan_json")
-    if [[ "$has_handoff" -eq 0 ]]; then
-      missing+=("$source_id -> $target_id")
-    fi
-  done <<< "$pair_list"
+  while IFS= read -r pair; do
+    [[ -n "$pair" ]] && missing+=("$pair")
+  done < <(jq -r --arg letter "$phase_letter" '
+    [.phases[] | select(.letter == $letter) | .tasks[].id] as $sources
+    | .phases[] | select(.letter > $letter) | .tasks[]
+    | . as $task
+    | (.depends_on // [])[]
+    | select($sources | index(.))
+    | . as $dep
+    | select(([($task.handoffs // [])[] | select(.from == $dep)] | length) == 0)
+    | "\($dep) -> \($task.id)"
+  ' "$plan_json")
   if [[ ${#missing[@]} -eq 0 ]]; then
     exit 0
   fi
