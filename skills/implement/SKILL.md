@@ -20,7 +20,11 @@ The same wrong-assumption failures that unexamined plans cause on a large featur
 1. **Challenge the framing** — what problem does this solve, is there a simpler alternative? (mirrors design's Challenging Assumptions).
 2. **Ask clarifying questions only if genuinely ambiguous** — don't manufacture questions for a request that's already clear.
 3. **Present a mini-design**: 2-5 sentences covering what changes, where, and why this approach — no formal doc, no file written.
-4. **Wait for explicit approval** (AskUserQuestion: "Approve" / "Needs changes") before writing any code. "Needs changes" loops back to step 3.
+4. **Resolve workflow + approval in one AskUserQuestion** — settle the workflow now, alongside approval, so the choice is made before implementing instead of surfaced after the work is already done. Run `caliper-settings get workflow`:
+   - If a value is returned, note it ("Using your configured workflow: <value>") and ask a single **Approval** question (Approve / Needs changes).
+   - If `PROMPT_REQUIRED`, ask two questions in one call — **Workflow** (Create PR / Merge PR / Stop after review) and **Approval** (Approve / Needs changes).
+
+   Wait for approval before writing any code. "Needs changes" loops back to step 3; the resolved workflow value carries forward to the review hand-off.
 
 ## Worktree Setup
 
@@ -63,7 +67,7 @@ Map the `workflow` setting to implementation-review's continuation flag (all fou
 
 Resolve the value:
 - **Downstream of design:** the value is already resolved from design's workflow question earlier in this session — reuse it, don't re-prompt or re-read settings.
-- **Direct invocation:** run `caliper-settings get workflow`. If a value is returned, use it silently. If `PROMPT_REQUIRED`, ask via AskUserQuestion: **Create PR** / **Merge PR** / **Stop after review** (mirrors design's Q1, minus "Plan only" — meaningless when there's no plan).
+- **Direct invocation:** the Compressed Design Gate already resolved it (from settings, or the workflow question asked at approval) — reuse that value, don't re-prompt or re-read settings.
 
 ## Integration
 
