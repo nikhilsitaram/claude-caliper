@@ -11,7 +11,7 @@ A Claude Code plugin that turns your goal into a PR with as little friction as p
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.53.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-6E40C9?logo=anthropic&logoColor=white)](https://claude.ai/code)
-[![Skills](https://img.shields.io/badge/16%20skills-included-2ea44f)](skills/)
+[![Skills](https://img.shields.io/badge/17%20skills-included-2ea44f)](skills/)
 
 </div>
 
@@ -25,7 +25,7 @@ Many claude workflows are either improperly context engineered, overly complicat
 
 Install claude-caliper. Describe what you want to build. Walk away.
 
-The plugin installs 16 skills that fire automatically at the right moment, enforcing a full development workflow: **design before code, test before merge.** The design skill sizes the work first and routes it — small and medium changes take an inline fast path, large ones fan out through a validated plan. You make three decisions — approve the design, review the PR, and confirm the merge — and everything between runs as a chain of fresh subagents with zero manual handoffs.
+The plugin installs 17 skills that fire automatically at the right moment, enforcing a full development workflow: **design before code, test before merge.** The design skill sizes the work first and routes it — small and medium changes take an inline fast path, large ones fan out through a validated plan. You make three decisions — approve the design, review the PR, and confirm the merge — and everything between runs as a chain of fresh subagents with zero manual handoffs.
 
 ---
 
@@ -130,9 +130,9 @@ Install only what you need:
 
 | Package | What you get | Install command |
 |---------|-------------|-----------------|
-| **claude-caliper** | All 16 skills | `/plugin install claude-caliper@claude-caliper` |
+| **claude-caliper** | All 17 skills | `/plugin install claude-caliper@claude-caliper` |
 | **claude-caliper-workflow** | Design-to-merge pipeline (11 skills) | `/plugin install claude-caliper-workflow@claude-caliper` |
-| **claude-caliper-tooling** | Codebase review + test audit + skill eval + queue + usage-guard (5 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
+| **claude-caliper-tooling** | Codebase review + test audit + skill eval + queue + usage-guard + session handoff (6 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
 
 ### Updating
 
@@ -175,6 +175,14 @@ Defer or pace work around Claude's 5-hour usage window. **macOS-only**, and rese
 |-------|---------|-------------|
 | [queue](skills/queue/) | `/queue [<when>] <commands>` | Schedule commands to fire later in the same session via a one-shot cron — by default ~90s after the 5h window resets (fresh quota), or at a time/duration you name |
 | [usage-guard](skills/usage-guard/) | `/usage-guard [--queue] [--at <pct>] <task>` | Work a task continuously until 5h usage hits a threshold (default 99%), then stop and report — or with `--queue`, chain the remainder into the next block |
+
+### Session handoff
+
+Delegate scoped work to a fresh, visible Claude session in a new pane. **macOS + iTerm2-only**, and needs a one-time macOS Automation grant — see [handoff/README](skills/handoff/README.md).
+
+| Skill | Trigger | What it does |
+|-------|---------|-------------|
+| [handoff](skills/handoff/) | `/handoff <slug>` | Splits the current iTerm2 window, launches a fresh `claude` in the new pane, and relays a self-contained brief to it over cross-session messaging — a peer session you can watch and steer, unlike a background subagent |
 
 ---
 
