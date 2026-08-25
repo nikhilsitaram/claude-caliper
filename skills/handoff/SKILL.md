@@ -5,7 +5,7 @@ description: Use when the user wants to hand scoped work to a fresh, visible Cla
 
 # /handoff — delegate scoped work to a sibling session in a new iTerm2 pane
 
-Split the current iTerm2 window, launch a fresh `claude` in the new pane, and
+Split the iTerm2 pane you ran it from, launch a fresh `claude` in the new pane, and
 relay a self-contained brief to it over cross-session messaging — so the user
 gets a visible, steerable peer session doing the work, without hand-typing the
 context into it.

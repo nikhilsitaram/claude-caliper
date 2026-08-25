@@ -73,6 +73,14 @@ fi
 suffix="$(printf '%03x' "$(( RANDOM % 4096 ))")"
 name="${slug}-${suffix}"
 
+# The pane must be split off the session that INVOKED handoff — not whatever
+# session happens to be focused when osascript runs (that lands the pane in the
+# wrong tab if the user has since switched away). iTerm2 exports the invoking
+# session's UUID as $ITERM_SESSION_ID ("w0t0p0:<UUID>"); the part after the colon
+# matches an AppleScript session's `id`. Empty (older iTerm2) falls back to the
+# current session in the AppleScript below.
+invoker_id="${ITERM_SESSION_ID##*:}"
+
 # Build the launch command as ONE shell line to type into the new pane. cwd is
 # %q-quoted so spaces survive; SETTINGS_JSON stays single-quoted so the pane's
 # shell hands it to claude intact. This whole string is passed to AppleScript as
@@ -85,6 +93,7 @@ launch_cmd="cd ${q_cwd} && claude --name ${name} --settings '${SETTINGS_JSON}'"
 
 echo "NAME=${name}"
 echo "CWD=${cwd}"
+echo "INVOKER_SESSION=${invoker_id}"
 echo "LAUNCH_CMD=${launch_cmd}"
 
 if [ "$dry_run" = "yes" ]; then
@@ -92,15 +101,32 @@ if [ "$dry_run" = "yes" ]; then
   exit 0
 fi
 
-# Split the current iTerm2 session vertically (the cmd+d equivalent) and type the
+# Split the INVOKING iTerm2 session vertically (the cmd+d equivalent) and type the
 # launch line into the new pane. The AppleScript is a QUOTED heredoc — nothing
-# from bash is interpolated into it; the command arrives via `on run argv`.
-if ! osascript - "$launch_cmd" <<'APPLESCRIPT'
+# from bash is interpolated into it; both the command and the invoker's session id
+# arrive via `on run argv`. It finds the session whose id matches (so the pane
+# lands in handoff's own tab, not the focused one); an empty id falls back to the
+# current session.
+if ! osascript - "$launch_cmd" "$invoker_id" <<'APPLESCRIPT'
 on run argv
   set theCmd to item 1 of argv
+  set wantId to item 2 of argv
   tell application "iTerm"
     if (count of windows) is 0 then error "no iTerm2 window is open" number 2
-    tell current session of current window
+    if wantId is "" then
+      set target to current session of current window
+    else
+      set target to missing value
+      repeat with w in windows
+        repeat with t in tabs of w
+          repeat with s in sessions of t
+            if (id of s) is wantId then set target to s
+          end repeat
+        end repeat
+      end repeat
+      if target is missing value then error "handoff's own iTerm2 session (" & wantId & ") was not found" number 4
+    end if
+    tell target
       set newSession to (split vertically with same profile)
     end tell
     tell newSession

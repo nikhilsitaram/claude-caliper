@@ -1,7 +1,7 @@
 # handoff
 
 Delegate scoped work to a **fresh, visible Claude session in a new iTerm2 pane**.
-`/handoff` splits the current iTerm2 window (the cmd+d equivalent), launches a new
+`/handoff` splits the iTerm2 pane it was invoked from (the cmd+d equivalent), launches a new
 `claude` in the pane, and relays a self-contained brief to it over
 [cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging).
 The result is a peer session you can watch and take over — unlike a background
@@ -34,7 +34,9 @@ launcher reports it couldn't create the pane.
 ## How it works
 
 1. `scripts/spawn-pane.sh <slug> [cwd]` computes a unique session name
-   (`<slug>-<suffix>`), splits the current iTerm2 session vertically, and types
+   (`<slug>-<suffix>`), splits the invoking iTerm2 session vertically (found by
+   `$ITERM_SESSION_ID`, so the pane lands in handoff's own tab even if focus has
+   moved to another tab), and types
    `claude --name <name> --settings '{"crossSessionInbound":"accept"}'` into the
    new pane. The `crossSessionInbound: accept` setting is what lets the relayed
    brief arrive without a hold dialog.

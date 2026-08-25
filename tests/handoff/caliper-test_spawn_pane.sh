@@ -15,7 +15,7 @@ run() {
   local tmp_out tmp_err
   tmp_out="$(mktemp)"; tmp_err="$(mktemp)"
   set +e
-  env TERM_PROGRAM="$term" PATH="$PATH" HOME="$HOME" bash "$HELPER" "$@" \
+  env TERM_PROGRAM="$term" ITERM_SESSION_ID="${ITERM_SESSION_ID:-}" PATH="$PATH" HOME="$HOME" bash "$HELPER" "$@" \
     >"$tmp_out" 2>"$tmp_err"
   RC=$?
   set -e
@@ -41,6 +41,16 @@ assert "LAUNCH_CMD sets crossSessionInbound accept" \
   $'[[ "$(field LAUNCH_CMD)" == *"--settings \'{\\"crossSessionInbound\\":\\"accept\\"}\'"* ]]'
 assert "dry-run reports LAUNCHED=dry-run"   '[[ "$(field LAUNCHED)" == "dry-run" ]]'
 assert "no --permission-mode by default"    '[[ "$(field LAUNCH_CMD)" != *"--permission-mode"* ]]'
+
+# --- invoker session id: split targets handoff's own pane, not the focused one ---
+ITERM_SESSION_ID="w0t2p1:ABC-123-DEF" run "iTerm.app" --dry-run tabbed /tmp
+assert "INVOKER_SESSION strips the wNtNpN prefix" '[[ "$(field INVOKER_SESSION)" == "ABC-123-DEF" ]]'
+
+ITERM_SESSION_ID="BARE-UUID-NO-COLON" run "iTerm.app" --dry-run tabbed /tmp
+assert "INVOKER_SESSION passes a colon-less id through" '[[ "$(field INVOKER_SESSION)" == "BARE-UUID-NO-COLON" ]]'
+
+ITERM_SESSION_ID="" run "iTerm.app" --dry-run tabbed /tmp
+assert "empty ITERM_SESSION_ID -> empty INVOKER_SESSION (AppleScript falls back)" '[[ -z "$(field INVOKER_SESSION)" ]]'
 
 # --- default cwd is $PWD ---
 run "iTerm.app" --dry-run just-a-slug

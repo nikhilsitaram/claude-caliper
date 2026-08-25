@@ -182,7 +182,7 @@ Delegate scoped work to a fresh, visible Claude session in a new pane. **macOS +
 
 | Skill | Trigger | What it does |
 |-------|---------|-------------|
-| [handoff](skills/handoff/) | `/handoff <slug>` | Splits the current iTerm2 window, launches a fresh `claude` in the new pane, and relays a self-contained brief to it over cross-session messaging — a peer session you can watch and steer, unlike a background subagent |
+| [handoff](skills/handoff/) | `/handoff <slug>` | Splits the iTerm2 pane it was invoked from, launches a fresh `claude` in the new pane, and relays a self-contained brief to it over cross-session messaging — a peer session you can watch and steer, unlike a background subagent |
 
 ---
 
