@@ -12,10 +12,10 @@
 # Usage:
 #   spawn-pane.sh [--dry-run] [--perm-mode <mode>] <slug> [cwd]
 #
-#   <slug>        Short kebab-case label for the work (e.g. "run-tests"). A short
-#                 random suffix is appended to form the session --name, so two
-#                 handoffs never collide and get auto-renamed by Claude Code
-#                 (a rename would break the caller's known address).
+#   <slug>        Short kebab-case label for the work (e.g. "run-tests"). A random
+#                 suffix is appended to form the session --name, so concurrent
+#                 handoffs are very unlikely to collide and get auto-renamed by
+#                 Claude Code (a rename would break the caller's known address).
 #   [cwd]         Working directory for the new session (default: $PWD — the
 #                 same directory the caller is in).
 #   --perm-mode   Passed through as `claude --permission-mode <mode>` (e.g.
@@ -59,6 +59,15 @@ case "$slug" in
 esac
 [ -n "$cwd" ] || cwd="$PWD"
 [ -d "$cwd" ] || { echo "ERROR: cwd '$cwd' is not a directory." >&2; exit 4 ;}
+# perm_mode also lands on the launch line typed into the pane, so it needs the same
+# shell-safety guard as slug. Permission-mode names are letters only (default,
+# acceptEdits, plan, bypassPermissions, …); rejecting anything else keeps a stray
+# value from smuggling shell metacharacters onto that line.
+if [ -n "$perm_mode" ]; then
+  case "$perm_mode" in
+    *[!a-zA-Z]*) echo "ERROR: --perm-mode '$perm_mode' is not a valid permission mode (letters only, e.g. acceptEdits)." >&2; exit 4 ;;
+  esac
+fi
 
 # Guard: this only works from iTerm2. Read $TERM_PROGRAM (Claude Code exports the
 # host terminal into it) rather than probing the app, so the failure is a clear
@@ -68,9 +77,11 @@ if [ "${TERM_PROGRAM:-}" != "iTerm.app" ]; then
   exit 2
 fi
 
-# Deterministic-but-unique name: slug + short hex suffix from $RANDOM. The caller
-# reads NAME= back and addresses the new session by it.
-suffix="$(printf '%03x' "$(( RANDOM % 4096 ))")"
+# Name = slug + a random hex suffix so concurrent handoffs are very unlikely to
+# share a name (a collision would trigger Claude Code's auto-rename, which breaks
+# the address the caller holds). The caller reads NAME= back and addresses the new
+# session by it. Probabilistic, not guaranteed — but 16 bits is ample here.
+suffix="$(printf '%04x' "$RANDOM")"
 name="${slug}-${suffix}"
 
 # The pane must be split off the session that INVOKED handoff — not whatever
@@ -142,11 +153,13 @@ then
 fi
 
 # Wait for the worker process to come up so the caller can message it right away.
-# Match the full `claude --name <name>` on the command line; the [c] bracket trick
-# keeps this grep from matching itself in the ps listing.
+# Match the unique `--name <name> --settings` signature — not a leading `claude`
+# token, since some install shapes exec the CLI as e.g. `node .../cli.js`. The [-]
+# bracket trick makes the pattern (a literal `--name …`) not match this grep's own
+# entry in the ps listing. By now osascript has exited, so nothing else carries it.
 waited=0
 while [ "$waited" -lt "$REGISTER_TIMEOUT" ]; do
-  if ps -Ao command= | grep -q "[c]laude --name ${name}"; then
+  if ps -Ao command= | grep -q "[-]-name ${name} --settings"; then
     echo "LAUNCHED=yes"
     exit 0
   fi
