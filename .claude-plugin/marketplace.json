@@ -8,7 +8,7 @@
     {
       "name": "claude-caliper",
       "description": "claude-caliper bundle",
-      "version": "2.0.1",
+      "version": "2.1.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
@@ -31,7 +31,8 @@
         "./skills/skill-eval",
         "./skills/caliper-settings",
         "./skills/queue",
-        "./skills/usage-guard"
+        "./skills/usage-guard",
+        "./skills/handoff"
       ]
     },
     {
@@ -60,8 +61,8 @@
     },
     {
       "name": "claude-caliper-tooling",
-      "description": "Standalone tools: codebase audit, test audit, skill evaluation, and usage-window scheduling (queue / usage-guard)",
-      "version": "1.52.0",
+      "description": "Standalone tools: codebase audit, test audit, skill evaluation, usage-window scheduling (queue / usage-guard), and session handoff",
+      "version": "1.53.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
@@ -73,7 +74,8 @@
         "./skills/test-audit",
         "./skills/skill-eval",
         "./skills/queue",
-        "./skills/usage-guard"
+        "./skills/usage-guard",
+        "./skills/handoff"
       ]
     }
   ]
