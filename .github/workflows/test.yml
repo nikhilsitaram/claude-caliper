@@ -21,6 +21,9 @@ jobs:
           bash tests/hooks/caliper-test_safe_commands.sh
           bash tests/hooks/caliper-test_permission_request.sh
 
+      - name: Handoff tests
+        run: bash tests/handoff/caliper-test_spawn_pane.sh
+
       - name: Validate-plan tests
         run: |
           bash tests/validate-plan/caliper-test_schema.sh
