@@ -53,10 +53,10 @@ Agent tool (general-purpose):
     - **fragility** — correct now, but nothing enforces it stays correct
       and there is a live path that breaks it: a version literal (e.g.
       `1.9.16`) uncoupled from the file it must track; a "moving fact"
-      pinned against a "historical fact"; duplicated logic with no
-      byte-identity drift test (this repo's rule for necessary
-      duplication is copy + drift test); a stable-sort tie-break passed
-      off as intent. Name the concrete path that breaks it.
+      pinned against a "historical fact"; logic duplicated on purpose
+      that must stay byte-identical but has no drift test pinning it; a
+      stable-sort tie-break passed off as intent. Name the concrete path
+      that breaks it.
     - **integration / blast radius** — a changed symbol whose callers
       weren't all updated; a new exception type caught and misreported
       at its only call site; a behavior change that inverts something
@@ -65,8 +65,7 @@ Agent tool (general-purpose):
     - **test validity** — a test that passes without exercising the
       behavior it names: a one-directional subset pin (asserts loaded ⊆
       REQUIRED but never the reverse); a mock asserting its own
-      configured return instead of driving real behavior (this repo's
-      rule: assert real behavior, never the mock); a counter incremented
+      configured return instead of driving real behavior; a counter incremented
       but never asserted; a test fully subsumed by another; an assertion
       silently weakened by a fixture swap. Coverage *percentage* stays
       out of scope; validity is correctness.

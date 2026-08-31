@@ -77,8 +77,9 @@ The reviewer's first 7 categories (cross-component consistency, duplication, dea
 | Cross-component inconsistency | Config says port 3000, README says 8080 |
 | Duplicated constants | Same timeout defined in two modules |
 | Code duplication | Identical function in two files |
+| Unpinned invariant | Version literal mirrors another file with no drift test enforcing it |
 | Dead code from iteration | Conditional where both branches are identical |
-| Documentation gaps | Feature supported but undocumented |
+| Documentation gaps & rot | Feature undocumented, a docstring the change now contradicts, or a comment leaking authoring context |
 | Inconsistent errors | Same generic error from multiple locations |
 | Missing boundary tests | Components interact but no integration test |
 | Unmet success criteria | Design says "users can X" but implementation doesn't deliver it (caliper only) |
