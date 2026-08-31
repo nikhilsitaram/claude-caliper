@@ -86,11 +86,12 @@ Check whether the design considered alternatives:
 - Does the codebase have a similar pattern that could be extended?
 - Are there established approaches in the problem domain?
 - Is the chosen approach the most effective path to meeting success criteria?
+- Is a materially simpler approach available — fewer moving parts, or extending existing code instead of adding new — that meets every success criterion?
 
 - Flag: No alternatives section or discussion
 - Flag: Alternatives dismissed without trade-off analysis
 - Flag: Existing codebase pattern could be extended but isn't mentioned
-- Flag: Chosen approach is more complex than an alternative with equivalent effectiveness
+- Flag: A materially simpler approach (fewer components, reuse over new code) meets the same success criteria — name it, even if the doc did consider alternatives
 
 ### 5. Scope Alignment
 Verify the design solves the stated problem and not more:
