@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# sync-agent-memory <worktree-path>
+#
+# Merge <worktree>/.claude/agent-memory/ back into $MAIN_ROOT/.claude/agent-memory/.
+# Runs from the SubagentStop hook (an external process, NOT the agent's sandboxed
+# tools) so `memory: project` writes made inside a worktree persist to the main
+# repo before the worktree is cleaned up. Pairs with seed-agent-memory, which
+# copies main -> worktree at worktree creation.
+#
+# Merge policy:
+#   - individual memory files: copy-if-newer (never clobber a newer main copy)
+#   - MEMORY.md (the index): union-merge — every unique line from both, single header
+# Serialized with a portable mkdir-based lock (flock is absent on macOS, where the
+# hook actually runs). Idempotent; no-op against the main repo or a worktree with
+# no real agent-memory dir.
+
+usage() {
+  echo "Usage: sync-agent-memory <worktree-path>" >&2
+  exit 1
+}
+
+[[ $# -eq 1 ]] || usage
+
+WORKTREE="$1"
+[[ -d "$WORKTREE" ]] || { echo "ERROR: worktree path does not exist: $WORKTREE" >&2; exit 1; }
+
+MAIN_ROOT="$(git -C "$WORKTREE" rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+
+# No-op against the main repo — memory already lives there.
+if [[ "$(cd "$WORKTREE" && pwd -P)" == "$(cd "$MAIN_ROOT" && pwd -P)" ]]; then
+  exit 0
+fi
+
+SRC="$WORKTREE/.claude/agent-memory"
+
+# A symlink here is the retired link-agent-memory's leftover — writes never landed
+# in it under isolation, so there is nothing to sync. A missing dir: nothing to do.
+[[ -L "$SRC" ]] && exit 0
+[[ -d "$SRC" ]] || exit 0
+
+DEST="$MAIN_ROOT/.claude/agent-memory"
+mkdir -p "$DEST"
+
+# --- portable lock (mkdir is atomic on POSIX filesystems) ------------------
+LOCK="$DEST/.sync.lock.d"
+lock_mtime() {
+  stat -f %m "$LOCK" 2>/dev/null || stat -c %Y "$LOCK" 2>/dev/null || echo 0
+}
+locked=0
+for _ in $(seq 1 100); do
+  if mkdir "$LOCK" 2>/dev/null; then
+    locked=1
+    break
+  fi
+  # Steal a lock left behind by a crashed holder (>30s old).
+  if [[ -d "$LOCK" ]] && (( $(date +%s) - $(lock_mtime) > 30 )); then
+    rmdir "$LOCK" 2>/dev/null || true
+  fi
+  sleep 0.1
+done
+# Best-effort: if the lock could not be acquired, proceed anyway. A rare merge
+# interleave is far better than silently dropping the subagent's memory.
+if [[ "$locked" -eq 1 ]]; then
+  trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
+fi
+
+# --- merge ------------------------------------------------------------------
+while IFS= read -r -d '' src_file; do
+  rel="${src_file#"$SRC"/}"
+  dest_file="$DEST/$rel"
+  mkdir -p "$(dirname "$dest_file")"
+
+  if [[ "$(basename "$src_file")" == "MEMORY.md" && -f "$dest_file" ]]; then
+    # Union-merge the index: dest lines first, then any new lines from src,
+    # deduplicated (collapses the shared header and blank lines).
+    tmp="$dest_file.sync.$$"
+    awk '!seen[$0]++' "$dest_file" "$src_file" > "$tmp" && mv "$tmp" "$dest_file"
+  elif [[ ! -e "$dest_file" || "$src_file" -nt "$dest_file" ]]; then
+    cp "$src_file" "$dest_file"
+  fi
+done < <(find "$SRC" -type f -print0)
