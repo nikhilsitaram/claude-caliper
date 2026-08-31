@@ -37,7 +37,7 @@ If design already ran its own worktree setup before handing off — it does this
   MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
   WORKTREE="$MAIN_ROOT/.claude/worktrees/<feature>"
   mkdir -p "$WORKTREE/.claude" && jq -n --arg d "$MAIN_ROOT" '{permissions:{additionalDirectories:[$d]}}' > "$WORKTREE/.claude/settings.local.json"
-  link-agent-memory "$WORKTREE"
+  seed-agent-memory "$WORKTREE"
   ```
 - Bootstrap dependencies — **See:** `skills/design/dependency-bootstrap.md` (lives in `skills/design/`; read it there rather than duplicating its content here)
 - Run tests to establish a clean baseline before changing anything
