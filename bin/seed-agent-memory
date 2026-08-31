@@ -57,6 +57,7 @@ while IFS= read -r -d '' src_file; do
   dest_file="$DEST/$rel"
   if [[ ! -e "$dest_file" || "$src_file" -nt "$dest_file" ]]; then
     mkdir -p "$(dirname "$dest_file")"
-    cp "$src_file" "$dest_file"
+    # -p preserves mtime so sync's copy-if-newer skips files seed just copied.
+    cp -p "$src_file" "$dest_file"
   fi
-done < <(find "$SRC" -type f -print0)
+done < <(find "$SRC" -type f -not -path '*/.sync.*' -print0)

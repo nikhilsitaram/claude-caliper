@@ -25,6 +25,14 @@ jobs:
             bash "$t"
           done
 
+      - name: Bin tests
+        # Glob so new tests/bin/caliper-test_*.sh auto-enroll.
+        run: |
+          for t in tests/bin/caliper-test_*.sh; do
+            echo "== $t =="
+            bash "$t"
+          done
+
       - name: Handoff tests
         run: bash tests/handoff/caliper-test_spawn_pane.sh
 

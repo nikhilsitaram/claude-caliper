@@ -62,11 +62,16 @@ for _ in $(seq 1 100); do
 done
 # Best-effort: if the lock could not be acquired, proceed anyway. A rare merge
 # interleave is far better than silently dropping the subagent's memory.
-if [[ "$locked" -eq 1 ]]; then
-  trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
-fi
+SYNC_TMP=""
+cleanup() {
+  [[ -n "$SYNC_TMP" ]] && rm -f "$SYNC_TMP"
+  [[ "$locked" -eq 1 ]] && rmdir "$LOCK" 2>/dev/null || true
+}
+trap cleanup EXIT
 
 # --- merge ------------------------------------------------------------------
+# Skip our own control paths (lock dir, tmp files) so they never round-trip into
+# main and get re-seeded into worktrees.
 while IFS= read -r -d '' src_file; do
   rel="${src_file#"$SRC"/}"
   dest_file="$DEST/$rel"
@@ -74,10 +79,12 @@ while IFS= read -r -d '' src_file; do
 
   if [[ "$(basename "$src_file")" == "MEMORY.md" && -f "$dest_file" ]]; then
     # Union-merge the index: dest lines first, then any new lines from src,
-    # deduplicated (collapses the shared header and blank lines).
-    tmp="$dest_file.sync.$$"
-    awk '!seen[$0]++' "$dest_file" "$src_file" > "$tmp" && mv "$tmp" "$dest_file"
+    # deduplicated (collapses the shared header and blank lines). The tmp file is
+    # named .sync.* so a crash mid-write leaves litter that seed/sync both skip.
+    SYNC_TMP="$(dirname "$dest_file")/.sync.tmp.$$"
+    awk '!seen[$0]++' "$dest_file" "$src_file" > "$SYNC_TMP" && mv "$SYNC_TMP" "$dest_file"
+    SYNC_TMP=""
   elif [[ ! -e "$dest_file" || "$src_file" -nt "$dest_file" ]]; then
-    cp "$src_file" "$dest_file"
+    cp -p "$src_file" "$dest_file"
   fi
-done < <(find "$SRC" -type f -print0)
+done < <(find "$SRC" -type f -not -path '*/.sync.*' -print0)
