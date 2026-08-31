@@ -57,6 +57,49 @@ write_two_phase_plan() {
 JSON
 }
 
+write_internal_edge_plan() {
+  # Phase A has one task with no dependents. Phase B has two tasks where B2
+  # depends on B1 — an edge wholly internal to phase B. No task in B depends on
+  # any phase-A task, so `--check-handoffs --phase A` must find nothing to flag.
+  local dir="$1"
+  cat > "$dir/plan.json" <<'JSON'
+{
+  "schema": 2, "status": "In Development", "workflow": "pr-create",
+  "goal": "test", "architecture": "test", "tech_stack": "test",
+  "phases": [
+    {
+      "letter": "A", "name": "Phase A", "status": "Complete (2026-04-27)",
+      "depends_on": [], "rationale": "test",
+      "tasks": [{
+        "id": "A1", "name": "Task A1", "status": "complete",
+        "depends_on": [],
+        "files": {"create": [], "modify": ["a1.sh"], "test": []},
+        "verification": "true", "done_when": "done"
+      }]
+    },
+    {
+      "letter": "B", "name": "Phase B", "status": "Not Started",
+      "depends_on": ["A"], "rationale": "test",
+      "tasks": [
+        {
+          "id": "B1", "name": "Task B1", "status": "pending",
+          "depends_on": [],
+          "files": {"create": [], "modify": ["b1.sh"], "test": []},
+          "verification": "true", "done_when": "done"
+        },
+        {
+          "id": "B2", "name": "Task B2", "status": "pending",
+          "depends_on": ["B1"],
+          "files": {"create": [], "modify": ["b2.sh"], "test": []},
+          "verification": "true", "done_when": "done"
+        }
+      ]
+    }
+  ]
+}
+JSON
+}
+
 assert_pass() {
   local label="$1"
   shift
@@ -290,6 +333,13 @@ else
   echo "FAIL: handoff count = '$HANDOFF_COUNT' (expected 1)"
   FAIL=$((FAIL + 1))
 fi
+
+echo "Test 19: --check-handoffs ignores later-phase-internal edges (regression for #278)"
+DIR=$(make_plan_dir)
+write_internal_edge_plan "$DIR"
+# B2 -> B1 is internal to phase B; no phase-B task depends on a phase-A task,
+# so checking --phase A must not demand a handoff note for it.
+assert_pass "later-phase-internal edge not flagged" "$VP" --check-handoffs "$DIR/plan.json" --phase A
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
