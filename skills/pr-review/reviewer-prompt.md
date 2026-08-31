@@ -23,10 +23,14 @@ Agent tool (general-purpose):
     ## Investigate first
 
     A change is only correct if everything that depends on it still
-    holds, so look past the hunk:
+    holds, so look past the hunk. Match how far you look to the change's
+    size and blast radius — a localized one-line fix doesn't need a full
+    call-site sweep; a change to a shared symbol or contract does:
 
-    - Read the root CLAUDE.md and the changed directory's CLAUDE.md, so
-      you judge against this repo's conventions, not generic ones.
+    - Read every CLAUDE.md from the repo root down to each changed file
+      (walk the whole ancestor chain, not just the file's own
+      directory), so you judge against this repo's conventions — often
+      nested at a plugin or package level — not generic ones.
     - Read every changed file in full, not just the diff hunk — the bug
       is often in how the change interacts with untouched code beside it.
     - For every symbol the diff touches — function, constant, enum,
