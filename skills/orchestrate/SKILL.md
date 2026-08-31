@@ -60,12 +60,11 @@ Process phases in order (A, B, C...). For each phase:
 
 1. Determine phase resumption state (multi-phase only — single-phase: use feature worktree, no resumption check needed). Phase status is the primary signal because squash-merge in step 7 typically deletes the phase branch ref, making `git merge-base --is-ancestor` unreliable.
    - If phase status starts with "Complete": run `gh pr list --base integrate/<feature> --head phase-<letter> --state merged --json number --jq 'length'`. If non-zero, the phase is fully merged — skip to next phase. If zero (status Complete but PR not yet merged), skip directly to Phase Wrap-Up step 7, reusing any open PR or creating one if absent.
-   - Otherwise (status "Not Started" or "In Progress"): create phase worktree from integration branch (`git worktree add "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>" -b phase-<letter>`), then `link-agent-memory "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>"` so the implementation-reviewer dispatched at Phase Wrap-Up persists memory through cleanup. Continue with the remaining numbered steps below (`validate-plan --check-base`, etc.).
-2. Re-validate base branch: `validate-plan --check-base "$PLAN_JSON"` (multi-phase only — ensures dispatch happens from integration worktree, not main)
-3. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in worktree
-4. **Bootstrap dependencies** in the worktree. **See:** skills/design/dependency-bootstrap.md
-5. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure) — prior-phase handoff notes are recorded in plan.json (written at prior phase's wrap-up via `--add-handoff`) and render into plan.md
-6. Set phase to "In Progress": `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "In Progress"` — required before any task can be marked in_progress (transition gate rejects task advancement when parent phase is "Not Started")
+   - Otherwise (status "Not Started" or "In Progress"): re-validate the base branch **while still on the integration branch, before creating the worktree** — `validate-plan --check-base "$PLAN_JSON"` (multi-phase only — confirms the lead is on the integration branch before branching off). `--check-base` demands the current branch equal `integration_branch`, so it can never pass once you're on `phase-<letter>`; it must run here, not after the worktree switch. Then create the phase worktree from the integration branch (`git worktree add "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>" -b phase-<letter>`) and `link-agent-memory "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>"` so the implementation-reviewer dispatched at Phase Wrap-Up persists memory through cleanup. Continue with the remaining numbered steps below.
+2. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in worktree
+3. **Bootstrap dependencies** in the worktree. **See:** skills/design/dependency-bootstrap.md
+4. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure) — prior-phase handoff notes are recorded in plan.json (written at prior phase's wrap-up via `--add-handoff`) and render into plan.md
+5. Set phase to "In Progress": `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "In Progress"` — required before any task can be marked in_progress (transition gate rejects task advancement when parent phase is "Not Started")
 
 ### Dispatch and Complete Tasks
 
