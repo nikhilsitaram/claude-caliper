@@ -112,6 +112,17 @@ mkdir -p "$fix/.claude/agent-memory/.sync.lock.d"   # simulate a stray lock in m
 check_eq "t7b: newer worktree file survives re-seed" "worktree edit" "$(cat "$fix/wt/.claude/agent-memory/agent-x/prior.md")"
 check "t7b: sync lock dir not copied into worktree" test ! -e "$fix/wt/.claude/agent-memory/.sync.lock.d"
 
+# Test 7c: seed never overwrites an existing worktree MEMORY.md, even when main's
+# is newer (the sync-union asymmetry — seed must not clobber an un-synced index).
+fix="$(new_fixture t7c)"
+seed_main "$fix"
+"$SCRIPT" "$fix/wt"
+printf '# Memory Index\n\n- [Prior](prior.md) — hook\n- [WT only](wt.md) — added in worktree\n' > "$fix/wt/.claude/agent-memory/agent-x/MEMORY.md"
+touch -t 202601010000 "$fix/wt/.claude/agent-memory/agent-x/MEMORY.md"
+touch -t 202612310000 "$fix/.claude/agent-memory/agent-x/MEMORY.md"   # main's index is NEWER
+"$SCRIPT" "$fix/wt"
+check "t7c: worktree's un-synced index line survives re-seed" grep -q "WT only" "$fix/wt/.claude/agent-memory/agent-x/MEMORY.md"
+
 # Test 8: errors when invoked without the required argument
 if "$SCRIPT" >/dev/null 2>&1; then
   echo "FAIL: t8: should error when invoked without arg"; fail=$((fail + 1))

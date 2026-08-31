@@ -55,6 +55,14 @@ mkdir -p "$DEST"
 while IFS= read -r -d '' src_file; do
   rel="${src_file#"$SRC"/}"
   dest_file="$DEST/$rel"
+  # Never overwrite an existing MEMORY.md: a subagent may have appended index
+  # lines the SubagentStop sync hasn't merged yet, and (unlike a plain memory
+  # file) sync union-merges the index rather than copy-if-newer — so an mtime
+  # race with another worktree's sync could otherwise let seed clobber A's index
+  # with main's. Only populate MEMORY.md into a fresh (absent) worktree copy.
+  if [[ "$(basename "$src_file")" == "MEMORY.md" && -e "$dest_file" ]]; then
+    continue
+  fi
   if [[ ! -e "$dest_file" || "$src_file" -nt "$dest_file" ]]; then
     mkdir -p "$(dirname "$dest_file")"
     # -p preserves mtime so sync's copy-if-newer skips files seed just copied.

@@ -15,7 +15,10 @@ set -euo pipefail
 # is no worse than before.
 
 input="$(cat)"
-cwd="$(echo "$input" | jq -r '.cwd // empty')"
+# Swallow jq's non-zero exit on malformed stdin: under set -e it would otherwise
+# propagate as exit 2 — the SubagentStop *blocking* code — breaking the
+# never-blocks contract above.
+cwd="$(echo "$input" | jq -r '.cwd // empty' 2>/dev/null || true)"
 
 [[ -n "$cwd" && -d "$cwd" ]] || exit 0
 

@@ -58,6 +58,15 @@ else
   echo "FAIL: t3: errored when cwd absent"; fail=$((fail + 1))
 fi
 
+# Test 3b: malformed (non-JSON) stdin -> exit 0, never the blocking code. jq exits
+# non-zero on bad input; under set -e that would propagate as exit 2 (the
+# SubagentStop blocking code) unless swallowed.
+if printf 'not json at all' | "$HOOK" >/dev/null 2>&1; then
+  echo "PASS: t3b: exits 0 on malformed stdin (does not block)"; pass=$((pass + 1))
+else
+  echo "FAIL: t3b: blocked on malformed stdin"; fail=$((fail + 1))
+fi
+
 # Test 4: non-existent / non-git cwd -> exit 0, non-blocking
 if run_hook "$TMPDIR_BASE/does-not-exist" >/dev/null 2>&1; then
   echo "PASS: t4: exits 0 for non-existent cwd"; pass=$((pass + 1))

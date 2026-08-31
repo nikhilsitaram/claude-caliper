@@ -15,6 +15,11 @@ set -euo pipefail
 # Serialized with a portable mkdir-based lock (flock is absent on macOS, where the
 # hook actually runs). Idempotent; no-op against the main repo or a worktree with
 # no real agent-memory dir.
+#
+# No tombstones: sync only adds/updates, never deletes. A memory file deleted in
+# the main repo will reappear from any still-live worktree that was seeded before
+# the deletion (via seed, then re-persisted here). Deleting memory permanently
+# means removing it from main once no seeded worktree still holds a copy.
 
 usage() {
   echo "Usage: sync-agent-memory <worktree-path>" >&2
