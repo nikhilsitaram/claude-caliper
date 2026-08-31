@@ -32,6 +32,7 @@
 set -u
 
 REGISTER_TIMEOUT="${HANDOFF_REGISTER_TIMEOUT:-20}"  # seconds to wait for the process
+SETTLE_DELAY="${HANDOFF_SETTLE_DELAY:-1}"           # seconds to let the new pane's shell settle before typing
 SETTINGS_JSON='{"crossSessionInbound":"accept"}'
 
 dry_run="no"
@@ -114,14 +115,16 @@ fi
 
 # Split the INVOKING iTerm2 session vertically (the cmd+d equivalent) and type the
 # launch line into the new pane. The AppleScript is a QUOTED heredoc — nothing
-# from bash is interpolated into it; both the command and the invoker's session id
-# arrive via `on run argv`. It finds the session whose id matches (so the pane
-# lands in handoff's own tab, not the focused one); an empty id falls back to the
-# current session.
-if ! osascript - "$launch_cmd" "$invoker_id" <<'APPLESCRIPT'
+# from bash is interpolated into it; the command, the invoker's session id, and the
+# settle delay all arrive via `on run argv`. It finds the session whose id matches
+# (so the pane lands in handoff's own tab, not the focused one); an empty id falls
+# back to the current session. On success it returns the NEW pane's id so a launch
+# timeout below can read that pane back for diagnostics.
+if ! new_session_id="$(osascript - "$launch_cmd" "$invoker_id" "$SETTLE_DELAY" <<'APPLESCRIPT'
 on run argv
   set theCmd to item 1 of argv
   set wantId to item 2 of argv
+  set settleDelay to (item 3 of argv) as number
   tell application "iTerm"
     if (count of windows) is 0 then error "no iTerm2 window is open" number 2
     if wantId is "" then
@@ -141,12 +144,24 @@ on run argv
       set newSession to (split vertically with same profile)
     end tell
     tell newSession
+      -- Let the new shell finish printing its login banner and draw its first
+      -- prompt so the split/focus transition's stray input settles. This is the
+      -- secondary guard — the Ctrl-U below is the real defense.
+      delay settleDelay
+      -- Clear anything already sitting in the pane's input buffer BEFORE typing.
+      -- The tty input queue is FIFO: a stray char injected at split time (which
+      -- prepended `cd`->`dcd` in issue #274) is already queued ahead of us, so this
+      -- Ctrl-U — readline's line-discard, sent with no trailing newline so it isn't
+      -- executed — is consumed as stray-then-discard, leaving a clean line for the
+      -- command even if the shell hasn't drawn its prompt yet.
+      write text (character id 21) newline no
       write text theCmd
     end tell
+    return (id of newSession)
   end tell
 end run
 APPLESCRIPT
-then
+)"; then
   echo "ERROR: could not create the iTerm2 pane (is a window open, and has iTerm2 been granted Automation access? see README)." >&2
   echo "LAUNCHED=failed"
   exit 3
@@ -168,5 +183,35 @@ while [ "$waited" -lt "$REGISTER_TIMEOUT" ]; do
 done
 
 echo "WARNING: the new session's claude process didn't appear within ${REGISTER_TIMEOUT}s — the pane may still be starting. Check the pane, then confirm with ListAgents before messaging." >&2
+
+# Diagnosability (issue #274): a mangled launch line fails as this same timeout,
+# so read the new pane's visible text back and show its last few lines. If the
+# command was corrupted (e.g. `zsh: command not found: dcd`), that's the tell —
+# without this the timeout is opaque. Best-effort: any readback failure is silent.
+if [ -n "$new_session_id" ]; then
+  pane_tail="$(osascript - "$new_session_id" <<'APPLESCRIPT' 2>/dev/null
+on run argv
+  set wantId to item 1 of argv
+  tell application "iTerm"
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with s in sessions of t
+          if (id of s) is wantId then return (contents of s)
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  return ""
+end run
+APPLESCRIPT
+)"
+  # Trim to the last few non-blank lines so the hint is compact.
+  pane_tail="$(printf '%s\n' "$pane_tail" | grep -v '^[[:space:]]*$' | tail -5)"
+  if [ -n "$pane_tail" ]; then
+    echo "  Last lines in the new pane (check for a corrupted command line):" >&2
+    printf '%s\n' "$pane_tail" | sed 's/^/    | /' >&2
+  fi
+fi
+
 echo "LAUNCHED=timeout"
 exit 5

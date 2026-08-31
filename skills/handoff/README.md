@@ -53,6 +53,7 @@ by default; pass `--perm-mode acceptEdits` to the launcher for hands-off editing
 | Var | Default | Purpose |
 |-----|---------|---------|
 | `HANDOFF_REGISTER_TIMEOUT` | `20` | Seconds the launcher waits for the new `claude` process before reporting `LAUNCHED=timeout` |
+| `HANDOFF_SETTLE_DELAY` | `1` | Seconds to let the new pane's shell settle before typing the launch line. Paired with a Ctrl-U buffer clear, this stops the split/focus transition's stray input from corrupting the command (e.g. `cd`→`dcd`). Raise it on a slow-starting shell. |
 
 ## Files
 
