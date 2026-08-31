@@ -53,6 +53,8 @@ Review your work:
 **Quality:** Is this my best work? Clear names? Clean code?
 **Discipline:** Did I avoid overbuilding (YAGNI)? Only build what was requested? Follow existing patterns?
 **Testing:** Do tests verify behavior (not mock behavior)? TDD followed? Comprehensive? Boundary tests if cross-task?
+**Durability:** Did this change introduce a coupling that must stay in sync — a literal mirroring another file, logic duplicated for a reason, a value two files must agree on? A correct-now value with nothing enforcing it silently rots. Pin it with a drift/consistency test now.
+**Docs:** Do comments and docstrings explain the code as it stands? Remove any the change now contradicts, and any that narrate the edit or leak session context ("as we discussed," "per the previous commit") — a future reader has none of that.
 
 If you find issues during self-review, fix them now.
 
