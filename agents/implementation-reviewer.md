@@ -24,11 +24,11 @@ Hunt for issues that span task or component boundaries:
 
 1. **Cross-task inconsistencies** -- values that should match but don't (ports, URLs, defaults), naming drift, contradictory behavior assumptions
 
-2. **Duplicated code or constants** -- same logic under different names, same magic number defined independently, utilities that should be extracted
+2. **Duplicated code or constants, and unpinned invariants** -- same logic under different names, same magic number defined independently, utilities that should be extracted; also values two places must agree on with nothing enforcing it (a version literal mirroring another file, logic deliberately duplicated, a stale-able constant) -- flag the missing drift/consistency test, not just the duplication
 
 3. **Dead code from iteration** -- conditionals where both branches do the same thing, functions added but never called, unreachable code paths
 
-4. **Documentation gaps** -- features not wired up, README contradicts behavior, missing limitation explanations
+4. **Documentation gaps, rot, and authoring leaks** -- features not wired up, README contradicts behavior, missing limitation explanations; a docstring, comment, SKILL.md, or error string the diff now contradicts; comments that narrate the edit or leak session context ("as we discussed," "per the previous commit") instead of explaining the code as it stands
 
 5. **Inconsistent error handling** -- same generic error from multiple locations, errors that don't explain what went wrong
 

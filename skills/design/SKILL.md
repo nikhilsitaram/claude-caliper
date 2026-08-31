@@ -22,7 +22,7 @@ Complete in order:
 1. **Explore context** — files, docs, recent commits
 2. **Challenge assumptions** — question the framing before accepting it
 3. **Ask clarifying questions** — smart batches (see below)
-4. **Propose 2-3 approaches** — trade-offs and your recommendation
+4. **Propose 2-3 approaches** — trade-offs and your recommendation. Include the simplest viable option (reuse or extend existing code before adding new), and recommend the simplest approach that meets the success criteria; if your recommendation isn't the simplest, name what the simpler one couldn't do
 5. **Recommend a tier, then present the design** — sections scaled to complexity, approval after each. Recommend a tier from these signals (default to **Medium** when in doubt — the cheapest tier with an audit trail):
    - **Small** — ≤~2 files, obvious approach. No design doc, no plan artifacts; approved in conversation.
    - **Medium** — one coherent change, fits one context, no genuine parallelism. Short design doc + one design-reviewer pass.
@@ -90,6 +90,7 @@ Before dispatching design-review, verify the doc satisfies this quality checklis
 - Test Strategy names a non-mocking integration test for every cross-module data flow (or explicitly notes "no cross-module seam" for single-module designs)
 - Test impact is noted for every behavior change
 - Migration/operational steps are captured if the change touches data or config
+- The recommended approach is the simplest that meets the success criteria — a more complex choice names what a simpler alternative (fewer moving parts, reuse over new code) couldn't do
 
 Run `validate-design --check <path>` and fix any errors before proceeding to self-review.
 
