@@ -70,6 +70,14 @@ if [ -n "$perm_mode" ]; then
   esac
 fi
 
+# SETTLE_DELAY is coerced to a number inside the AppleScript (`as number`); a
+# non-numeric value throws there and misreports as a generic pane-creation error.
+# Validate it here for a clear message instead. Allow a decimal (e.g. 0.5) but a
+# single dot and digits only — no empty value, no shell metacharacters.
+case "$SETTLE_DELAY" in
+  ''|*[!0-9.]*|*.*.*) echo "ERROR: HANDOFF_SETTLE_DELAY='$SETTLE_DELAY' is not a number (seconds, e.g. 1 or 0.5)." >&2; exit 4 ;;
+esac
+
 # Guard: this only works from iTerm2. Read $TERM_PROGRAM (Claude Code exports the
 # host terminal into it) rather than probing the app, so the failure is a clear
 # message instead of an AppleScript error. Tests set TERM_PROGRAM to exercise both.

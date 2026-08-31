@@ -75,6 +75,18 @@ run "iTerm.app" --dry-run --perm-mode 'acceptEdits; rm -rf ~' edits /tmp
 assert "shell-metachar perm-mode rejected (exit 4)" '[[ $RC -eq 4 ]]'
 assert "rejected perm-mode never reaches LAUNCH_CMD"  '[[ "$STDOUT" != *"rm -rf"* ]]'
 
+# --- HANDOFF_SETTLE_DELAY validation (it's coerced to a number in AppleScript) ---
+# The env var propagates through run()'s `env` (no -i), same as ITERM_SESSION_ID.
+HANDOFF_SETTLE_DELAY="0.5" run "iTerm.app" --dry-run settle /tmp
+assert "decimal settle delay accepted (exit 0)"  '[[ $RC -eq 0 ]]'
+
+HANDOFF_SETTLE_DELAY="abc" run "iTerm.app" --dry-run settle /tmp
+assert "non-numeric settle delay exits 4"        '[[ $RC -eq 4 ]]'
+assert "non-numeric settle delay names the var"  '[[ "$STDERR" == *"HANDOFF_SETTLE_DELAY"* ]]'
+
+HANDOFF_SETTLE_DELAY="1; rm -rf ~" run "iTerm.app" --dry-run settle /tmp
+assert "shell-metachar settle delay rejected (exit 4)" '[[ $RC -eq 4 ]]'
+
 # --- iTerm2 guard ---
 run "Apple_Terminal" --dry-run run-tests /tmp
 assert "non-iTerm exits 2"                  '[[ $RC -eq 2 ]]'
