@@ -53,8 +53,9 @@ LOCK="$DEST/.sync.lock.d"
 lock_mtime() {
   stat -f %m "$LOCK" 2>/dev/null || stat -c %Y "$LOCK" 2>/dev/null || echo 0
 }
+# Retry count is env-overridable so tests can fail fast; default ~10s (100 * 0.1s).
 locked=0
-for _ in $(seq 1 100); do
+for _ in $(seq 1 "${AGENT_MEMORY_LOCK_TRIES:-100}"); do
   if mkdir "$LOCK" 2>/dev/null; then
     locked=1
     break
@@ -65,13 +66,21 @@ for _ in $(seq 1 100); do
   fi
   sleep 0.1
 done
-# Best-effort: if the lock could not be acquired, proceed anyway. A rare merge
-# interleave is far better than silently dropping the subagent's memory.
 SYNC_TMP=""
 cleanup() {
   [[ -n "$SYNC_TMP" ]] && rm -f "$SYNC_TMP"
-  [[ "$locked" -eq 1 ]] && rmdir "$LOCK" 2>/dev/null || true
+  rmdir "$LOCK" 2>/dev/null || true
 }
+# Fail closed: without the lock, two concurrent MEMORY.md merges would each read
+# the same base and the last mv would drop the other's appended lines — destroying
+# memory another worktree already persisted. Skipping this sync (exit 0 — never
+# block the caller) only defers *this* worktree's writes, which stay safe in the
+# worktree for a later sync. The 10s acquire + stale-steal makes a genuine timeout
+# near-impossible.
+if [[ "$locked" -ne 1 ]]; then
+  echo "WARN: could not acquire agent-memory sync lock ($LOCK); skipping this sync" >&2
+  exit 0
+fi
 trap cleanup EXIT
 
 # --- merge ------------------------------------------------------------------
@@ -88,16 +97,21 @@ while IFS= read -r -d '' src_file; do
     # lacks (new pointers a subagent added). Blank separators are never touched,
     # and an unchanged index is left byte-identical (no rewrite, no mtime churn).
     # The tmp is named .sync.* so crash litter is skipped by both seed and sync.
-    SYNC_TMP="$(dirname "$dest_file")/.sync.tmp.$$"
-    cp "$dest_file" "$SYNC_TMP"
-    awk 'NR==FNR { seen[$0]=1; next } $0 ~ /[^[:space:]]/ && !($0 in seen)' \
-      "$dest_file" "$src_file" >> "$SYNC_TMP"
-    if cmp -s "$SYNC_TMP" "$dest_file"; then
-      rm -f "$SYNC_TMP"
-    else
+    # New non-blank worktree lines not already in main. seen[] is seeded from
+    # main AND accumulates across the worktree file (!seen[$0]++), so a line
+    # duplicated within the worktree is appended at most once. Empty result =>
+    # nothing new => leave main byte-identical (no rewrite, no mtime churn).
+    new_lines="$(awk 'NR==FNR { seen[$0]=1; next } $0 ~ /[^[:space:]]/ && !seen[$0]++' "$dest_file" "$src_file")"
+    if [[ -n "$new_lines" ]]; then
+      SYNC_TMP="$(dirname "$dest_file")/.sync.tmp.$$"
+      cp "$dest_file" "$SYNC_TMP"
+      # Guarantee a trailing newline before appending, else the first new line
+      # glues onto main's last line when main's file lacks one.
+      [[ -n "$(tail -c1 "$SYNC_TMP")" ]] && printf '\n' >> "$SYNC_TMP"
+      printf '%s\n' "$new_lines" >> "$SYNC_TMP"
       mv "$SYNC_TMP" "$dest_file"
+      SYNC_TMP=""
     fi
-    SYNC_TMP=""
   elif [[ ! -e "$dest_file" || "$src_file" -nt "$dest_file" ]]; then
     cp -p "$src_file" "$dest_file"
   fi

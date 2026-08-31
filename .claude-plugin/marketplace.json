@@ -38,7 +38,7 @@
     {
       "name": "claude-caliper-workflow",
       "description": "End-to-end development workflow: design routes by size → implement (small/medium fast path) or draft-plan → orchestrate (large) → review → pr-create → pr-review → pr-merge",
-      "version": "1.49.1",
+      "version": "1.49.2",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",

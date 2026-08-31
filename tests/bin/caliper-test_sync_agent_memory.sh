@@ -84,6 +84,37 @@ check "t2c: new entry appended" grep -q "Three](three.md)" "$merged"
 blank_count="$(grep -c '^$' "$merged" 2>/dev/null || echo 0)"
 check_eq "t2c: blank separators preserved (2 blanks, not collapsed)" "2" "$blank_count"
 
+# Test 2d: main's MEMORY.md lacks a trailing newline — a new worktree entry must
+# land on its own line, not glued onto main's last line.
+fix="$(new_fixture t2d)"
+mkdir -p "$fix/.claude/agent-memory/agent-x" "$fix/wt/.claude/agent-memory/agent-x"
+printf '# Memory Index\n\n- [One](one.md) — a' > "$fix/.claude/agent-memory/agent-x/MEMORY.md"   # NO trailing newline
+printf '# Memory Index\n\n- [One](one.md) — a\n- [Two](two.md) — b\n' > "$fix/wt/.claude/agent-memory/agent-x/MEMORY.md"
+"$SCRIPT" "$fix/wt"
+merged="$fix/.claude/agent-memory/agent-x/MEMORY.md"
+check "t2d: new entry present" grep -q "Two](two.md)" "$merged"
+glued="$(grep -c 'a- \[Two' "$merged" 2>/dev/null || true)"   # grep -c prints 0 and exits 1 on no match
+check_eq "t2d: entries not glued onto main's last line" "0" "$glued"
+
+# Test 2e: a line duplicated within the worktree index is appended at most once.
+fix="$(new_fixture t2e)"
+mkdir -p "$fix/.claude/agent-memory/agent-x" "$fix/wt/.claude/agent-memory/agent-x"
+printf '# Memory Index\n\n- [One](one.md) — a\n' > "$fix/.claude/agent-memory/agent-x/MEMORY.md"
+printf '# Memory Index\n\n- [One](one.md) — a\n- [Dup](dup.md) — d\n- [Dup](dup.md) — d\n' > "$fix/wt/.claude/agent-memory/agent-x/MEMORY.md"
+"$SCRIPT" "$fix/wt"
+dup_count="$(grep -c 'Dup](dup.md)' "$fix/.claude/agent-memory/agent-x/MEMORY.md" 2>/dev/null || echo 0)"
+check_eq "t2e: duplicated worktree line appended once" "1" "$dup_count"
+
+# Test 2f: lock held by a fresh (non-stale) holder -> sync skips (fail-closed),
+# leaving the worktree's memory unmerged rather than racing the merge.
+fix="$(new_fixture t2f)"
+mkdir -p "$fix/.claude/agent-memory" "$fix/wt/.claude/agent-memory/agent-x"
+echo "unmerged" > "$fix/wt/.claude/agent-memory/agent-x/held.md"
+mkdir "$fix/.claude/agent-memory/.sync.lock.d"   # simulate a live holder
+AGENT_MEMORY_LOCK_TRIES=2 "$SCRIPT" "$fix/wt" 2>/dev/null || true
+check "t2f: fail-closed — did not merge while lock held" test ! -f "$fix/.claude/agent-memory/agent-x/held.md"
+rmdir "$fix/.claude/agent-memory/.sync.lock.d" 2>/dev/null || true
+
 # Test 3: copy-if-newer — a main file NEWER than the worktree's copy is not clobbered
 fix="$(new_fixture t3)"
 mkdir -p "$fix/.claude/agent-memory/agent-x" "$fix/wt/.claude/agent-memory/agent-x"
