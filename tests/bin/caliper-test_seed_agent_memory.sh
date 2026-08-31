@@ -100,6 +100,18 @@ fix="$(new_fixture t7)"
 "$SCRIPT" "$fix/wt"
 check "t7: real dir created even when main has no memory" test -d "$fix/wt/.claude/agent-memory"
 
+# Test 7b: re-seed does not clobber a newer worktree file (copy-if-newer), and the
+# sync lock dir in main never leaks into the worktree.
+fix="$(new_fixture t7b)"
+seed_main "$fix"
+"$SCRIPT" "$fix/wt"
+echo "worktree edit" > "$fix/wt/.claude/agent-memory/agent-x/prior.md"
+touch -t 202612310000 "$fix/wt/.claude/agent-memory/agent-x/prior.md"
+mkdir -p "$fix/.claude/agent-memory/.sync.lock.d"   # simulate a stray lock in main
+"$SCRIPT" "$fix/wt"
+check_eq "t7b: newer worktree file survives re-seed" "worktree edit" "$(cat "$fix/wt/.claude/agent-memory/agent-x/prior.md")"
+check "t7b: sync lock dir not copied into worktree" test ! -e "$fix/wt/.claude/agent-memory/.sync.lock.d"
+
 # Test 8: errors when invoked without the required argument
 if "$SCRIPT" >/dev/null 2>&1; then
   echo "FAIL: t8: should error when invoked without arg"; fail=$((fail + 1))

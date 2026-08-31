@@ -48,6 +48,15 @@ fi
 
 mkdir -p "$DEST"
 
-# Copy the main repo's memory in. "$SRC/." copies contents (including an empty
-# tree) without needing the dir to be non-empty.
-cp -R "$SRC/." "$DEST/"
+# Copy the main repo's memory in, file by file, copy-if-newer: never clobber a
+# newer worktree copy (safe if seed is ever re-run over a worktree whose
+# subagents have already written), and `-type f` skips the sync lock dir so it
+# never leaks into a worktree. An empty main tree copies nothing.
+while IFS= read -r -d '' src_file; do
+  rel="${src_file#"$SRC"/}"
+  dest_file="$DEST/$rel"
+  if [[ ! -e "$dest_file" || "$src_file" -nt "$dest_file" ]]; then
+    mkdir -p "$(dirname "$dest_file")"
+    cp "$src_file" "$dest_file"
+  fi
+done < <(find "$SRC" -type f -print0)
