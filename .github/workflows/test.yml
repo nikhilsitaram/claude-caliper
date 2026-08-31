@@ -17,9 +17,13 @@ jobs:
         run: sudo apt-get update -y && sudo apt-get install -y jq
 
       - name: Hook tests
+        # Glob so new tests/hooks/caliper-test_*.sh auto-enroll — manual
+        # enumeration had silently orphaned caliper-test_deny_plan_md.sh from CI.
         run: |
-          bash tests/hooks/caliper-test_safe_commands.sh
-          bash tests/hooks/caliper-test_permission_request.sh
+          for t in tests/hooks/caliper-test_*.sh; do
+            echo "== $t =="
+            bash "$t"
+          done
 
       - name: Handoff tests
         run: bash tests/handoff/caliper-test_spawn_pane.sh
