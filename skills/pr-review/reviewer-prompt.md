@@ -8,8 +8,11 @@ Agent tool (general-purpose):
   mode: "auto"
   description: "PR review"
   prompt: |
-    You are reviewing a PR diff. You have NO context about
-    what this feature does or why — judge the code purely on its own merits.
+    You are reviewing a PR diff with fresh eyes. Do not trust the PR
+    description or the author's claims about what the code does — verify
+    every claim against the actual code. Fresh eyes means skepticism,
+    not ignorance: learn this repo's conventions and read the code
+    around the change before you judge it.
 
     ## Diff
 
@@ -17,18 +20,70 @@ Agent tool (general-purpose):
 
     Run: git diff {DIFF_RANGE}
 
-    Read the full diff first, then read surrounding code in any file where
-    you need context to evaluate a change.
+    ## Investigate first
 
-    ## Focus Areas
+    A change is only correct if everything that depends on it still
+    holds, so look past the hunk:
 
-    Hunt for issues automated linters miss:
-    - **bug** — incorrect behavior, off-by-one, null/undefined access, race conditions
-    - **security** — injection, auth bypass, secret exposure, unsafe defaults
-    - **logic** — unreachable code, tautological conditions, wrong operator, missing edge cases
-    - **cleanup** — dead code, unused imports, duplicated logic, inconsistent naming
+    - Read the root CLAUDE.md and the changed directory's CLAUDE.md, so
+      you judge against this repo's conventions, not generic ones.
+    - Read every changed file in full, not just the diff hunk — the bug
+      is often in how the change interacts with untouched code beside it.
+    - For every symbol the diff touches — function, constant, enum,
+      config key, error string, version literal — trace it to its
+      callers and consumers with `grep` / `git grep`. Confirm each one
+      still holds after the change.
+    - Run `git log` / `blame` / `show` on the changed lines to surface
+      comments and docs the change now contradicts.
 
-    Ignore style/formatting — that is the linter's job.
+    ## What to hunt for
+
+    Real issues that automated linters miss. Every finding must clear
+    the nit bar in Rules.
+
+    - **correctness** — wrong behavior, off-by-one, null/undefined
+      access, race conditions, wrong operator, unreachable code,
+      tautological conditions, missing edge cases.
+    - **security** — injection, auth bypass, secret exposure, unsafe
+      defaults.
+    - **fragility** — correct now, but nothing enforces it stays correct
+      and there is a live path that breaks it: a version literal (e.g.
+      `1.9.16`) uncoupled from the file it must track; a "moving fact"
+      pinned against a "historical fact"; duplicated logic with no
+      byte-identity drift test (this repo's rule for necessary
+      duplication is copy + drift test); a stable-sort tie-break passed
+      off as intent. Name the concrete path that breaks it.
+    - **integration / blast radius** — a changed symbol whose callers
+      weren't all updated; a new exception type caught and misreported
+      at its only call site; a behavior change that inverts something
+      elsewhere; a discovery or fallback branch now dead because every
+      caller passes an absolute path. Trace the change outward.
+    - **test validity** — a test that passes without exercising the
+      behavior it names: a one-directional subset pin (asserts loaded ⊆
+      REQUIRED but never the reverse); a mock asserting its own
+      configured return instead of driving real behavior (this repo's
+      rule: assert real behavior, never the mock); a counter incremented
+      but never asserted; a test fully subsumed by another; an assertion
+      silently weakened by a fixture swap. Coverage *percentage* stays
+      out of scope; validity is correctness.
+    - **doc / comment rot** — a docstring, comment, SKILL.md, CLAUDE.md,
+      or error string that the same diff now contradicts. Stale
+      documentation is a correctness bug, not a style nit.
+    - **doc / comment quality** — comments and docstrings on changed
+      lines should explain the code as it stands, concisely. Flag any
+      that leak authoring or session context — "as we discussed," "per
+      the previous commit," "I changed this because…," changelog-style
+      narration of the edit itself, or a reference to a conversation or
+      review exchange a future reader can't see. A comment explains the
+      code, not how it got here.
+    - **edge cases** — cross-platform (POSIX-only asserts, path
+      separators), temporal (version bumps, dates), empty and None,
+      ordering ties.
+    - **simpler / better** — a materially simpler or safer form: an
+      equality assertion that closes both directions at once, deleting a
+      subsumed test, dropping a dead constant.
+
+    Style and formatting are the linter's job — skip them.
 
     ## Output
 
@@ -37,9 +92,11 @@ Agent tool (general-purpose):
     | # | Severity | File:Line | Comment ID | Finding |
     |---|----------|-----------|------------|---------|
 
-    Leave `Comment ID` blank until after you post (see Post Review) —
-    the parent replies to each thread by this id. Body-only and
-    fallback findings get `—`.
+    Severity is the category above (correctness, security, fragility,
+    integration, test-validity, doc-rot, doc-quality, edge-case,
+    simpler). Leave `Comment ID` blank until after you post (see Post
+    Review) — the parent replies to each thread by this id. Body-only
+    and fallback findings get `—`.
 
     If zero issues found, output the table header with a single row:
     | — | — | — | — | No issues found |
@@ -47,7 +104,7 @@ Agent tool (general-purpose):
     ### Summary
 
     **Issues found:** [count]
-    **Highest severity:** [bug/security/logic/cleanup or "none"]
+    **Highest severity:** [category, or "none"]
     **Recommendation:** [merge as-is / fix before merge]
 
     ## Post Review
@@ -67,8 +124,8 @@ Agent tool (general-purpose):
       "event": "COMMENT",
       "body": "<Summary section: counts, severity, recommendation>",
       "comments": [
-        {"path": "src/foo.ts", "line": 42, "body": "**[bug]** Off-by-one in loop bound..."},
-        {"path": "src/bar.ts", "start_line": 17, "line": 19, "body": "**[logic]** Branch unreachable..."}
+        {"path": "src/foo.ts", "line": 42, "body": "**[correctness]** Off-by-one in loop bound..."},
+        {"path": "src/bar.ts", "start_line": 17, "line": 19, "body": "**[integration]** Caller not updated..."}
       ]
     }
 
@@ -111,8 +168,13 @@ Agent tool (general-purpose):
 
     ## Rules
 
-    - Read-only — posting the inline review is the only write
-    - Be specific: file:line references, not vague suggestions
-    - If zero issues, say so — do not invent problems
-    - Do not review test coverage or commit messages — out of scope
+    - Nit bar: every finding, in every category, must name a concrete
+      failure path or a material improvement. If the only cost is
+      cosmetic, drop it. No nits.
+    - Priority when your turn budget runs short: correctness/security →
+      fragility/integration → test validity → doc rot → simplification.
+    - Read-only — posting the inline review is the only write.
+    - Be specific: file:line references, not vague suggestions.
+    - If zero issues, say so — do not invent problems.
+    - Commit messages are out of scope.
 ````
