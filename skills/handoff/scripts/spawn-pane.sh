@@ -73,9 +73,15 @@ fi
 # SETTLE_DELAY is coerced to a number inside the AppleScript (`as number`); a
 # non-numeric value throws there and misreports as a generic pane-creation error.
 # Validate it here for a clear message instead. Allow a decimal (e.g. 0.5) but a
-# single dot and digits only — no empty value, no shell metacharacters.
+# single dot and digits only, and require at least one digit — so a dot-only value
+# (`.`, which slips past the char class but also fails `as number`), an empty value,
+# multiple dots, and shell metacharacters are all rejected up front.
 case "$SETTLE_DELAY" in
-  ''|*[!0-9.]*|*.*.*) echo "ERROR: HANDOFF_SETTLE_DELAY='$SETTLE_DELAY' is not a number (seconds, e.g. 1 or 0.5)." >&2; exit 4 ;;
+  *[0-9]*) : ;;  # has a digit — fall through to the character/dot checks below
+  *) echo "ERROR: HANDOFF_SETTLE_DELAY='$SETTLE_DELAY' is not a number (seconds, e.g. 1 or 0.5)." >&2; exit 4 ;;
+esac
+case "$SETTLE_DELAY" in
+  *[!0-9.]*|*.*.*) echo "ERROR: HANDOFF_SETTLE_DELAY='$SETTLE_DELAY' is not a number (seconds, e.g. 1 or 0.5)." >&2; exit 4 ;;
 esac
 
 # Guard: this only works from iTerm2. Read $TERM_PROGRAM (Claude Code exports the
