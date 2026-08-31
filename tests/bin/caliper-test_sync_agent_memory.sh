@@ -61,6 +61,29 @@ check "t2: worktree entry added to merged MEMORY.md" grep -q "WT entry" "$merged
 header_count="$(grep -c '^# Memory Index$' "$merged" 2>/dev/null || echo 0)"
 check_eq "t2: single header after union-merge" "1" "$header_count"
 
+# Test 2b: an UNCHANGED multi-blank index survives a sync byte-identical — no
+# rewrite, no blank-separator collapse (regression the smoke test caught).
+fix="$(new_fixture t2b)"
+mkdir -p "$fix/.claude/agent-memory/agent-x" "$fix/wt/.claude/agent-memory/agent-x"
+printf '# Memory Index\n\n- [One](one.md) — a\n\n- [Two](two.md) — b\n' > "$fix/.claude/agent-memory/agent-x/MEMORY.md"
+cp "$fix/.claude/agent-memory/agent-x/MEMORY.md" "$fix/wt/.claude/agent-memory/agent-x/MEMORY.md"
+before="$(cat "$fix/.claude/agent-memory/agent-x/MEMORY.md")"
+"$SCRIPT" "$fix/wt"
+after="$(cat "$fix/.claude/agent-memory/agent-x/MEMORY.md")"
+check_eq "t2b: unchanged index left byte-identical (blanks preserved)" "$before" "$after"
+
+# Test 2c: a new worktree entry is appended while main's blank separators survive.
+fix="$(new_fixture t2c)"
+mkdir -p "$fix/.claude/agent-memory/agent-x" "$fix/wt/.claude/agent-memory/agent-x"
+printf '# Memory Index\n\n- [One](one.md) — a\n\n- [Two](two.md) — b\n' > "$fix/.claude/agent-memory/agent-x/MEMORY.md"
+printf '# Memory Index\n\n- [One](one.md) — a\n\n- [Two](two.md) — b\n- [Three](three.md) — c\n' > "$fix/wt/.claude/agent-memory/agent-x/MEMORY.md"
+"$SCRIPT" "$fix/wt"
+merged="$fix/.claude/agent-memory/agent-x/MEMORY.md"
+check "t2c: pre-existing entries retained" grep -q "One](one.md)" "$merged"
+check "t2c: new entry appended" grep -q "Three](three.md)" "$merged"
+blank_count="$(grep -c '^$' "$merged" 2>/dev/null || echo 0)"
+check_eq "t2c: blank separators preserved (2 blanks, not collapsed)" "2" "$blank_count"
+
 # Test 3: copy-if-newer — a main file NEWER than the worktree's copy is not clobbered
 fix="$(new_fixture t3)"
 mkdir -p "$fix/.claude/agent-memory/agent-x" "$fix/wt/.claude/agent-memory/agent-x"

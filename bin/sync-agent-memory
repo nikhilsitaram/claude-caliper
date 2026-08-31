@@ -78,11 +78,20 @@ while IFS= read -r -d '' src_file; do
   mkdir -p "$(dirname "$dest_file")"
 
   if [[ "$(basename "$src_file")" == "MEMORY.md" && -f "$dest_file" ]]; then
-    # Union-merge the index: dest lines first, then any new lines from src,
-    # deduplicated (collapses the shared header and blank lines). The tmp file is
-    # named .sync.* so a crash mid-write leaves litter that seed/sync both skip.
+    # Union-merge the index without disturbing main's formatting: keep main's
+    # file verbatim, then append only the worktree's non-blank lines that main
+    # lacks (new pointers a subagent added). Blank separators are never touched,
+    # and an unchanged index is left byte-identical (no rewrite, no mtime churn).
+    # The tmp is named .sync.* so crash litter is skipped by both seed and sync.
     SYNC_TMP="$(dirname "$dest_file")/.sync.tmp.$$"
-    awk '!seen[$0]++' "$dest_file" "$src_file" > "$SYNC_TMP" && mv "$SYNC_TMP" "$dest_file"
+    cp "$dest_file" "$SYNC_TMP"
+    awk 'NR==FNR { seen[$0]=1; next } $0 ~ /[^[:space:]]/ && !($0 in seen)' \
+      "$dest_file" "$src_file" >> "$SYNC_TMP"
+    if cmp -s "$SYNC_TMP" "$dest_file"; then
+      rm -f "$SYNC_TMP"
+    else
+      mv "$SYNC_TMP" "$dest_file"
+    fi
     SYNC_TMP=""
   elif [[ ! -e "$dest_file" || "$src_file" -nt "$dest_file" ]]; then
     cp -p "$src_file" "$dest_file"
