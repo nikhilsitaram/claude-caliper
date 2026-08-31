@@ -13,7 +13,7 @@ MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.g
 PRE_TASK_SHA=$(git -C "$PARENT_WORKTREE" rev-parse HEAD)
 git -C "$PARENT_WORKTREE" worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
 TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
-link-agent-memory "$TASK_WORKTREE"  # symlink .claude/agent-memory → $MAIN_ROOT so memory: project subagents persist across worktree cleanup (issue #244)
+seed-agent-memory "$TASK_WORKTREE"  # copy $MAIN_ROOT/.claude/agent-memory into the task worktree as a real dir so memory: project subagents read accumulated memory and write locally; step-3 cleanup + the SubagentStop hook sync writes back (symlinks are blocked under worktree isolation, issue #244)
 TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
 TASK_COMPLEXITY=$(echo "$TASK_METADATA" | jq -r '.complexity')
 case "$TASK_COMPLEXITY" in
@@ -89,7 +89,7 @@ When a background agent completes (push notification — do not poll):
    - Never `cd` into an agent worktree — always use `git -C <agent-worktree-path>` for inspection commands (`git log`, `git status`, `git diff`). This prevents CWD from pointing at a path that gets deleted during cleanup.
    - Guard before merge: `PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)` — then `[[ "$PARENT_BRANCH" == integrate/* ]] && { echo "ERROR: PARENT_WORKTREE is on the integration branch. Task branches must merge into the phase branch; integration happens only in Phase Wrap-Up step 7." >&2; exit 1; }`. This catches state drift from the wrong-worktree recovery path where the phase branch was reset to integration HEAD.
    - Merge: `git -C "$PARENT_WORKTREE" merge {TASK_ID_LOWER}` (task branch into the phase branch, never directly into integration)
-   - Clean up: `git worktree remove <agent-worktree-path>` then `git branch -d <agent-branch>`
+   - Clean up: `sync-agent-memory <agent-worktree-path>` (persist the task-implementer's `memory: project` writes to `$MAIN_ROOT` before removal — belt-and-suspenders with the `SubagentStop` hook), then `git worktree remove <agent-worktree-path>` then `git branch -d <agent-branch>`
    - Reset CWD after removal: `cd <feature-worktree-path> && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted
 4. Check if dependent tasks are now unblocked (`validate-plan --check-deps`)
 5. Dispatch newly unblocked tasks (same pattern as above)

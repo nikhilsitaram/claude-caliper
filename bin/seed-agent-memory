@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# seed-agent-memory <worktree-path>
+#
+# Copy $MAIN_ROOT/.claude/agent-memory/ into <worktree>/.claude/agent-memory/ as a
+# REAL directory, so subagents with `memory: project` (whose frontmatter tells
+# Claude Code to read/write .claude/agent-memory/<name>/ relative to CWD) start
+# with the accumulated project memory and write locally.
+#
+# Why a copy, not a symlink: since the v2.1.251 harness "file tool symlink
+# security" fix, a subagent's writes that resolve OUT of its worktree through a
+# symlink are blocked by the isolation guard, so the old link-agent-memory
+# symlink silently lost every write. A real worktree-local dir accepts writes;
+# sync-agent-memory (run from the SubagentStop hook) merges those writes back to
+# $MAIN_ROOT before the worktree is cleaned up.
+#
+# Idempotent. No-op when run against the main repo. Any stale symlink left by the
+# retired link-agent-memory is replaced with a real dir.
+
+usage() {
+  echo "Usage: seed-agent-memory <worktree-path>" >&2
+  exit 1
+}
+
+[[ $# -eq 1 ]] || usage
+
+WORKTREE="$1"
+[[ -d "$WORKTREE" ]] || { echo "ERROR: worktree path does not exist: $WORKTREE" >&2; exit 1; }
+
+MAIN_ROOT="$(git -C "$WORKTREE" rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+
+# Running inside the main repo is a no-op — memory already lives there.
+if [[ "$(cd "$WORKTREE" && pwd -P)" == "$(cd "$MAIN_ROOT" && pwd -P)" ]]; then
+  exit 0
+fi
+
+SRC="$MAIN_ROOT/.claude/agent-memory"
+DEST="$WORKTREE/.claude/agent-memory"
+
+mkdir -p "$SRC"
+mkdir -p "$(dirname "$DEST")"
+
+# Replace a stale symlink (from the retired link-agent-memory) with a real dir.
+if [[ -L "$DEST" ]]; then
+  rm -f "$DEST"
+fi
+
+mkdir -p "$DEST"
+
+# Copy the main repo's memory in, file by file, copy-if-newer: never clobber a
+# newer worktree copy (safe if seed is ever re-run over a worktree whose
+# subagents have already written), and `-type f` skips the sync lock dir so it
+# never leaks into a worktree. An empty main tree copies nothing.
+while IFS= read -r -d '' src_file; do
+  rel="${src_file#"$SRC"/}"
+  dest_file="$DEST/$rel"
+  # Never overwrite an existing MEMORY.md: a subagent may have appended index
+  # lines the SubagentStop sync hasn't merged yet, and (unlike a plain memory
+  # file) sync union-merges the index rather than copy-if-newer — so an mtime
+  # race with another worktree's sync could otherwise let seed clobber A's index
+  # with main's. Only populate MEMORY.md into a fresh (absent) worktree copy.
+  if [[ "$(basename "$src_file")" == "MEMORY.md" && -e "$dest_file" ]]; then
+    continue
+  fi
+  if [[ ! -e "$dest_file" || "$src_file" -nt "$dest_file" ]]; then
+    mkdir -p "$(dirname "$dest_file")"
+    # -p preserves mtime so sync's copy-if-newer skips files seed just copied.
+    cp -p "$src_file" "$dest_file"
+  fi
+done < <(find "$SRC" -type f -not -path '*/.sync.*' -print0)

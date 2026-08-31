@@ -6,20 +6,40 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: the job only reads the repo and runs local test scripts.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # persist-credentials: false — the globbed test scripts run local git in
+      # temp dirs and never need the GITHUB_TOKEN, so don't leave it in git config.
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Install jq
         run: sudo apt-get update -y && sudo apt-get install -y jq
 
       - name: Hook tests
+        # Glob so new tests/hooks/caliper-test_*.sh auto-enroll — manual
+        # enumeration had silently orphaned caliper-test_deny_plan_md.sh from CI.
         run: |
-          bash tests/hooks/caliper-test_safe_commands.sh
-          bash tests/hooks/caliper-test_permission_request.sh
+          for t in tests/hooks/caliper-test_*.sh; do
+            echo "== $t =="
+            bash "$t"
+          done
+
+      - name: Bin tests
+        # Glob so new tests/bin/caliper-test_*.sh auto-enroll.
+        run: |
+          for t in tests/bin/caliper-test_*.sh; do
+            echo "== $t =="
+            bash "$t"
+          done
 
       - name: Handoff tests
         run: bash tests/handoff/caliper-test_spawn_pane.sh

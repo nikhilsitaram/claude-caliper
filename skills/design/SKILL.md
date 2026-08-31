@@ -36,10 +36,10 @@ Complete in order:
      PLAN_DIR="$MAIN_ROOT/.claude/claude-caliper/YYYY-MM-DD-<topic>"
      WORKTREE="$MAIN_ROOT/.claude/worktrees/<feature>"
      mkdir -p "$WORKTREE/.claude" && jq -n --arg d "$MAIN_ROOT" '{permissions:{additionalDirectories:[$d]}}' > "$WORKTREE/.claude/settings.local.json"
-     link-agent-memory "$WORKTREE"
+     seed-agent-memory "$WORKTREE"
      ```
 
-     `$PLAN_DIR` lives in the main repo (gitignored) so plan artifacts survive worktree cleanup. Use `$PLAN_DIR` and `$WORKTREE` — not relative paths — in every dispatch prompt and `jq` write below; subagents inherit worktree CWD and relative `.claude/claude-caliper/...` won't resolve. The `settings.local.json` write registers `$MAIN_ROOT` as an additional directory so future sessions started inside the worktree (e.g. a fresh `claude` launched there) don't trigger per-command permission prompts when reading/writing `$PLAN_DIR`. `link-agent-memory` symlinks `$WORKTREE/.claude/agent-memory` to `$MAIN_ROOT/.claude/agent-memory` so subagents with `memory: project` (design-reviewer, plan-drafter, plan-reviewer, task-implementer, implementation-reviewer) persist memory through worktree cleanup.
+     `$PLAN_DIR` lives in the main repo (gitignored) so plan artifacts survive worktree cleanup. Use `$PLAN_DIR` and `$WORKTREE` — not relative paths — in every dispatch prompt and `jq` write below; subagents inherit worktree CWD and relative `.claude/claude-caliper/...` won't resolve. The `settings.local.json` write registers `$MAIN_ROOT` as an additional directory so future sessions started inside the worktree (e.g. a fresh `claude` launched there) don't trigger per-command permission prompts when reading/writing `$PLAN_DIR`. `seed-agent-memory` copies `$MAIN_ROOT/.claude/agent-memory` into `$WORKTREE` as a real dir so subagents with `memory: project` (design-reviewer, plan-drafter, plan-reviewer, task-implementer, implementation-reviewer) read accumulated memory and write locally; the `SubagentStop` hook syncs their writes back to `$MAIN_ROOT` before cleanup. (A symlink can't be used — since the v2.1.251 harness fix, a subagent's writes resolving out of its worktree through a symlink are blocked.)
    - Multi-phase (large tier only): rename to integration branch: `git branch -m integrate/<feature>` — phase worktrees created by orchestrate as siblings
    - Single-phase: branch name `<feature>` is correct as-is; execution works here directly, PRs to main
    1. Bootstrap dependencies per **See:** ./dependency-bootstrap.md

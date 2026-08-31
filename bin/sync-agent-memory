@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# sync-agent-memory <worktree-path>
+#
+# Merge <worktree>/.claude/agent-memory/ back into $MAIN_ROOT/.claude/agent-memory/.
+# Runs from the SubagentStop hook (an external process, NOT the agent's sandboxed
+# tools) so `memory: project` writes made inside a worktree persist to the main
+# repo before the worktree is cleaned up. Pairs with seed-agent-memory, which
+# copies main -> worktree at worktree creation.
+#
+# Merge policy:
+#   - individual memory files: copy-if-newer (never clobber a newer main copy)
+#   - MEMORY.md (the index): union-merge — every unique line from both, single header
+# Serialized with a portable mkdir-based lock (flock is absent on macOS, where the
+# hook actually runs). Idempotent; no-op against the main repo or a worktree with
+# no real agent-memory dir.
+#
+# No tombstones: sync only adds/updates, never deletes. A memory file deleted in
+# the main repo will reappear from any still-live worktree that was seeded before
+# the deletion (via seed, then re-persisted here). Deleting memory permanently
+# means removing it from main once no seeded worktree still holds a copy.
+
+usage() {
+  echo "Usage: sync-agent-memory <worktree-path>" >&2
+  exit 1
+}
+
+[[ $# -eq 1 ]] || usage
+
+WORKTREE="$1"
+[[ -d "$WORKTREE" ]] || { echo "ERROR: worktree path does not exist: $WORKTREE" >&2; exit 1; }
+
+MAIN_ROOT="$(git -C "$WORKTREE" rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+
+# No-op against the main repo — memory already lives there.
+if [[ "$(cd "$WORKTREE" && pwd -P)" == "$(cd "$MAIN_ROOT" && pwd -P)" ]]; then
+  exit 0
+fi
+
+SRC="$WORKTREE/.claude/agent-memory"
+
+# A symlink here is the retired link-agent-memory's leftover — writes never landed
+# in it under isolation, so there is nothing to sync. A missing dir: nothing to do.
+[[ -L "$SRC" ]] && exit 0
+[[ -d "$SRC" ]] || exit 0
+
+DEST="$MAIN_ROOT/.claude/agent-memory"
+mkdir -p "$DEST"
+
+# --- portable lock (mkdir is atomic on POSIX filesystems) ------------------
+LOCK="$DEST/.sync.lock.d"
+lock_mtime() {
+  stat -f %m "$LOCK" 2>/dev/null || stat -c %Y "$LOCK" 2>/dev/null || echo 0
+}
+# Retry count is env-overridable so tests can fail fast; default ~10s (100 * 0.1s).
+locked=0
+for _ in $(seq 1 "${AGENT_MEMORY_LOCK_TRIES:-100}"); do
+  if mkdir "$LOCK" 2>/dev/null; then
+    locked=1
+    break
+  fi
+  # Steal a lock left behind by a crashed holder (>30s old).
+  if [[ -d "$LOCK" ]] && (( $(date +%s) - $(lock_mtime) > 30 )); then
+    rmdir "$LOCK" 2>/dev/null || true
+  fi
+  sleep 0.1
+done
+SYNC_TMP=""
+cleanup() {
+  [[ -n "$SYNC_TMP" ]] && rm -f "$SYNC_TMP"
+  rmdir "$LOCK" 2>/dev/null || true
+}
+# Fail closed: without the lock, two concurrent MEMORY.md merges would each read
+# the same base and the last mv would drop the other's appended lines — destroying
+# memory another worktree already persisted. Skipping this sync (exit 0 — never
+# block the caller) only defers *this* worktree's writes, which stay safe in the
+# worktree for a later sync. The 10s acquire + stale-steal makes a genuine timeout
+# near-impossible.
+if [[ "$locked" -ne 1 ]]; then
+  echo "WARN: could not acquire agent-memory sync lock ($LOCK); skipping this sync" >&2
+  exit 0
+fi
+trap cleanup EXIT
+
+# --- merge ------------------------------------------------------------------
+# Skip our own control paths (lock dir, tmp files) so they never round-trip into
+# main and get re-seeded into worktrees.
+while IFS= read -r -d '' src_file; do
+  rel="${src_file#"$SRC"/}"
+  dest_file="$DEST/$rel"
+  mkdir -p "$(dirname "$dest_file")"
+
+  if [[ "$(basename "$src_file")" == "MEMORY.md" && -f "$dest_file" ]]; then
+    # Union-merge the index without disturbing main's formatting: keep main's
+    # file verbatim, then append only the worktree's non-blank lines that main
+    # lacks (new pointers a subagent added). Blank separators are never touched,
+    # and an unchanged index is left byte-identical (no rewrite, no mtime churn).
+    # The tmp is named .sync.* so crash litter is skipped by both seed and sync.
+    # New non-blank worktree lines not already in main. seen[] is seeded from
+    # main AND accumulates across the worktree file (!seen[$0]++), so a line
+    # duplicated within the worktree is appended at most once. Empty result =>
+    # nothing new => leave main byte-identical (no rewrite, no mtime churn).
+    new_lines="$(awk 'NR==FNR { seen[$0]=1; next } $0 ~ /[^[:space:]]/ && !seen[$0]++' "$dest_file" "$src_file")"
+    if [[ -n "$new_lines" ]]; then
+      SYNC_TMP="$(dirname "$dest_file")/.sync.tmp.$$"
+      cp "$dest_file" "$SYNC_TMP"
+      # Guarantee a trailing newline before appending, else the first new line
+      # glues onto main's last line when main's file lacks one.
+      [[ -n "$(tail -c1 "$SYNC_TMP")" ]] && printf '\n' >> "$SYNC_TMP"
+      printf '%s\n' "$new_lines" >> "$SYNC_TMP"
+      mv "$SYNC_TMP" "$dest_file"
+      SYNC_TMP=""
+    fi
+  elif [[ ! -e "$dest_file" || "$src_file" -nt "$dest_file" ]]; then
+    cp -p "$src_file" "$dest_file"
+  fi
+done < <(find "$SRC" -type f -not -path '*/.sync.*' -print0)
