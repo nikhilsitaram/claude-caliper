@@ -1561,8 +1561,8 @@ do_check_handoffs() {
     | .phases[] | select(.letter > $letter) | .tasks[]
     | . as $task
     | (.depends_on // [])[]
-    | select($sources | index(.))
     | . as $dep
+    | select($sources | index($dep))
     | select(([($task.handoffs // [])[] | select(.from == $dep)] | length) == 0)
     | "\($dep) -> \($task.id)"
   ' "$plan_json")
