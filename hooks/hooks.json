@@ -18,6 +18,16 @@
         }]
       }
     ],
+    "SubagentStop": [
+      {
+        "matcher": "*",
+        "hooks": [{
+          "type": "command",
+          "command": "bash",
+          "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/subagentstop-sync-agent-memory.sh"]
+        }]
+      }
+    ],
     "PermissionRequest": [
       {
         "matcher": "Read|Glob|Grep|Skill|WebFetch|WebSearch|ToolSearch|Bash",
