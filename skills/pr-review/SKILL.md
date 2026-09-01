@@ -129,7 +129,7 @@ After filtering, sources 2-3 are bot-only.
 | **Informational** — praise, explanation | Acknowledge |
 | **False positive** | Dismiss with reasoning |
 
-**Automated (fix or merge):** Fix actionable items, run tests. If `--skip-review` (no wave 2): commit and push, then reply in each external inline thread with its disposition (see Replying to findings). Otherwise: commit locally only (wave 2 may touch same files) — the external inline replies are posted in Step 6 after that push.
+**Automated (fix or merge):** Fix actionable items, run tests. If `--skip-review` (no wave 2): commit and push, then reply in each external inline thread with its disposition and run the verification check (see Replying to findings) — Step 6 is skipped in this mode, so this is the only place it runs. Otherwise: commit locally only (wave 2 may touch same files) — the external inline replies are posted in Step 6 after that push.
 
 **Deliberate:** Collect and report. No fixes yet.
 
