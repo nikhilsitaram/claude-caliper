@@ -65,9 +65,12 @@ Read `reviewer-prompt.md` and dispatch with `run_in_background: true`:
 
 Subagent posts findings as inline review comments via the GitHub reviews API, then returns the Findings table (with each finding's `Comment ID`) for Step 6.
 
-### Replying to reviewer findings
+### Replying to findings
 
-When you decide a subagent finding's disposition (fix or dismiss), reply in its own thread so the back-and-forth lives where the issue was raised — not only in the Step 9 summary. Reply by the `Comment ID` from the returned table:
+Every inline thread — a subagent finding **or** an external bot's inline comment — gets a reply in its own thread once its disposition is decided, so the reasoning (e.g. why a fix took a different shape, or which way two conflicting suggestions went) lives where the issue was raised, not only in the Step 9 summary. Same reply endpoint for both; only the id source differs:
+
+- **Subagent:** `Comment ID` from the returned table (`—` = body-only, no thread → Step 9).
+- **External inline:** `.id` from the Step 5 source-2 REST collection (already fetched and self-filtered).
 
 ```bash
 gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies" \
@@ -75,7 +78,19 @@ gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies" \
 # or: -f body="Dismissed — <technical reasoning>."
 ```
 
-These are your own (`$GH_USER`) comments — replying to them is intended, and is separate from the Step 5 self-filter, which only prevents *re-ingesting* findings. Findings with `Comment ID` = `—` (body-only) have no thread; they go in the Step 9 summary instead. Post each reply where the disposition is finalized: Step 6 (automated) or Step 8 (deliberate).
+Post replies **after** the fix commits are pushed — a reply citing a local-only SHA is unresolvable and unverifiable. So post all inline replies (external + subagent) at the step that pushes: Step 6 in automated mode (or Step 5 if `--skip-review`, where Step 5 is itself the push), Step 8 in deliberate mode. Replying to subagent threads (your own `$GH_USER` comments) is intended, separate from the Step 5 self-filter that only prevents *re-ingesting* findings. Conversation comments (source 1) and review bodies (source 3) have no thread → Step 9. The skill does not *resolve* threads (a separate GraphQL `resolveReviewThread` call); the author resolves them after confirming the fixes.
+
+**Verify no root thread is left unanswered** (after every reply is posted):
+
+```bash
+gh api repos/{owner}/{repo}/pulls/$PR_NUMBER/comments --paginate --jq '.[]' \
+  | jq -s '[.[] | select(.in_reply_to_id == null)] as $roots
+           | [.[] | select(.in_reply_to_id != null) | .in_reply_to_id] as $replied
+           | $roots[] | select(.id as $i | ($replied | index($i)) | not)
+           | "\(.user.login)\t\(.id)\t\(.path)"'
+```
+
+Empty output = every root thread has a reply. Flatten pages with `--paginate --jq '.[]'`, then aggregate the whole set with `jq -s`; the cross-reference run *inside* `--paginate --jq` evaluates per page and misses a reply that lands on a later page.
 
 ### Step 5: External Feedback
 
@@ -114,7 +129,7 @@ After filtering, sources 2-3 are bot-only.
 | **Informational** — praise, explanation | Acknowledge |
 | **False positive** | Dismiss with reasoning |
 
-**Automated (fix or merge):** Fix actionable items, run tests. If `--skip-review` (no wave 2): commit and push. Otherwise: commit locally only (wave 2 may touch same files).
+**Automated (fix or merge):** Fix actionable items, run tests. If `--skip-review` (no wave 2): commit and push, then reply in each external inline thread with its disposition (see Replying to findings). Otherwise: commit locally only (wave 2 may touch same files) — the external inline replies are posted in Step 6 after that push.
 
 **Deliberate:** Collect and report. No fixes yet.
 
@@ -122,7 +137,7 @@ After filtering, sources 2-3 are bot-only.
 
 Wait for background subagent (Step 4). Skip if `--skip-review`.
 
-**Automated (fix or merge):** Dismiss findings already fixed in wave 1. Fix remaining actionable items, run tests, commit and push (covers both waves). Reply inline to each subagent finding's thread with its disposition (see Replying to reviewer findings).
+**Automated (fix or merge):** Dismiss findings already fixed in wave 1. Fix remaining actionable items, run tests, commit and push (covers both waves). After the push, reply inline to each subagent finding's thread **and each external inline thread** (Step 5 source 2) with its disposition, then run the verification check (see Replying to findings).
 
 **Deliberate:** Merge with Step 5 findings into unified set. Proceed to Step 7.
 
@@ -136,11 +151,11 @@ Show summary table (source, category, action, counts). AskUserQuestion:
 
 ### Step 8: Fix, Test, Push (Deliberate Only)
 
-Skip if `--skip-fixes`. Fix each item, run tests (fail = stop), commit and push. Reply inline to each subagent finding's thread with its disposition (see Replying to reviewer findings).
+Skip if `--skip-fixes`. Fix each item, run tests (fail = stop), commit and push. After the push, reply inline to each subagent finding's thread **and each external inline thread** with its disposition, then run the verification check (see Replying to findings).
 
 ### Step 9: Comment on PR
 
-Post `gh pr comment`: what was fixed, dismissed (with reasons), no-action. Omit empty sections. Subagent findings answered inline (Step 6/8) need only a roll-up count here, not a re-listing — the per-item reasoning lives in their threads. The summary still fully covers external feedback and any body-only findings that had no thread.
+Post `gh pr comment`: what was fixed, dismissed (with reasons), no-action. Omit empty sections. Anything answered in its own inline thread (subagent findings, and external inline comments from Step 5/6/8) needs only a roll-up count here plus a restatement of the dismissals — the per-item reasoning lives in the threads, but dismissals are what a human is most likely to re-litigate, so name them. The summary still fully covers conversation-level comments (source 1), review bodies (source 3), and any body-only findings that had no thread.
 
 Report PR URL and item counts. Automated-merge mode: invoke pr-merge. Automated-fix mode: tell user to run `/pr-merge` when ready. Deliberate mode: offer merge or tell user to run `/pr-merge` when ready.
 
