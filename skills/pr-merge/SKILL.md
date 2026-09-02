@@ -102,6 +102,7 @@ Capture the repo's auto-delete-on-merge setting once for use in branch deletion 
 
 ```bash
 AUTO_DELETE_REMOTE=$(gh api "repos/{owner}/{repo}" --jq .delete_branch_on_merge 2>/dev/null)
+git fetch origin   # refresh remote-tracking refs so the containment guard below sees the just-merged commit (bare form — see Step 2 note)
 ```
 
 **Local + remote branch deletion** uses a gh-verified pattern. `$B` is a placeholder for the call site's branch name (`$BRANCH_NAME`, `phase-a`, etc.); `$PR_REF` is whatever uniquely identifies the PR — prefer `$PR_NUMBER` (the just-merged PR from Step 1) when available, since branch-name resolution returns the most recent PR for that name and could match a stale historical PR for reused names like `phase-a`:
@@ -109,16 +110,22 @@ AUTO_DELETE_REMOTE=$(gh api "repos/{owner}/{repo}" --jq .delete_branch_on_merge 
 ```bash
 state=$(gh pr view "${PR_REF:-$B}" --json state -q .state 2>/dev/null)
 if [ "$state" = "MERGED" ]; then
-  git update-ref -d "refs/heads/$B" || echo "ERROR: $B is MERGED but update-ref failed"
-  if [ "$AUTO_DELETE_REMOTE" != "true" ]; then
-    git push origin --delete "$B" 2>/dev/null || echo "Note: remote $B already gone or protected"
+  base=$(gh pr view "${PR_REF:-$B}" --json baseRefName -q .baseRefName 2>/dev/null)
+  if git merge-base --is-ancestor "refs/heads/$B" "origin/$base" 2>/dev/null \
+     || git diff --quiet "refs/heads/$B" "origin/$base" 2>/dev/null; then
+    git update-ref -d "refs/heads/$B" || echo "ERROR: $B is MERGED but update-ref failed"
+    if [ "$AUTO_DELETE_REMOTE" != "true" ]; then
+      git push origin --delete "$B" 2>/dev/null || echo "Note: remote $B already gone or protected"
+    fi
+  else
+    echo "SKIP $B: gh MERGED but local tip not contained in origin/$base (diverged) — delete refs/heads/$B manually if intended"
   fi
 else
   echo "Skipped $B (gh state: ${state:-unknown})"
 fi
 ```
 
-GitHub is the source of truth that the PR actually merged. The local delete is safer than `git branch -D` (which force-deletes regardless of merge state — squash-merged branches don't pass `git branch -d`'s local merge check, so the gh state replaces git's local check). The remote delete fires only when the repo's auto-delete-on-merge setting is off, since otherwise GitHub already deleted it; `git push origin --delete` is gated by the same MERGED check and tolerates 404 (already-deleted) and 422 (branch protection) gracefully. Capture skips and errors in the Step 4 Summary so the user knows their cleanup partially no-op'd.
+GitHub's MERGED state confirms the PR landed, but `update-ref -d` is as unconditional as `git branch -D` — it's used over `branch -d` only because `-d`'s merge check false-negatives on squash. The containment guard supplies the local check gh can't: delete only when the local tip is an ancestor of the merged base (real-merge/rebase) or tree-identical (squash). `git diff --quiet` is fail-closed — a diverged tip or any ref-lookup failure refuses the delete and prints SKIP, so local commits added after the merge (or a stale/reused branch) are never destroyed silently. The remote delete fires only when auto-delete-on-merge is off (else GitHub already deleted it); `git push origin --delete` tolerates 404 (already-deleted) and 422 (branch protection) gracefully. Capture SKIP lines and errors in the Step 4 Summary so the user knows cleanup left branches behind.
 
 **Worktree removal** uses bare `git worktree remove "$PATH"` (no `--force`) — the PR has merged so the worktree should be clean. **This stop-on-failure rule applies to every `git worktree remove` call in this section:** if removal exits non-zero, the worktree has uncommitted/untracked content the user may want to keep — stop the cleanup chain, report the path, and let the user decide, since force-removal can destroy uncommitted or untracked work that may still be needed. **Sibling phase worktrees** (some may already be cleaned by earlier pr-merge runs) need an existence guard; the inner remove still propagates failure to the caller (the `if` block exits with the inner `worktree remove` exit code, so the orchestrator above sees non-zero and stops):
 
