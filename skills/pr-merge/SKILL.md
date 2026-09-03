@@ -121,9 +121,12 @@ if [ "$state" = "MERGED" ]; then
   elif [ "$local_oid" = "$head_oid" ] \
        || git merge-base --is-ancestor "$local_oid" "$merge_oid" 2>/dev/null \
        || git diff --quiet "$local_oid" "$merge_oid" 2>/dev/null; then
-    git update-ref -d "refs/heads/$B" || echo "ERROR: $B is MERGED but update-ref failed"
-    if [ "$AUTO_DELETE_REMOTE" != "true" ]; then
-      git push origin --delete "$B" 2>/dev/null || echo "Note: remote $B already gone or protected"
+    if git update-ref -d "refs/heads/$B" "$local_oid"; then   # compare-and-swap: refuse if $B moved since the guard read it
+      if [ "$AUTO_DELETE_REMOTE" != "true" ]; then
+        git push origin --delete "$B" 2>/dev/null || echo "Note: remote $B already gone or protected"
+      fi
+    else
+      echo "ERROR: local delete of $B failed (ref moved or locked) — leaving remote branch intact"
     fi
   else
     echo "SKIP $B: gh MERGED but local tip is neither what GitHub merged nor contained in the merge commit (diverged) — delete refs/heads/$B manually if intended"
@@ -133,7 +136,7 @@ else
 fi
 ```
 
-GitHub's MERGED state confirms the PR landed, but `update-ref -d` is as unconditional as `git branch -D` — it's used over `branch -d` only because `-d`'s merge check false-negatives on squash. The containment guard supplies the local check gh can't: it deletes only when the local tip is exactly what GitHub merged (`headRefOid`), or is an ancestor of the PR's merge commit (true merge), or is tree-identical to it (squash/rebase). The `headRefOid` leg needs no fetched object and is immune to base movement, so it stays correct on a deferred `/pr-merge` run even after other PRs land on the base or the merged branch was stale at squash time; the merge-commit legs cover a local tip that moved but is still contained. Every comparison is fail-closed — an absent local ref, an unavailable gh lookup, or a genuinely diverged tip all refuse the delete and report distinctly (already-deleted vs. lookup-failed vs. diverged), so local commits added after the merge are never destroyed silently. The remote delete fires only when auto-delete-on-merge is off (else GitHub already deleted it); `git push origin --delete` tolerates 404 (already-deleted) and 422 (branch protection) gracefully. Capture SKIP lines and errors in the Step 4 Summary so the user knows cleanup left branches behind.
+GitHub's MERGED state confirms the PR landed, but `update-ref -d` is as unconditional as `git branch -D` — it's used over `branch -d` only because `-d`'s merge check false-negatives on squash. The containment guard supplies the local check gh can't: it deletes only when the local tip is exactly what GitHub merged (`headRefOid`), or is an ancestor of the PR's merge commit (true merge), or is tree-identical to it (squash/rebase). The `headRefOid` leg needs no fetched object and is immune to base movement, so it stays correct on a deferred `/pr-merge` run even after other PRs land on the base or the merged branch was stale at squash time; the merge-commit legs cover a local tip that moved but is still contained. Every comparison is fail-closed — an absent local ref, an unavailable gh lookup, or a genuinely diverged tip all refuse the delete and report distinctly (already-deleted vs. lookup-failed vs. diverged), so local commits added after the merge are never destroyed silently. The local delete passes `$local_oid` as `update-ref`'s expected old value, so it refuses (and leaves the remote branch intact) if `$B` moved between the guard and the delete. The remote delete then fires only after the local delete succeeds, and only when auto-delete-on-merge is off (else GitHub already deleted it); `git push origin --delete` tolerates 404 (already-deleted) and 422 (branch protection) gracefully. Capture SKIP lines and errors in the Step 4 Summary so the user knows cleanup left branches behind.
 
 **Worktree removal** uses bare `git worktree remove "$PATH"` (no `--force`) — the PR has merged so the worktree should be clean. **This stop-on-failure rule applies to every `git worktree remove` call in this section:** if removal exits non-zero, the worktree has uncommitted/untracked content the user may want to keep — stop the cleanup chain, report the path, and let the user decide, since force-removal can destroy uncommitted or untracked work that may still be needed. **Sibling phase worktrees** (some may already be cleaned by earlier pr-merge runs) need an existence guard; the inner remove still propagates failure to the caller (the `if` block exits with the inner `worktree remove` exit code, so the orchestrator above sees non-zero and stops):
 
