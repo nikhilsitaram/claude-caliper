@@ -102,23 +102,45 @@ Capture the repo's auto-delete-on-merge setting once for use in branch deletion 
 
 ```bash
 AUTO_DELETE_REMOTE=$(gh api "repos/{owner}/{repo}" --jq .delete_branch_on_merge 2>/dev/null)
+git fetch origin   # refresh remote-tracking refs so the containment guard below sees the just-merged commit (bare form — see Step 2 note)
 ```
 
 **Local + remote branch deletion** uses a gh-verified pattern. `$B` is a placeholder for the call site's branch name (`$BRANCH_NAME`, `phase-a`, etc.); `$PR_REF` is whatever uniquely identifies the PR — prefer `$PR_NUMBER` (the just-merged PR from Step 1) when available, since branch-name resolution returns the most recent PR for that name and could match a stale historical PR for reused names like `phase-a`:
 
 ```bash
-state=$(gh pr view "${PR_REF:-$B}" --json state -q .state 2>/dev/null)
+info=$(gh pr view "${PR_REF:-$B}" --json state,mergeCommit,headRefOid 2>/dev/null)
+state=$(jq -r '.state // ""' <<<"$info")
 if [ "$state" = "MERGED" ]; then
-  git update-ref -d "refs/heads/$B" || echo "ERROR: $B is MERGED but update-ref failed"
-  if [ "$AUTO_DELETE_REMOTE" != "true" ]; then
-    git push origin --delete "$B" 2>/dev/null || echo "Note: remote $B already gone or protected"
+  head_oid=$(jq -r '.headRefOid // ""' <<<"$info")
+  merge_oid=$(jq -r '.mergeCommit.oid // ""' <<<"$info")
+  local_oid=$(git rev-parse --verify --quiet "refs/heads/$B")
+  if [ -z "$local_oid" ]; then
+    echo "Note: local $B already deleted"
+  elif [ -z "$head_oid$merge_oid" ]; then
+    echo "SKIP $B: gh MERGED but headRefOid/mergeCommit.oid unavailable (gh lookup failed) — delete refs/heads/$B manually if intended"
+  elif [ "$local_oid" = "$head_oid" ] \
+       || git merge-base --is-ancestor "$local_oid" "$merge_oid" 2>/dev/null \
+       || git diff --quiet "$local_oid" "$merge_oid" 2>/dev/null; then
+    if git update-ref -d "refs/heads/$B" "$local_oid"; then   # local compare-and-swap: refuse if $B moved since the guard read it
+      if [ "$AUTO_DELETE_REMOTE" = "true" ]; then
+        :   # GitHub already deleted the remote branch on merge
+      elif [ "$(git ls-remote origin "refs/heads/$B" | cut -f1)" = "$head_oid" ]; then
+        git push origin --delete "$B" 2>/dev/null || echo "Note: remote $B already gone or protected"
+      else
+        echo "SKIP remote $B: origin tip advanced past the merged head — delete the remote branch manually if intended"
+      fi
+    else
+      echo "ERROR: local delete of $B failed (ref moved or locked) — leaving remote branch intact"
+    fi
+  else
+    echo "SKIP $B: gh MERGED but local tip is neither what GitHub merged nor contained in the merge commit (diverged) — delete refs/heads/$B manually if intended"
   fi
 else
   echo "Skipped $B (gh state: ${state:-unknown})"
 fi
 ```
 
-GitHub is the source of truth that the PR actually merged. The local delete is safer than `git branch -D` (which force-deletes regardless of merge state — squash-merged branches don't pass `git branch -d`'s local merge check, so the gh state replaces git's local check). The remote delete fires only when the repo's auto-delete-on-merge setting is off, since otherwise GitHub already deleted it; `git push origin --delete` is gated by the same MERGED check and tolerates 404 (already-deleted) and 422 (branch protection) gracefully. Capture skips and errors in the Step 4 Summary so the user knows their cleanup partially no-op'd.
+GitHub's MERGED state confirms the PR landed, but `update-ref -d` is as unconditional as `git branch -D` — it's used over `branch -d` only because `-d`'s merge check false-negatives on squash. The containment guard supplies the local check gh can't: it deletes only when the local tip is exactly what GitHub merged (`headRefOid`), or is an ancestor of the PR's merge commit (true merge), or is tree-identical to it (squash/rebase). The `headRefOid` leg needs no fetched object and is immune to base movement, so it stays correct on a deferred `/pr-merge` run even after other PRs land on the base or the merged branch was stale at squash time; the merge-commit legs cover a local tip that moved but is still contained. Every comparison is fail-closed — an absent local ref, an unavailable gh lookup, or a genuinely diverged tip all refuse the delete and report distinctly (already-deleted vs. lookup-failed vs. diverged), so local commits added after the merge are never destroyed silently. The local delete passes `$local_oid` as `update-ref`'s expected old value, so it refuses (and leaves the remote branch intact) if `$B` moved between the guard and the delete. The remote delete then fires only after the local delete succeeds, only when auto-delete-on-merge is off (else GitHub already deleted it), and only when the remote tip still equals the merged head (`headRefOid`). Git offers no atomic compare-and-delete for a remote ref, so this `ls-remote` check refuses if another writer advanced `origin/$B` after the merge — narrowing, though not fully closing, a check-to-delete window. `git push origin --delete` tolerates 404 (already-deleted) and 422 (branch protection) gracefully. Capture SKIP lines and errors in the Step 4 Summary so the user knows cleanup left branches behind.
 
 **Worktree removal** uses bare `git worktree remove "$PATH"` (no `--force`) — the PR has merged so the worktree should be clean. **This stop-on-failure rule applies to every `git worktree remove` call in this section:** if removal exits non-zero, the worktree has uncommitted/untracked content the user may want to keep — stop the cleanup chain, report the path, and let the user decide, since force-removal can destroy uncommitted or untracked work that may still be needed. **Sibling phase worktrees** (some may already be cleaned by earlier pr-merge runs) need an existence guard; the inner remove still propagates failure to the caller (the `if` block exits with the inner `worktree remove` exit code, so the orchestrator above sees non-zero and stops):
 
