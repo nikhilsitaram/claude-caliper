@@ -87,6 +87,17 @@ unlock_plan() {
   rmdir "${plan_json}.lock" 2>/dev/null || true
 }
 
+# A plan dir inside a linked worktree is deleted with that worktree (issue #288).
+# Advisory only: warns on stderr, never changes the exit code.
+warn_if_plan_in_worktree() {
+  local plan_dir git_dir common_dir
+  plan_dir=$(dirname -- "$1")
+  [[ -d "$plan_dir" ]] || return 0
+  { read -r git_dir && read -r common_dir; } < <(git -C "$plan_dir" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null) || return 0
+  [[ "$git_dir" != "$common_dir" ]] || return 0
+  echo "WARNING: plan dir $plan_dir is inside a linked git worktree and is deleted with it. Keep plan artifacts in the main checkout under ${common_dir%/.git}/.claude/claude-caliper/" >&2
+}
+
 find_timeout_cmd() {
   if command -v timeout >/dev/null 2>&1; then
     echo "timeout"
@@ -2028,6 +2039,10 @@ if [[ -n "$CRITERIA_CWD_SET" ]]; then
     exit 2
   fi
 fi
+
+case "$MODE" in
+  schema|check-entry) warn_if_plan_in_worktree "$PLAN_JSON" ;;
+esac
 
 case "$MODE" in
   schema) do_schema "$PLAN_JSON" ;;
