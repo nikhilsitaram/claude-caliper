@@ -84,7 +84,7 @@ g -C "$REPO" branch b-head "$F2"
 FAKE_GH_JSON="$(gh_json MERGED "$F2" "$SQUASH")" run b-head
 check_eq "t1: exits 0" 0 "$RC"
 check_eq "t1: reports the delete, then the leased remote delete naming one branch" \
-  "DELETED b-head $F2"$'\n'"git push --force-with-lease=refs/heads/b-head:$F2 origin --delete b-head" "$OUT"
+  "DELETED b-head $F2"$'\n'"git push --force-with-lease=refs/heads/b-head:$F2 origin --delete refs/heads/b-head" "$OUT"
 check_eq "t1: branch deleted" no "$(has_branch b-head)"
 
 # Test 2: local tip moved off headRefOid but is an ancestor of a true merge commit.
@@ -184,10 +184,8 @@ check_eq "t14: gh never called" "" "$(cat "$GH_ARGS_LOG")"
 g init -q --bare "$BASE/remote.git"
 g -C "$REPO" remote add origin "$BASE/remote.git"
 remote_tip() { g -C "$REPO" ls-remote origin "refs/heads/$1" | cut -f1; }
-printed_push() {  # <helper output> — runs its second line, the push
-  local argv
-  read -ra argv <<<"$(sed -n 2p <<<"$1")"
-  (cd "$REPO" && "${argv[@]}" >/dev/null 2>&1)
+printed_push() {  # <helper output> — runs its second line, the push, through a shell
+  (cd "$REPO" && bash -c "$(sed -n 2p <<<"$1")" >/dev/null 2>&1)
 }
 
 g -C "$REPO" branch b-remote "$F2"
@@ -210,6 +208,24 @@ g -C "$REPO" branch b-headonly "$F2"
 FAKE_GH_JSON="$(gh_json MERGED "$F2" "$MISSING")" run b-headonly
 check_eq "t16: exits 0" 0 "$RC"
 check_eq "t16: branch deleted" no "$(has_branch b-headonly)"
+
+# Test 17: a commit added on top of the merged head that nets to the same tree
+# (an empty commit here) never landed — the tree-identical leg must not vouch.
+g -C "$REPO" branch b-ontop "$(commit_with "$F2" two after-merge)"
+FAKE_GH_JSON="$(gh_json MERGED "$F2" "$SQUASH")" run b-ontop
+check_eq "t17: exits 2" 2 "$RC"
+check_match "t17: reports diverged" "SKIP b-ontop:*diverged*" "$OUT"
+check_eq "t17: branch kept" yes "$(has_branch b-ontop)"
+
+# Test 18: shell syntax in a valid ref name stays inert in the printed push.
+# shellcheck disable=SC2016  # ${IFS} stays literal: it is part of the ref name
+EVIL='b-evil;touch${IFS}pwned'
+g -C "$REPO" branch "$EVIL" "$F2"
+g -C "$REPO" push -q origin "$F2:refs/heads/$EVIL"
+FAKE_GH_JSON="$(gh_json MERGED "$F2" "$SQUASH")" run "$EVIL"
+RC_PUSH=0; printed_push "$OUT" || RC_PUSH=$?
+check_eq "t18: remote deleted by the quoted push" "0 " "$RC_PUSH $(remote_tip "$EVIL")"
+check_eq "t18: no injected command ran" no "$([[ -e "$REPO/pwned" ]] && echo yes || echo no)"
 
 echo ""
 echo "Passed: $pass, Failed: $fail"

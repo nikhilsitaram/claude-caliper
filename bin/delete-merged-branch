@@ -13,7 +13,9 @@ set -euo pipefail
 # check false-negatives on squash), so the local check gh can't make lives
 # here: delete only when the local tip is exactly what GitHub merged
 # (headRefOid), an ancestor of the merge commit (true merge), or tree-identical
-# to it (squash/rebase). The headRefOid leg needs no fetched object and is
+# to it (squash/rebase) without being built on top of headRefOid — commits
+# added after the merge never landed, even when they net to the merged tree (an
+# empty commit, a change and its revert). The headRefOid leg needs no fetched object and is
 # immune to base movement, so a deferred run stays correct after other PRs land.
 # Every leg is fail-closed: a failed gh lookup, an absent or diverged local
 # tip, an unfetched merge commit, or a branch still checked out in a worktree
@@ -24,7 +26,8 @@ set -euo pipefail
 # Exit 0 prints `DELETED <branch> <headRefOid>` (no oid if gh omitted it) and,
 # when the oid is known, the exact remote delete leased on it for the caller to
 # run verbatim — a lease protects only the ref it names, so a hand-filled line
-# naming two different branches would delete unchecked. Exit 2 prints one
+# naming two different branches would delete unchecked. Its arguments are
+# shell-quoted, since a valid ref name can hold `;` or `$(…)`. Exit 2 prints one
 # GONE/SKIP line saying why the branch was left in place. Exit 1 is a usage
 # error. The remote branch stays with the caller so a safety hook can see the
 # push. This is a script, not skill markdown, because the worktree-isolation
@@ -69,6 +72,7 @@ contained() {
   [[ -n "$head_oid" && "$local_oid" == "$head_oid" ]] && return 0
   [[ -n "$merge_oid" ]] || return 1
   git merge-base --is-ancestor "$local_oid" "$merge_oid" 2>/dev/null && return 0
+  [[ -n "$head_oid" ]] && git merge-base --is-ancestor "$head_oid" "$local_oid" 2>/dev/null && return 1
   git diff --quiet "$local_oid" "$merge_oid" 2>/dev/null
 }
 if ! contained; then
@@ -81,4 +85,4 @@ if ! git update-ref -d "refs/heads/$B" "$local_oid" 2>/dev/null; then
   exit 2
 fi
 echo "DELETED $B${head_oid:+ $head_oid}"
-[[ -z "$head_oid" ]] || echo "git push --force-with-lease=refs/heads/$B:$head_oid origin --delete $B"
+[[ -z "$head_oid" ]] || printf 'git push %q origin --delete %q\n' "--force-with-lease=refs/heads/$B:$head_oid" "refs/heads/$B"
