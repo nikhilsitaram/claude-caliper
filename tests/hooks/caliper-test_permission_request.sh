@@ -158,8 +158,12 @@ MAIN7="$(cd "$TMPDIR" && pwd -P)/t7main"
 git init -q "$MAIN7"
 git -C "$MAIN7" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m init
 git -C "$MAIN7" worktree add -q "$MAIN7/.claude/worktrees/wt" -b w
+git -C "$MAIN7" worktree add -q "$MAIN7/.claude/worktrees/wt2" -b w2
+mkdir -p "$MAIN7/.claude/worktrees/wt2/.claude/claude-caliper"
 assert_output_contains "main checkout's plan dir from a linked worktree" \
   "$(run_hook_for "$MAIN7/.claude/worktrees/wt" "$MAIN7/.claude/claude-caliper/topic/plan.json")" '"behavior": "allow"'
+assert_output_contains "sibling worktree's plan dir via the main checkout" \
+  "$(run_hook_for "$MAIN7/.claude/worktrees/wt" "$MAIN7/.claude/worktrees/wt2/.claude/claude-caliper/topic/plan.json")" '"behavior": "allow"'
 
 echo "Test 8: A symlink that leads out of the plan root falls through"
 OUTSIDE="$TMPDIR/outside"
@@ -172,6 +176,11 @@ T8B="$TMPDIR/t8b"
 mkdir -p "$T8B/.claude/claude-caliper/topic"
 ln -s "$OUTSIDE/target" "$T8B/.claude/claude-caliper/topic/plan.json"
 assert_falls_through "symlinked file" "$(run_hook_for "$T8B" "$T8B/.claude/claude-caliper/topic/plan.json")"
+# A dangling directory symlink can't be resolved, but a write that creates its
+# target first would follow it out of the plan dir.
+ln -s "$OUTSIDE/newdir" "$T8B/.claude/claude-caliper/dangling"
+assert_falls_through "dangling symlink partway down the path" \
+  "$(run_hook_for "$T8B" "$T8B/.claude/claude-caliper/dangling/plan.json")"
 # Command substitution drops a trailing newline, which would check design.md
 # (absent) while the Write follows the symlink named design.md<newline>.
 ln -s "$OUTSIDE/target" "$T8B/.claude/claude-caliper/topic/design.md"$'\n'

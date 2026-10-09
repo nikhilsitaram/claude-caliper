@@ -13,10 +13,13 @@ fi
 # physical_path <absolute path>
 # Print the path with symlinks resolved through its deepest existing directory.
 # The rest may not exist yet (a Write creates it), so realpath -e won't do.
+# Fails on a symlink below that directory (to a file, or dangling): left
+# unresolved, it would let a write follow it out of where the path says.
 physical_path() {
   [[ "$1" == /* ]] || return 1
   local dir="$1" tail=""
   until [[ -d "${dir:-/}" ]]; do
+    [[ -L "$dir" ]] && return 1
     tail="/${dir##*/}$tail"
     dir="${dir%/*}"
   done
@@ -45,14 +48,14 @@ if [[ -n "$MAIN_ROOT" && "$MAIN_ROOT" != "$cwd_phys" ]]; then
 fi
 
 # Auto-allow a write only when its target, symlinks resolved, sits under one of
-# those plan dirs (#307). A symlink at the target itself would redirect the
-# write. A `..` is refused rather than collapsed: the Write tool may resolve it
-# lexically or through a symlink, and the two can land in different places. So
-# is a newline, which command substitution would drop from the path's end.
+# those plan dirs (#307). A `..` is refused rather than collapsed: the Write
+# tool may resolve it lexically or through a symlink, and the two can land in
+# different places. So is a newline, which command substitution would drop from
+# the path's end.
 file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty | select(contains("\n") | not)')
 is_caliper_file=0
 if [[ "$file_path" != */../* && "$file_path" != */.. ]] \
-    && target=$(physical_path "$file_path") && [[ ! -L "$target" ]]; then
+    && target=$(physical_path "$file_path"); then
   for d in "${find_args[@]}"; do
     if [[ "$target" == "$d"/* ]]; then
       is_caliper_file=1
