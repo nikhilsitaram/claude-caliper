@@ -80,6 +80,7 @@ There is exactly one `completion.md` per phase — the point where the orchestra
 - `architecture` (string, required): 2–3 sentences.
 - `tech_stack` (string, required): Key technologies.
 - `integration_branch` (string, optional): When present, the branch that phase worktrees and the final PR chain integrate onto. Must be a non-empty string. `validate-plan --check-base` enforces that execution runs from this branch.
+- `base_sha` (string, managed by CLI): The commit the final review range starts from, as a full SHA. Never hand-edit — orchestrate records it once with `--set-base` (see below), so a resumed run reads the original base.
 - `success_criteria` (array, optional): Plan-level acceptance checks. Same shape at every level (see below). Present in the schema; enforced by the `--criteria` runner.
 
 ### success_criteria (plan / phase / task)
@@ -99,6 +100,7 @@ There is exactly one `completion.md` per phase — the point where the orchestra
 - `phases[].depends_on` (array, required): Phase letters this phase depends on. Each must reference an earlier phase.
 - `phases[].rationale` (string, required): Why this phase is a boundary.
 - `phases[].success_criteria` (array, optional): Same shape as plan-level.
+- `phases[].base_sha` (string, managed by CLI): The commit this phase's review range starts from. Same rules as plan-level `base_sha`.
 
 ### Task level
 
@@ -147,6 +149,7 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 | `--ready plan.json [--phase A]` | Dispatch loop | Print dispatchable task IDs (pending, deps complete/skipped, no open gate), one per line; gated tasks go to stderr. Exit 0 even when empty |
 | `--check-deps plan.json --task A2` | Diagnosing one task | Exit 1 listing every unmet dependency and open gate |
 | `--clear-gate plan.json --task A5` | User confirms a gated input exists | Remove the task's `gated_on` + regenerate plan.md |
+| `--set-base plan.json --plan \| --phase A --sha HEAD` | Orchestrate setup / phase start, when no `base_sha` is recorded yet | Resolve the rev in the current directory and store it as `base_sha`; print it. First write wins: an identical repeat is a no-op, a different SHA is refused (`base_sha_conflict`) |
 | `--criteria plan.json --task A1 \| --phase A \| --plan [--cwd DIR]` | Verification | Run `success_criteria` (in DIR if given) and report pass/fail |
 | `--check-entry`, `--check-base`, `--check-review`, `--check-workflow`, `--consistency` | Gates | Review-gate, base-branch, and cross-status consistency checks |
 
@@ -158,6 +161,7 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 - `depends_on` references (task and phase) point to the same or a prior scope; no dependency cycles.
 - Task IDs unique with phase-matching prefixes; phase letters unique and alphabetically ordered.
 - No duplicate `create` paths across tasks; no file shared by two same-phase tasks unless a `depends_on` path orders them.
+- Plan- and phase-level `base_sha`, when present, is a full commit SHA.
 
 ### Output format
 
