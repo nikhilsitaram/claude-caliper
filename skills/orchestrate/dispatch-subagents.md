@@ -117,7 +117,7 @@ A task's `gated_on` names outside inputs (another team's PR, reviewer-supplied d
 
 1. Ask one AskUserQuestion with `multiSelect: true` — "Which of these inputs now exist?" — one option per `GATED:` task from `--ready`'s stderr, labeled with its task ID and input, plus a "None yet" option (questions take 2–4 options and a call up to 4 questions — spread larger sets across questions).
 2. For each selected task → `validate-plan --clear-gate "$PLAN_JSON" --task {TASK_ID}`, then re-run `--ready` and dispatch.
-3. Only "None yet" selected → stop the loop and report the gated tasks with the worktree path. The phase stays `In Progress`; resuming orchestrate re-enters this loop. (If the user wants to drop the task instead, `--update-status --status skipped` is allowed while gated.)
+3. Only "None yet" selected → pause: report the gated tasks with the phase worktree path and wait for the user, keeping this session and its worktrees intact. Don't hand off to a fresh orchestrate run — its Prepare Phase recreates the phase worktree and re-captures the base SHAs, so it can't resume mid-phase. When the user confirms an input exists, `--clear-gate` it and continue this loop. (To drop a task instead, `--update-status --status skipped` is allowed while gated.)
 
 ## Worktree Placement
 

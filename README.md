@@ -351,7 +351,7 @@ Before an LLM reviewer ever sees the plan, `validate-plan --schema` runs structu
 - All required fields present at every level, including each task's `intent` and `avoid` (an array of `{rule, why}` objects)
 - Phase dependency graph is a valid DAG (BFS cycle detection)
 - Task dependencies only reference same or earlier phases
-- No duplicate task IDs or file paths across the entire plan
+- No duplicate task IDs or `create` paths across the entire plan
 - **File-set isolation** — no two tasks in the same phase share any file path across `create`/`modify`/`test`, unless a `depends_on` path orders them
 - **Task ID prefix matches phase** — task A1 must be in Phase A
 - **Phase letters are alphabetically ordered** — A before B before C
@@ -394,7 +394,7 @@ Lead (orchestrator) ──dispatches──▶ Task Implementer Subagents (1 per 
 ```
 
 - **Phases execute sequentially.** Phase B waits until Phase A is fully merged, so it sees Phase A's code.
-- **Tasks within a phase execute in parallel.** Each task gets its own subagent with an auto-provisioned git worktree. File-set isolation (no two tasks in the same phase touch the same files) eliminates merge conflicts.
+- **Tasks within a phase execute in parallel.** Each task gets its own subagent with an auto-provisioned git worktree. File-set isolation (no two tasks in the same phase touch the same files unless `depends_on` orders them) eliminates merge conflicts.
 - **One review per phase.** After a phase's tasks merge, a single implementation-review subagent reads the integrated diff — tasks are not reviewed individually.
 
 ### Task Lifecycle
