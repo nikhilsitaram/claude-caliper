@@ -70,7 +70,7 @@ Process phases in order (A, B, C...). For each phase:
 
 Follow the dispatch protocol in `./dispatch-subagents.md`. Invariants:
 - Only dispatch tasks whose dependencies are met (`validate-plan --check-deps "$PLAN_JSON"`)
-- On implementer completion: verify the commit landed on the task branch, validate criteria (`validate-plan --criteria "$PLAN_JSON" --task {TASK_ID}`), merge the task branch directly into the phase branch, then check for newly unblocked tasks
+- On implementer completion: verify the commit landed on the task branch, validate criteria (`validate-plan --criteria "$PLAN_JSON" --task {TASK_ID} --cwd "$TASK_WORKTREE"`), merge it into the phase branch, then check for newly unblocked tasks
 - No per-task review — the phase implementation-review (Phase Wrap-Up) is the review gate
 
 ### Phase Wrap-Up
