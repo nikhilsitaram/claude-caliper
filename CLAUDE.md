@@ -12,12 +12,12 @@ Use skill-eval for dedicated skill refactors or new skill creation where trigger
 
 ### Token Efficiency
 
-SKILL.md files are injected into context when the skill triggers. Every excess word displaces working memory. Budget: 1,500 words (hard cap 2,000). The more concise, the better.
+SKILL.md files are injected into context when the skill triggers. Every excess word displaces working memory. Budget: 1,500 words (hard cap 2,500). The more concise, the better.
 
 Challenge every line: Does the agent already know this? Does this paragraph justify its token cost? Only add context Claude doesn't already have — library knowledge, common patterns, and standard practices are already in the model.
 
 - Never use `@filename` references in SKILL.md — they force-load the file immediately into context
-- Use `**See:** filename.md` for on-demand references the agent reads only when needed, but only when the content is truly conditional (not every invocation)
+- Use `**See:** filename.md` for on-demand references the agent reads only when needed, but only when the content is truly conditional (not every invocation) — moving always-read prose into a supporting file doesn't save context, it only moves it
 - One good example, not three. If the agent needs more examples, put them in a supporting file
 
 ### Cross-Referencing Syntax
