@@ -86,13 +86,11 @@ TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 
     If the `merge --ff-only` failed, **stop and surface to the user with `$WRONG_HEAD`, `$TASK_WORKTREE`, and `$PARENT_WORKTREE`** — do NOT proceed to Stage 2.
 
-    **Stage 2 — verify preconditions for the rewind.** All three checks must return exit code 0:
+    **Stage 2 — verify preconditions for the rewind.** All three must hold — the first prints `$WRONG_HEAD`, the second prints `1`, the third exits 0:
 
     ```bash
-    TASK_HEAD=$(git -C "$TASK_WORKTREE" rev-parse HEAD)
-    CHECKOUTS=$(git -C "$PARENT_WORKTREE" worktree list --porcelain | grep -cFx "branch refs/heads/$PARENT_BRANCH")
-    [ "$TASK_HEAD" = "$WRONG_HEAD" ]
-    [ "$CHECKOUTS" -eq 1 ]
+    git -C "$TASK_WORKTREE" rev-parse HEAD
+    git -C "$PARENT_WORKTREE" worktree list --porcelain | grep -cFx "branch refs/heads/$PARENT_BRANCH"
     git -C "$PARENT_WORKTREE" diff --quiet && git -C "$PARENT_WORKTREE" diff --cached --quiet
     ```
 
