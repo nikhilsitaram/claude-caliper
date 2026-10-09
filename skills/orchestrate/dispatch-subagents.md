@@ -102,13 +102,15 @@ TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 
     If any check failed, **stop and surface to the user** — do NOT proceed to Stage 3.
 
-    **Stage 3 — rewind parent via switch + atomic update-ref + switch.** No force flag (unlike `reset --hard`); the `<old-value>` arg to `update-ref` is an atomic compare-and-swap that fails loudly on TOCTOU:
+    **Stage 3 — rewind parent via switch + atomic update-ref + switch.** No force flag (unlike `reset --hard`); the `<old-value>` arg to `update-ref` is an atomic compare-and-swap that fails loudly on TOCTOU. Run each line as its own call, so the final `switch` can't mask a failed `update-ref` with exit 0:
 
     ```bash
     git -C "$PARENT_WORKTREE" switch --detach <PRE_TASK_SHA>
     git -C "$PARENT_WORKTREE" update-ref refs/heads/<PARENT_BRANCH> <PRE_TASK_SHA> <WRONG_HEAD>
     git -C "$PARENT_WORKTREE" switch <PARENT_BRANCH>
     ```
+
+    If `update-ref` failed (`<PARENT_BRANCH>` moved since Stage 2), still run the final `switch` to put the parent back on its branch, then **stop and surface to the user with `<WRONG_HEAD>` and `<PARENT_BRANCH>`** — the rewind didn't happen, and Stage 1 left the misplaced commit safe on the task branch.
 3. Proceed directly to "After Completion" — there is no per-task review. The phase implementation-review (orchestrate Phase Wrap-Up) is the review gate over the integrated diff.
 
 ## After Completion
