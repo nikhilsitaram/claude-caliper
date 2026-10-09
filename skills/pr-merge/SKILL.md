@@ -16,7 +16,7 @@ Merge (squash or rebase) and clean up branches and worktrees.
 Detect if CWD is inside a worktree — it is when the two printed lines differ (the isolation guard refuses `$(git …)` in a test):
 
 ```bash
-git rev-parse --git-dir --git-common-dir
+git rev-parse --path-format=absolute --git-dir --git-common-dir
 ```
 
 If inside a worktree, note `IN_WORKTREE=true` and capture paths for cleanup:
@@ -142,29 +142,29 @@ fi
 
 GitHub's MERGED state confirms the PR landed, but `update-ref -d` is as unconditional as `git branch -D` — it's used over `branch -d` only because `-d`'s merge check false-negatives on squash. The containment guard supplies the local check gh can't: it deletes only when the local tip is exactly what GitHub merged (`headRefOid`), or is an ancestor of the PR's merge commit (true merge), or is tree-identical to it (squash/rebase). The `headRefOid` leg needs no fetched object and is immune to base movement, so it stays correct on a deferred `/pr-merge` run even after other PRs land on the base or the merged branch was stale at squash time; the merge-commit legs cover a local tip that moved but is still contained. Every comparison is fail-closed — an absent local ref, an unavailable gh lookup, or a genuinely diverged tip all refuse the delete and report distinctly (already-deleted vs. lookup-failed vs. diverged), so local commits added after the merge are never destroyed silently. The local delete passes `$local_oid` as `update-ref`'s expected old value, so it refuses (and leaves the remote branch intact) if `$B` moved between the guard and the delete. The remote delete then fires only after the local delete succeeds, only when auto-delete-on-merge is off (else GitHub already deleted it), and only when the remote tip still equals the merged head (`headRefOid`). Git offers no atomic compare-and-delete for a remote ref, so this `ls-remote` check refuses if another writer advanced `origin/$B` after the merge — narrowing, though not fully closing, a check-to-delete window. `git push origin --delete` tolerates 404 (already-deleted) and 422 (branch protection) gracefully. Capture SKIP lines and errors in the Step 4 Summary so the user knows cleanup left branches behind.
 
-**Worktree removal** uses bare `git worktree remove <wt>` (no `--force`). Before each one, `sync-agent-memory <wt>` and delete caliper's own untracked scratch — `rm -rf <wt>/.claude/{caliper-draft,agent-memory,settings.local.json}`, what `discard_changes` used to discard — so only user content can block it. **This stop-on-failure rule applies to every `git worktree remove` call in this section:** if removal exits non-zero, the worktree has uncommitted/untracked content the user may want to keep — stop the cleanup chain, report the path, and let the user decide rather than force-removing it. **Phase worktrees** sit nested in the integration worktree; earlier runs may have removed some, hence the existence guard (the `if` exits with `worktree remove`'s code, so a failure still stops the caller). From the integration worktree:
+**Worktree removal** uses bare `git worktree remove <wt>` (no `--force`). Before each one, `sync-agent-memory <wt>` and delete caliper's own untracked scratch (what `discard_changes` used to discard) so only user content can block it — `git -C <wt> ls-files -o --exclude-standard -z -- .claude/caliper-draft .claude/agent-memory .claude/settings.local.json | xargs -0 rm -f` (untracked only; `git clean -f` is often hook-blocked). **This stop-on-failure rule applies to every `git worktree remove` call in this section:** if removal exits non-zero, the worktree holds content the user may want — stop the cleanup chain, report the path, and let the user decide rather than force-removing it. **Phase worktrees** are located by branch, not a built path (nested in the integration worktree, siblings in older plans; earlier runs may have removed some):
 
 ```bash
-if git worktree list --porcelain | grep -q "^branch refs/heads/phase-X$"; then
-  git worktree remove "$WORKTREE_PATH/.claude/worktrees/phase-X"
-fi
+git worktree list --porcelain | awk '/^worktree /{w=substr($0,10)} $0=="branch refs/heads/phase-X"{print w}'
 ```
 
+No output: already gone. Otherwise remove the printed path.
+
 **Leave and remove the current worktree** (used below) — first match wins:
-- Nested phase worktree (`…/<feature>/.claude/worktrees/phase-X`): skip `ExitWorktree` — the session belongs to the integration worktree, which orchestrate keeps using. `cd` there, remove `$WORKTREE_PATH`, and skip the `git pull --rebase` below (orchestrate fast-forwards integrate in Phase Wrap-Up 7d).
+- Nested phase worktree (`…/<feature>/.claude/worktrees/phase-X`): skip `ExitWorktree` (the session belongs to the integration worktree, which orchestrate keeps using): `cd` there, remove `$WORKTREE_PATH`, and skip the `git pull --rebase` below — orchestrate fast-forwards integrate in 7d.
 - Otherwise `ExitWorktree` with `action: "remove"`, `discard_changes: true` (the PR merged, so local commits are safe to discard).
   - Refused as not owner (design/implement enter worktrees by `path`): `ExitWorktree` with `action: "keep"` lifts isolation and returns to the main checkout; then remove `$WORKTREE_PATH`.
   - No-op (no worktree session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH"`, then prefix later commands with `cd "$MAIN_REPO" &&`.
 
 **Integration branch** (`IS_INTEGRATION=true`):
-1. Remove remaining phase worktrees (the guard above, for each `phase-X`) — they sit inside the integration worktree, so they go first
+1. Remove remaining phase worktrees (the lookup above, per `phase-X`) — nested ones sit inside the integration worktree, so they go first
 2. If `IN_WORKTREE`: leave and remove the current worktree
 3. Delete phase branches (gh-verified): for each `phase-X` from plan.json, apply the pattern above
 4. Delete `$BRANCH_NAME` (gh-verified)
 5. `git worktree prune && git pull --rebase && git remote prune origin`
 
 **Standard worktree** (`IN_WORKTREE=true`):
-- If `IS_INTEGRATION_CWD=true`: pr-merge is running from the integration worktree for a phase PR (a manual run — orchestrate uses the phase worktree) — do NOT remove the integration worktree. Just delete `$BRANCH_NAME` (gh-verified) and prune remotes (`git remote prune origin`). The orchestrator handles the integration worktree in Phase Wrap-Up step 7d/7e.
+- If `IS_INTEGRATION_CWD=true`: pr-merge is running from the integration worktree for a phase PR (a manual run — orchestrate uses the phase worktree) — do NOT remove the integration worktree. Just delete `$BRANCH_NAME` (gh-verified) and prune remotes (`git remote prune origin`). The orchestrator handles the rest in Phase Wrap-Up 7d/7e.
 - If `IS_INTEGRATION_CWD=false` (normal case, CWD branch matches PR branch):
   1. Leave and remove the current worktree
   2. Delete `$BRANCH_NAME` (gh-verified)
@@ -189,7 +189,7 @@ Report: PR number/URL, merge status, cleanup status.
 
 | Mistake | Why |
 |---------|-----|
-| Skipping `ExitWorktree` when it's available | `cd` doesn't persist across Bash tool calls — only `ExitWorktree` resets CWD at the session level. Always try `ExitWorktree` first (except for a nested phase worktree); the fallbacks cover a path-entered worktree it refuses and a cross-session no-op. |
+| Skipping `ExitWorktree` when it's available | `cd` doesn't persist across Bash tool calls — only `ExitWorktree` resets CWD at the session level. Always try `ExitWorktree` first (bar nested phase worktrees); the fallbacks cover its refusal and no-op. |
 | Deleting branch before removing worktree | Git refuses. Remove worktree first. |
 | Using `--delete-branch` on `gh pr merge` | Fails in worktree flows. Delete branch manually after. |
 | Treating `gh pr merge --auto` as blocking | It returns once auto-merge is *enabled*, not merged. Poll `gh pr view --json state` for `MERGED` before cleanup. |

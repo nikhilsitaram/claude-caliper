@@ -24,10 +24,17 @@ ALLOWLIST=(
 
 REFUSED='"\$\(git |\[\[? +\$\(git '
 
+declare -A USED=()
+
+# Sets MATCHED to the allowlist entry covering the hit, if any.
 allowed() {
   local hit="$1" entry
+  MATCHED=""
   for entry in "${ALLOWLIST[@]}"; do
-    [[ "$hit" == "${entry%%:*}:"* && "$hit" == *"${entry#*:}"* ]] && return 0
+    if [[ "$hit" == "${entry%%:*}:"* && "$hit" == *"${entry#*:}"* ]]; then
+      MATCHED="$entry"
+      return 0
+    fi
   done
   return 1
 }
@@ -37,6 +44,7 @@ FAIL=0
 while IFS= read -r hit; do
   [[ -z "$hit" || "$hit" == "$REFERENCE:"* ]] && continue
   if allowed "$hit"; then
+    USED["$MATCHED"]=1
     echo "ALLOWLISTED: $hit"
   else
     echo "FAIL: guard-refused \$(git …) form: $hit"
@@ -44,10 +52,12 @@ while IFS= read -r hit; do
   fi
 done < <(grep -rnE "$REFUSED" skills agents --include='*.md' || true)
 
-echo "=== allowlist entries still match something ==="
+# An entry that excused no refused line is stale — keeping it would silently
+# exempt a reintroduced refused form on any line sharing its substring.
+echo "=== every allowlist entry excuses a refused line ==="
 for entry in "${ALLOWLIST[@]}"; do
-  if grep -qF "${entry#*:}" "${entry%%:*}"; then
-    echo "PASS: ${entry%%:*} still holds '${entry#*:}'"
+  if [[ -n "${USED[$entry]:-}" ]]; then
+    echo "PASS: in use: $entry"
   else
     echo "FAIL: stale allowlist entry (fixed? drop it): $entry"
     FAIL=1
