@@ -362,6 +362,7 @@ Additional runtime gates:
 - `gated_on` marks tasks waiting on outside input (another team's PR, an access grant); orchestrate asks the user and `--clear-gate` releases them
 - `--check-handoffs` / `--add-handoff` record and verify cross-phase handoff notes directly in `plan.json`
 - `--criteria` runs machine-executable success criteria at task, phase, and plan levels (`--cwd <dir>` runs them in another worktree without moving the caller's shell)
+- `--schema` / `--check-entry` warn when the plan dir sits inside a linked git worktree, where it would be deleted along with the worktree
 
 This catches structural errors deterministically — no tokens spent on an LLM noticing a missing field.
 

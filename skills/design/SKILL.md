@@ -27,20 +27,19 @@ Complete in order:
    - **Small** — ≤~2 files, obvious approach. No design doc, no plan artifacts; approved in conversation.
    - **Medium** — one coherent change, fits one context, no genuine parallelism. Short design doc + one design-reviewer pass.
    - **Large** — genuine parallelism, dependency layers, or bulk beyond one sitting. Full ceremony: design-review loop, draft-plan, plan-review, orchestrate.
-6. **Set up worktree** — `EnterWorktree` enables session-aware cleanup via `ExitWorktree`:
-   - `EnterWorktree(name: "<feature>")` — creates `.claude/worktrees/<feature>` with branch `<feature>`
-   - Resolve persistent path variables (plans live in main repo, code work happens in worktree):
+6. **Set up worktree** — create it with git from the main checkout (branching from current HEAD), then `EnterWorktree(path: "$WORKTREE")`. A path-entered worktree is never auto-removed; one made by `EnterWorktree(name:)` is, on exit, if it looks unchanged — an integration branch with no commits yet does. **See:** ./worktree-isolation.md for the rules the session runs under once inside.
 
      ```bash
-     MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+     MAIN_ROOT=$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')
      PLAN_DIR="$MAIN_ROOT/.claude/claude-caliper/YYYY-MM-DD-<topic>"
      WORKTREE="$MAIN_ROOT/.claude/worktrees/<feature>"
+     git worktree add "$WORKTREE" -b <feature>
      mkdir -p "$WORKTREE/.claude" && jq -n --arg d "$MAIN_ROOT" '{permissions:{additionalDirectories:[$d]}}' > "$WORKTREE/.claude/settings.local.json"
      seed-agent-memory "$WORKTREE"
      ```
 
-     `$PLAN_DIR` lives in the main repo (gitignored) so plan artifacts survive worktree cleanup. Use `$PLAN_DIR` and `$WORKTREE` — not relative paths — in every dispatch prompt and `jq` write below; subagents inherit worktree CWD and relative `.claude/claude-caliper/...` won't resolve. The `settings.local.json` write registers `$MAIN_ROOT` as an additional directory so future sessions started inside the worktree (e.g. a fresh `claude` launched there) don't trigger per-command permission prompts when reading/writing `$PLAN_DIR`. `seed-agent-memory` copies `$MAIN_ROOT/.claude/agent-memory` into `$WORKTREE` as a real dir so subagents with `memory: project` (design-reviewer, plan-drafter, plan-reviewer, task-implementer, implementation-reviewer) read accumulated memory and write locally; the `SubagentStop` hook syncs their writes back to `$MAIN_ROOT` before cleanup. (A symlink can't be used — since the v2.1.251 harness fix, a subagent's writes resolving out of its worktree through a symlink are blocked.)
-   - Multi-phase (large tier only): rename to integration branch: `git branch -m integrate/<feature>` — phase worktrees created by orchestrate as siblings
+     `$PLAN_DIR` lives in the main repo (gitignored) so plan artifacts outlive the worktree. Under isolation the Write/Edit tools refuse it, so documents are drafted in the worktree and `cp`'d over (see the isolation file) — never relocate `$PLAN_DIR` into the worktree. Use `$PLAN_DIR` and `$WORKTREE` — not relative paths — in every dispatch prompt and `jq` write below; subagents inherit worktree CWD. `settings.local.json` registers `$MAIN_ROOT` so a fresh `claude` launched inside the worktree doesn't prompt per command on `$PLAN_DIR`. `seed-agent-memory` copies `$MAIN_ROOT/.claude/agent-memory` into `$WORKTREE` as a real dir (writes through a symlink are blocked under isolation) so `memory: project` subagents read accumulated memory; the `SubagentStop` hook syncs their writes back to `$MAIN_ROOT`.
+   - Multi-phase (large tier only): rename to integration branch: `git branch -m integrate/<feature>` — orchestrate nests phase worktrees under this one
    - Single-phase: branch name `<feature>` is correct as-is; execution works here directly, PRs to main
    1. Bootstrap dependencies per **See:** ./dependency-bootstrap.md
    2. Run tests to establish a clean baseline
@@ -81,7 +80,7 @@ Complete in order:
    - **Medium:** Write the design doc (below), self-review it, then dispatch design-review with the **Review Loop Protocol** (below). No draft-plan, no plan.json, no plan-review. Once design-review passes, invoke the `implement` skill directly, passing `$PLAN_DIR/design-<topic>.md`, `$WORKTREE`, and the mapped workflow value.
    - **Large:** Write the design doc, self-review it, dispatch design-review with the **Review Loop Protocol**, dispatch draft-plan, then dispatch plan-review with the same protocol. Then **Route Workflow** (below).
 
-**Write design doc** (Medium/Large only) — `$PLAN_DIR/design-<topic>.md` (no commit — gitignored transient state, lives in main repo)
+**Write design doc** (Medium/Large only) — `$PLAN_DIR/design-<topic>.md`, written and revised through the draft `$WORKTREE/.claude/caliper-draft/design-<topic>.md` per the isolation file (no commit — gitignored, lives in main repo)
 
 Before dispatching design-review, verify the doc satisfies this quality checklist (catches the most common reviewer findings on first pass):
 - Success criteria are behavioral outcomes, not implementation details ("users can log in" not "tests pass" or "middleware installed")

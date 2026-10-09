@@ -17,7 +17,7 @@ A plan is `plan.json` — a structured manifest of phases and tasks. Each task c
 2. **Entry gate** — `validate-plan --check-entry $PLAN_DIR/plan.json --stage draft-plan` (exits early if design-review hasn't passed; plan.json need not exist yet — only reviews.json is read)
 3. **Explore codebase** — Understand patterns, find exact file paths. You know the codebase so the implementer's `intent` can be terse and precise.
 4. **Decide phasing** — Single vs multi-phase (see Phasing below)
-5. **Write plan.json** — All task metadata, including `intent` and `avoid` (see Task Structure)
+5. **Write plan.json** — All task metadata, including `intent` and `avoid` (see Task Structure). Under worktree isolation the Write tool refuses `$PLAN_DIR`, so write through the draft `<working directory>/.claude/caliper-draft/plan.json` — Write/Edit it, then `cp` it to `$PLAN_DIR/plan.json` (before any later edit, `cp` `$PLAN_DIR/plan.json` back onto it first). **See:** `skills/design/worktree-isolation.md`
 6. **Run validate-plan --schema** — Fix any structural errors
 7. **Run validate-plan --render** — Generates plan.md deterministically
 8. **Self-review** — Re-read every task entry against the Self-Review Gate below. Fix findings before handoff.

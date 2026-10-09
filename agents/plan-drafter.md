@@ -24,6 +24,8 @@ Template variables available in your invocation prompt:
 
 Use `{PLAN_DIR}` in place of `$PLAN_DIR` references from the SKILL.md.
 
+You run in the background and can't answer a refused write. Under worktree isolation the Write tool refuses `{PLAN_DIR}` (it's in the main checkout), so never Write `plan.json` there directly — follow draft-plan step 5's draft-then-`cp` path.
+
 ## Quality Bar
 
 The bar is intent quality, not complete pasted code. Each task's `intent` must let a fresh Claude — reading the codebase directly at full context — execute the task unambiguously: it names the component and its behavior, states how the task fits the phase, and describes the outcome and seams without spelling out line-by-line code. Each `avoid` entry must give the reason, not just the prohibition, so the executor can judge edge cases.

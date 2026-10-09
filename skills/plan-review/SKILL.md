@@ -96,7 +96,7 @@ Reviewer produces:
 
 Pass 1 is discovery. The lead fixes all findings and verifies each fix inline (grep/read). A delta pass 2 is dispatched only if pass 1 found critical or high issues; after pass 2, any remaining findings are fixed inline and the loop records pass — never a third dispatch. Residual leakage is caught by the next downstream gate (implementation-review), not by additional same-gate passes.
 
-**Pass 1:** Dispatch the reviewer, extract its `json review-summary` block, display all findings, then triage (fix vs dismiss with reasoning) and apply every fix in a single editing pass, verifying each inline (grep/read). If zero critical/high issues were found: done.
+**Pass 1:** Dispatch the reviewer, extract its `json review-summary` block, display all findings, then triage (fix vs dismiss with reasoning) and apply every fix in a single editing pass, verifying each inline (grep/read). Under worktree isolation, edit `plan.json` through its draft — **See:** `skills/design/worktree-isolation.md`. If zero critical/high issues were found: done.
 
 **Pass 2 (only if pass 1 found critical or high):** Re-dispatch a fresh reviewer of the same type with the same full scope, appending a `## Prior Issues` section listing the pass-1 issues each enriched with its resolution (`fixed`/`dismissed`, with dismissal reason when dismissed). Repeat triage + inline fix/verify for any newly reported issues, then record pass. Every finding is still fixed or dismissed with a stated reason — the cap limits reviewer dispatches, not fixes; pass-2 fixes are verified inline rather than by a third reviewer.
 

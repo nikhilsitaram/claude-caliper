@@ -73,7 +73,7 @@ Runs 3 independent full-codebase Opus reviewers in parallel, a peer cross-verifi
 Compute these absolute paths and create the artifact directory:
 
 ```bash
-MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||')"
+MAIN_ROOT=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||')
 if [ -z "$MAIN_ROOT" ]; then
   echo "ERROR: codebase-review team mode must be run inside a git repository (MAIN_ROOT could not be resolved)." >&2
   exit 1

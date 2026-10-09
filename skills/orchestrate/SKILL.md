@@ -26,18 +26,17 @@ TaskCreate one entry per task in plan.json (e.g. "Implement A1", "Implement A2",
 ## Setup
 
 Before first phase:
-- Resolve main repo and plan paths. Plan artifacts live in the main repo at `$MAIN_ROOT/.claude/claude-caliper/` (gitignored, decoupled from worktree lifetime so they survive cleanup) — they are NOT in the worktree CWD, so `realpath plan.json` from the worktree will fail.
+- Resolve main repo and plan paths. Plan artifacts live in the main repo at `$MAIN_ROOT/.claude/claude-caliper/` (gitignored, so they outlive worktree cleanup), not in the worktree CWD. The session usually runs worktree-isolated: write `$PLAN_DIR` files through Bash (`jq`, `cat >>`), never Write/Edit, and keep git calls plain (**See:** `skills/design/worktree-isolation.md`). `MAIN_ROOT` is `git rev-parse --path-format=absolute --git-common-dir` minus `/.git`; then separately:
 
   ```bash
-  MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
-  PLAN_JSON="$(realpath -- "<absolute-path-passed-by-caller>")"
-  PLAN_DIR="$(dirname "$PLAN_JSON")"
+  PLAN_JSON=$(realpath -- "<absolute-path-passed-by-caller>")
+  PLAN_DIR=$(dirname "$PLAN_JSON")
   ```
 
-  The caller (design skill or user) supplies the absolute plan.json path — typically `$MAIN_ROOT/.claude/claude-caliper/<folder>/plan.json`. All references downstream must use the absolute `$PLAN_JSON` / `$PLAN_DIR` paths since phase worktrees don't have these files.
+  The caller supplies the absolute plan.json path; use the absolute `$PLAN_JSON` / `$PLAN_DIR` downstream.
 - Resolve the design doc (implementers read it for feature-wide context): `DESIGN_DOC="$(ls "$PLAN_DIR"/design-*.md 2>/dev/null | head -1)"` — the design skill writes it as `$PLAN_DIR/design-<topic>.md`. Substituted into `{DESIGN_DOC}` in the implementer prompt.
 - Read workflow: `WORKFLOW=$(jq -r '.workflow' "$PLAN_JSON")`
-Note: `workflow` is read from plan.json (set by the design skill based on user selection and caliper-settings defaults), not from caliper-settings at runtime. This avoids two sources of truth — the plan is the single source once created.
+Note: `workflow` comes from plan.json (set by design), not caliper-settings — the plan is the single source of truth once created.
 - Read task implementer model: `TASK_IMPLEMENTER_MODEL=$(caliper-settings get task_implementer_model)`
 - Read implementation reviewer model: `IMPL_REVIEWER_MODEL=$(caliper-settings get implementation_reviewer_model)`
 Note: These model settings are substituted into dispatch template variables `{TASK_IMPLEMENTER_MODEL}` and `{IMPL_REVIEWER_MODEL}` when dispatching implementers and the phase implementation-review.
@@ -60,7 +59,7 @@ Process phases in order (A, B, C...). For each phase:
 
 1. Determine phase resumption state (multi-phase only — single-phase: use feature worktree, no resumption check needed). Phase status is the primary signal because squash-merge in step 7 typically deletes the phase branch ref, making `git merge-base --is-ancestor` unreliable.
    - If phase status starts with "Complete": run `gh pr list --base integrate/<feature> --head phase-<letter> --state merged --json number --jq 'length'`. If non-zero, the phase is fully merged — skip to next phase. If zero (status Complete but PR not yet merged), skip directly to Phase Wrap-Up step 7, reusing any open PR or creating one if absent.
-   - Otherwise (status "Not Started" or "In Progress"): re-validate the base branch **while still on the integration branch, before creating the worktree** — `validate-plan --check-base "$PLAN_JSON"` (multi-phase only — confirms the lead is on the integration branch before branching off). `--check-base` demands the current branch equal `integration_branch`, so it can never pass once you're on `phase-<letter>`; it must run here, not after the worktree switch. Then create the phase worktree from the integration branch (`git worktree add "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>" -b phase-<letter>`) and `seed-agent-memory "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>"` so the implementation-reviewer dispatched at Phase Wrap-Up reads accumulated memory (its writes are synced back to `$MAIN_ROOT` at cleanup, step e). Continue with the remaining numbered steps below.
+   - Otherwise (status "Not Started" or "In Progress"): re-validate the base branch **before creating the worktree** — `validate-plan --check-base "$PLAN_JSON"` demands the current branch equal `integration_branch`, so it can never pass once you're on `phase-<letter>`. Then, from the integration worktree root, create the phase worktree **nested** inside it — `git worktree add .claude/worktrees/phase-<letter> -b phase-<letter>`, i.e. `PHASE_WORKTREE="$MAIN_ROOT/.claude/worktrees/<feature>/.claude/worktrees/phase-<letter>"` (a sibling under the main checkout is unusable under isolation) — and `seed-agent-memory "$PHASE_WORKTREE"` so the Phase Wrap-Up implementation-reviewer reads accumulated memory (synced back at step e). Continue with the remaining numbered steps below.
 2. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in worktree
 3. **Bootstrap dependencies** in the worktree. **See:** skills/design/dependency-bootstrap.md
 4. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure) — prior-phase handoff notes are recorded in plan.json (written at prior phase's wrap-up via `--add-handoff`) and render into plan.md
@@ -78,7 +77,7 @@ Follow the dispatch protocol in `./dispatch-subagents.md`. Invariants:
 After all tasks complete and branches merged:
 1. Dispatch implementation-review with `PHASE_BASE_SHA..HEAD` using `model: "$IMPL_REVIEWER_MODEL"`, run Review Loop Protocol (scope: `phase-{letter_lower}`)
 2. `validate-plan --check-review "$PLAN_JSON" --type impl-review --scope phase-{letter_lower}`
-3. Append review changes to `${PHASE_DIR}/completion.md`
+3. Append review changes to `${PHASE_DIR}/completion.md` (`cat >>`)
 4. Run phase criteria: `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}`
 5. **Record cross-phase handoff notes** for downstream tasks. For each task in a future phase whose `depends_on` references a task from this phase, record a handoff in plan.json describing the shipped interface — names, paths, signatures, usage. Recording post-wrap-up (rather than before next-phase dispatch) means notes reflect the shipped reality, including any review-driven interface changes:
 
@@ -95,11 +94,11 @@ After all tasks complete and branches merged:
    **Validate:** `validate-plan --check-handoffs "$PLAN_JSON" --phase {LETTER}` — fails if any later-phase task depending on a task in this phase lacks a recorded handoff AND no opt-out block exists.
 6. Update status: `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "Complete (YYYY-MM-DD)"` — only after criteria and handoff validation pass, so a resumed run never sees a phase claiming completion with gates unmet.
 7. (Multi-phase) Merge phase PR into integration branch — runs unconditionally for every phase including the last, regardless of `workflow` setting. The final integrate->main PR is created separately in "After All Phases".
-   a. Open the phase PR: if one already exists and is open (`gh pr list --head phase-<letter> --state open --json url --jq '.[0].url'`), reuse it; otherwise run `pr-create --base integrate/<feature>`.
+   a. From the phase worktree, open the phase PR: if one is already open (`gh pr list --head phase-<letter> --state open --json url --jq '.[0].url'`), reuse it; otherwise run `pr-create --base integrate/<feature>`.
    b. `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`
-   c. If `$REVIEW_WAIT` == 0: invoke `pr-merge` directly. Else: invoke `pr-review --automated-merge` (which invokes `pr-merge`). No pre-merge `gh pr checks` poll — `pr-merge` enables auto-merge so GitHub gates on CI, then waits (up to `merge_wait_minutes`) for the `MERGED` flip before returning. If that wait times out with the PR still open, step d's `--ff-only` finds no merged tip and stops the loop (handled there) — resume once GitHub completes the merge
-   d. Return to the integration worktree (the orchestrate lead's primary CWD established at Setup) and fast-forward local integrate to the merged tip: `cd "$MAIN_ROOT/.claude/worktrees/<feature>" && git pull --ff-only origin integrate/<feature>` — uses `$MAIN_ROOT` from Setup so the path is absolute (relative `cd .claude/worktrees/<feature>` would fail when called from a phase worktree). `--ff-only` surfaces unexpected divergent commits, because auto-resolution via hard reset can silently destroy local commits the user may need. If it fails, stop the loop and surface to the user with the worktree path.
-   e. Remove phase worktree if it still exists (pr-merge typically removes it during cleanup; on resumption it may already be gone): `if git worktree list --porcelain | grep -q "^branch refs/heads/phase-<letter>$"; then sync-agent-memory "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>"; git worktree remove "$MAIN_ROOT/.claude/worktrees/<feature>-phase-<letter>"; fi` — anchored on the `branch refs/heads/...` porcelain line (avoids matching the worktree-path line). `sync-agent-memory` first persists the phase worktree's `memory: project` writes to `$MAIN_ROOT` (belt-and-suspenders with the `SubagentStop` hook, in case its `cwd` for an isolated subagent wasn't this worktree). No `--force`; missing worktree is silent-continue, while a failed `git worktree remove` (uncommitted content) propagates non-zero exit so the orchestrator can stop and surface the path.
+   c. If `$REVIEW_WAIT` == 0: invoke `pr-merge` directly. Else: invoke `pr-review --automated-merge` (which invokes `pr-merge`). No pre-merge `gh pr checks` poll — `pr-merge` enables auto-merge so GitHub gates on CI, then waits (up to `merge_wait_minutes`) for the `MERGED` flip before returning. Then confirm `gh pr view <phase PR> --json state -q .state` prints `MERGED`; if not (the wait timed out), stop the loop and resume once GitHub merges it — step d's `--ff-only` would succeed as a no-op and branch the next phase without this one
+   d. Return to the integration worktree (the orchestrate lead's primary CWD established at Setup) and fast-forward local integrate to the merged tip: `cd "$MAIN_ROOT/.claude/worktrees/<feature>" && git pull --ff-only origin integrate/<feature>` — absolute, since a relative `cd` fails from inside the nested phase worktree. `--ff-only` surfaces divergent commits instead of letting a hard reset silently destroy them. If it fails, stop the loop and surface to the user with the worktree path.
+   e. Remove the phase worktree if it still exists (pr-merge usually has; on resumption it may be gone). Locate it by branch (a resumed older plan may use the sibling layout): `git worktree list --porcelain | awk '/^worktree /{w=substr($0,10)} $0=="branch refs/heads/phase-<letter>"{print w}'`, then `sync-agent-memory` the printed path (backstop for the `SubagentStop` hook) and `git worktree remove` it. No output means it's gone. No `--force`; a failed remove (uncommitted content) stops the loop with the path surfaced.
    f. Continuity: only Rule 4 deviations stop the loop. Review feedback is auto-fixed by `pr-review --automated-merge`.
 
 ## Review Loop Protocol (Two-Pass Cap)
@@ -109,7 +108,7 @@ The review loop is capped at two dispatches. Pass 1 is discovery. The lead fixes
 For each dispatch:
 
 1. Extract the last `json review-summary` fenced block from the response. Missing/malformed on pass 1 -> re-dispatch once (that consumes the pass-2 slot); missing on pass 2 -> escalate via AskUserQuestion.
-2. Triage issues: "fix" or "dismiss" (with reasoning). **Issues with `non_dismissible: true` must take the 'fix' branch** — dismissing them invalidates the review record. This prevents the dismissal pattern from gh issue #243 (impl-review #1 there dismissed a "kv_launcher↔kv_fetch boundary test missing" finding as low-severity; the seam then leaked 22+ commits of contract-drift bugs).
+2. Triage issues: "fix" or "dismiss" (with reasoning). **Issues with `non_dismissible: true` must take the 'fix' branch** — dismissing them invalidates the review record. (gh issue #243: a dismissed boundary-test finding let 22+ commits of contract drift leak through the seam.)
 3. Fix all actionable findings and verify each inline (grep/read).
 4. If this was pass 1 AND pass 1 surfaced any critical or high issue -> dispatch delta pass 2 over the same scope. Otherwise -> write the reviews.json pass record and advance.
 5. After pass 2 -> fix any remaining findings inline, write the reviews.json pass record, advance. No third dispatch.
@@ -148,7 +147,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 
 | Constraint | Why |
 |------------|-----|
-| Resolve `PLAN_JSON` as absolute path at setup | Plan artifacts are gitignored — phase worktrees won't have them. Absolute path ensures all agents access the same file. |
+| Resolve `PLAN_JSON` as absolute path at setup | Phase worktrees don't have the gitignored plan artifacts; one absolute path means every agent reads the same file |
 | Validate schema before execution | Catches file-set overlap and structural issues early |
 | Record PLAN_BASE_SHA before first phase | Final cross-phase review needs total diff |
 | Record PHASE_BASE_SHA per phase | Per-phase review needs exact phase start |

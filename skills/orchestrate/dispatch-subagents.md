@@ -4,14 +4,20 @@ Parallel task execution via Agent tool dispatches with worktree isolation.
 
 ## Dispatch Implementers
 
-List the dispatchable tasks: `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` prints one task ID per line — `pending`, every dependency `complete`/`skipped`, no open `gated_on` (in-flight `in_progress` tasks are never re-listed). Tasks held only by a gate are reported on stderr as `GATED: <id> — <input>`. For each ready task, create a worktree nested under the parent (feature or phase) worktree and extract metadata (strip `status` — orchestrator state not needed by implementer):
+List the dispatchable tasks: `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` prints one task ID per line — `pending`, every dependency `complete`/`skipped`, no open `gated_on` (in-flight `in_progress` tasks are never re-listed). Tasks held only by a gate are reported on stderr as `GATED: <id> — <input>`. For each ready task, create a worktree nested under the parent (feature or phase) worktree and extract metadata (strip `status` — orchestrator state not needed by implementer). Use plain git calls and carry their printed values forward as literals — the worktree-isolation guard refuses git arguments built from `$(git …)` (**See:** `skills/design/worktree-isolation.md`). First:
 
 ```bash
-PARENT_WORKTREE="$(git rev-parse --show-toplevel)"
-MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
-[[ "$PARENT_WORKTREE" == "$MAIN_ROOT" ]] && { echo "ERROR: orchestrator CWD is the main repo; dispatching from here creates sibling task worktrees that trigger silent permission denials in background subagents. cd into the feature or phase worktree before dispatching." >&2; exit 1; }
-git -C "$PARENT_WORKTREE" worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
-TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
+git rev-parse --path-format=absolute --show-toplevel --git-common-dir
+```
+
+Line 1 is `PARENT_WORKTREE`. If it equals line 2 minus `/.git`, the CWD is the main repo — stop: dispatching from there creates sibling task worktrees that trigger silent permission denials in background subagents; `cd` into the feature or phase worktree first. Otherwise, with that literal:
+
+```bash
+git worktree add <PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
+```
+
+```bash
+TASK_WORKTREE=<PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER}
 # Claim the task before dispatch: --ready lists only `pending` tasks, so a task
 # still `pending` while its implementer starts up would be re-listed — and
 # dispatched twice — after the next completion.
@@ -45,10 +51,10 @@ The agent runs in background automatically (defined in agent frontmatter). Track
 
 When a background agent completes (push notification — do not poll):
 
-Shell variables don't persist between Bash calls, and with parallel tasks a leftover `$TASK_WORKTREE` names whichever task was dispatched last — checks and criteria would silently run against the wrong worktree. Re-derive both paths from the completing task's ID at the start of each command below and in After Completion that uses them:
+Shell variables don't persist between Bash calls, and with parallel tasks a leftover `$TASK_WORKTREE` names whichever task was dispatched last — checks and criteria would silently run against the wrong worktree. Re-derive both paths from the completing task's ID at the start of each command below and in After Completion that uses them (under worktree isolation, assign `PARENT_WORKTREE` its literal path — the guard refuses git arguments built from `$(…)`):
 
 ```bash
-PARENT_WORKTREE="$(git rev-parse --show-toplevel)"
+PARENT_WORKTREE=$(git rev-parse --show-toplevel)
 TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 ```
 
@@ -80,11 +86,11 @@ TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 
     If the `merge --ff-only` failed, **stop and surface to the user with `$WRONG_HEAD`, `$TASK_WORKTREE`, and `$PARENT_WORKTREE`** — do NOT proceed to Stage 2.
 
-    **Stage 2 — verify preconditions for the rewind.** All three checks must return exit code 0:
+    **Stage 2 — verify preconditions for the rewind.** All three must hold — the first prints `$WRONG_HEAD`, the second prints `1`, the third exits 0:
 
     ```bash
-    [ "$(git -C "$TASK_WORKTREE" rev-parse HEAD)" = "$WRONG_HEAD" ]
-    [ "$(git -C "$PARENT_WORKTREE" worktree list --porcelain | grep -cFx "branch refs/heads/$PARENT_BRANCH")" -eq 1 ]
+    git -C "$TASK_WORKTREE" rev-parse HEAD
+    git -C "$PARENT_WORKTREE" worktree list --porcelain | grep -cFx "branch refs/heads/$PARENT_BRANCH"
     git -C "$PARENT_WORKTREE" diff --quiet && git -C "$PARENT_WORKTREE" diff --cached --quiet
     ```
 
@@ -108,7 +114,7 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
 1. Validate criteria: `validate-plan --criteria "$PLAN_JSON" --task {TASK_ID} --cwd "$TASK_WORKTREE"` — criteria `run` commands are repo-relative and the task branch isn't merged yet, so they must run against the task worktree; `--cwd` runs them there without moving your shell. A failed criterion means the task is not done; send it back to the implementer instead of advancing status
 2. Mark task complete: `validate-plan --update-status "$PLAN_JSON" --task {TASK_ID} --status done` — `done` is stored as `complete`; spell it `done` because worktree-isolated sessions refuse any command containing a bare `complete` word (read as the shell builtin)
 3. Merge and clean up the agent's worktree:
-   - Guard before merge: `PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)` — then `[[ "$PARENT_BRANCH" == integrate/* ]] && { echo "ERROR: PARENT_WORKTREE is on the integration branch. Task branches must merge into the phase branch; integration happens only in Phase Wrap-Up step 7." >&2; exit 1; }`. This catches state drift from the wrong-worktree recovery path where the phase branch was reset to integration HEAD.
+   - Guard before merge: `git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD` — if it prints `integrate/*`, stop: task branches must merge into the phase branch; integration happens only in Phase Wrap-Up step 7. This catches state drift from the wrong-worktree recovery path where the phase branch was reset to integration HEAD.
    - Merge: `git -C "$PARENT_WORKTREE" merge {TASK_ID_LOWER}` (task branch into the phase branch, never directly into integration)
    - Clean up: `sync-agent-memory "$TASK_WORKTREE"` (persist the task-implementer's `memory: project` writes to `$MAIN_ROOT` before removal — belt-and-suspenders with the `SubagentStop` hook), then `git worktree remove "$TASK_WORKTREE"` then `git branch -d {TASK_ID_LOWER}`
    - Reset CWD after removal: `cd "$PARENT_WORKTREE" && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted. Return to the parent (phase) worktree, not the multi-phase feature/integration worktree: the next dispatch and completion derive `PARENT_WORKTREE` from CWD
@@ -126,4 +132,4 @@ A task's `gated_on` names outside inputs (another team's PR, reviewer-supplied d
 ## Worktree Placement
 
 - Worktrees are created by the orchestrator via `git worktree add` from the parent (feature or phase) branch; the implementer works inside the worktree it is handed.
-- Task worktrees must nest **inside** the parent (feature or phase) worktree — anchor `git worktree add` with `git -C "$PARENT_WORKTREE"` so CWD drift never produces siblings under the main repo. Background subagents writing into a sibling worktree get silent permission denials because Claude Code scopes write permission to the parent session's project root, and they cannot answer the cross-directory prompt.
+- Task worktrees must nest **inside** the parent (feature or phase) worktree — anchor `git worktree add` with the absolute `$PARENT_WORKTREE/.claude/worktrees/...` path so CWD drift never produces siblings under the main repo (and no `git -C` on a computed path, which the isolation guard refuses — **See:** `skills/design/worktree-isolation.md`). Background subagents writing into a sibling worktree get silent permission denials because Claude Code scopes write permission to the parent session's project root, and they cannot answer the cross-directory prompt.
