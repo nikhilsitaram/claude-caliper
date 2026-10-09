@@ -24,7 +24,7 @@ Usage:
   validate-plan --check-deps <plan.json> --task <ID>
   validate-plan --ready <plan.json> [--phase <LETTER>]
   validate-plan --clear-gate <plan.json> --task <ID>
-  validate-plan --set-base <plan.json> (--plan | --phase <LETTER>) --sha <REV>
+  validate-plan --set-base <plan.json> (--plan | --phase <LETTER>) --sha <REV> [--if-unset]
   validate-plan --check-workflow <plan.json>
   validate-plan --add-dep <plan.json> --task <DOWNSTREAM_ID> --depends-on <SOURCE_ID>
   validate-plan --add-file <plan.json> --task <ID> --kind <create|modify|test> --path <FILE>
@@ -1495,8 +1495,10 @@ do_clear_gate() {
 # orchestrate run reads the original base rather than re-capturing HEAD after
 # tasks have merged (gh issue #296). <rev> is resolved in the caller's CWD so the
 # lead can pass HEAD — worktree-isolated sessions refuse "$(git rev-parse HEAD)".
+# With if_unset, a recorded base is kept and printed instead of refused, so the
+# lead gets the effective base from one command on fresh and resumed runs alike.
 do_set_base() {
-  local plan_json="$1" phase_letter="$2" rev="$3"
+  local plan_json="$1" phase_letter="$2" rev="$3" if_unset="${4:-}"
   local label="plan"
   [[ -n "$phase_letter" ]] && label="phase $phase_letter"
   local sha
@@ -1519,14 +1521,14 @@ do_set_base() {
     echo "ERROR: could not read $label base_sha — run validate-plan --schema $plan_json" >&2
     exit 1
   fi
-  if [[ "$current" == "$sha" ]]; then
+  if [[ "$current" == "$sha" || ( -n "$current" && -n "$if_unset" ) ]]; then
     unlock_plan "$plan_json"; trap - EXIT
-    echo "$sha"
+    echo "$current"
     return 0
   fi
   if [[ -n "$current" ]]; then
     unlock_plan "$plan_json"; trap - EXIT
-    echo "ERROR: base_sha_conflict: $label base_sha is already $current; refusing $sha. A resumed run reuses the recorded base — read it from plan.json instead of setting it again." >&2
+    echo "ERROR: base_sha_conflict: $label base_sha is already $current; refusing $sha. To keep the recorded base, pass --if-unset." >&2
     exit 1
   fi
   local tmp="${plan_json}.tmp.$$"
@@ -1853,6 +1855,7 @@ HANDOFF_NOTE=""
 CRITERIA_CWD=""
 CRITERIA_CWD_SET=""
 SET_BASE_SHA=""
+SET_BASE_IF_UNSET=""
 # shellcheck disable=SC2034
 CHECK_ENTRY_STAGE=""
 
@@ -2020,6 +2023,10 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
+    --if-unset)
+      SET_BASE_IF_UNSET=1
+      shift
+      ;;
     --check-handoffs)
       MODE="check-handoffs"
       shift
@@ -2109,6 +2116,11 @@ done
 [[ -z "$MODE" ]] && usage
 [[ -z "$PLAN_JSON" ]] && usage
 
+if [[ -n "$SET_BASE_IF_UNSET" && "$MODE" != "set-base" ]]; then
+  echo "ERROR: --if-unset only applies to --set-base" >&2
+  exit 2
+fi
+
 if [[ -n "$CRITERIA_CWD_SET" ]]; then
   if [[ "$MODE" != "criteria" ]]; then
     echo "ERROR: --cwd only applies to --criteria" >&2
@@ -2191,9 +2203,9 @@ case "$MODE" in
       exit 2
     fi
     if [[ "$UPDATE_TARGET" == "plan" ]]; then
-      do_set_base "$PLAN_JSON" "" "$SET_BASE_SHA"
+      do_set_base "$PLAN_JSON" "" "$SET_BASE_SHA" "$SET_BASE_IF_UNSET"
     else
-      do_set_base "$PLAN_JSON" "$UPDATE_ID" "$SET_BASE_SHA"
+      do_set_base "$PLAN_JSON" "$UPDATE_ID" "$SET_BASE_SHA" "$SET_BASE_IF_UNSET"
     fi
     ;;
   add-dep)

@@ -149,7 +149,7 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 | `--ready plan.json [--phase A]` | Dispatch loop | Print dispatchable task IDs (pending, deps complete/skipped, no open gate), one per line; gated tasks go to stderr. Exit 0 even when empty |
 | `--check-deps plan.json --task A2` | Diagnosing one task | Exit 1 listing every unmet dependency and open gate |
 | `--clear-gate plan.json --task A5` | User confirms a gated input exists | Remove the task's `gated_on` + regenerate plan.md |
-| `--set-base plan.json --plan \| --phase A --sha HEAD` | Orchestrate setup / phase start, when no `base_sha` is recorded yet | Resolve the rev in the current directory and store it as `base_sha`; print it. First write wins: an identical repeat is a no-op, a different SHA is refused (`base_sha_conflict`) |
+| `--set-base plan.json --plan \| --phase A --sha HEAD [--if-unset]` | Orchestrate setup / phase start | Resolve the rev in the current directory, store it as `base_sha`, and print the stored base. First write wins: an identical repeat is a no-op, and a different SHA is refused (`base_sha_conflict`) — or, with `--if-unset`, the recorded base is kept and printed |
 | `--criteria plan.json --task A1 \| --phase A \| --plan [--cwd DIR]` | Verification | Run `success_criteria` (in DIR if given) and report pass/fail |
 | `--check-entry`, `--check-base`, `--check-review`, `--check-workflow`, `--consistency` | Gates | Review-gate, base-branch, and cross-status consistency checks |
 

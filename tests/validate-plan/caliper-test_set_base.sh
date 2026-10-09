@@ -97,26 +97,30 @@ out=$(vp --set-base "$PLAN" --phase B --sha HEAD)
 assert_eq "each phase keeps its own first write" "$head2" "$out"
 assert_eq "phase A base survives phase B write" "$head1" "$(jq -r '.phases[0].base_sha' "$PLAN")"
 
-echo "=== orchestrate read-then-set flow (skills/orchestrate/SKILL.md Setup) ==="
+echo "=== --if-unset: the orchestrate lead's one command (skills/orchestrate/SKILL.md) ==="
 
-# Fresh run: the read prints nothing, so the lead records HEAD. Resumed run after
-# merges: the read returns the original, so the lead never calls --set-base.
-# The skill must carry the exact read and set commands exercised below.
+# Fresh run: records HEAD and prints it. Resumed run after merges: keeps and
+# prints the original instead of refusing. The skill must carry this command.
 SKILL_MD="$REPO_ROOT/skills/orchestrate/SKILL.md"
-for cmd in "jq -r '.base_sha // empty' \"\$PLAN_JSON\"" "validate-plan --set-base \"\$PLAN_JSON\" --plan --sha HEAD"; do
-  if grep -qF -- "$cmd" "$SKILL_MD"; then pass "SKILL.md carries: $cmd"; else fail "SKILL.md is missing: $cmd"; fi
-done
+# shellcheck disable=SC2016  # literal skill text: $PLAN_JSON must not expand
+cmd='validate-plan --set-base "$PLAN_JSON" --plan --sha HEAD --if-unset'
+if grep -qF -- "$cmd" "$SKILL_MD"; then pass "SKILL.md carries: $cmd"; else fail "SKILL.md is missing: $cmd"; fi
+
 setup
-read_plan_base() { jq -r '.base_sha // empty' "$PLAN"; }
-assert_eq "fresh plan: base read is empty" "" "$(read_plan_base)"
 head1=$(git -C "$REPO" rev-parse HEAD)
-vp --set-base "$PLAN" --plan --sha HEAD > /dev/null
+out=$(vp --set-base "$PLAN" --plan --sha HEAD --if-unset)
+assert_eq "fresh plan: --if-unset records and prints HEAD" "$head1" "$out"
+assert_eq "fresh plan: --if-unset stores the base" "$head1" "$(jq -r '.base_sha' "$PLAN")"
 git_commit "phase A merged"
-assert_eq "resumed run: base read returns the original base" "$head1" "$(read_plan_base)"
-read_phase_base() { jq -r --arg l "$1" '.phases[] | select(.letter == $l) | .base_sha // empty' "$PLAN"; }
-assert_eq "fresh phase: base read is empty" "" "$(read_phase_base A)"
-vp --set-base "$PLAN" --phase A --sha HEAD > /dev/null
-assert_eq "phase base read returns the recorded SHA" "$(git -C "$REPO" rev-parse HEAD)" "$(read_phase_base A)"
+before=$(cat "$PLAN")
+out=$(vp --set-base "$PLAN" --plan --sha HEAD --if-unset)
+assert_eq "resumed run: --if-unset prints the original base" "$head1" "$out"
+assert_eq "resumed run: --if-unset leaves plan.json untouched" "$before" "$(cat "$PLAN")"
+out=$(vp --set-base "$PLAN" --phase A --sha HEAD --if-unset)
+assert_eq "phase: --if-unset records the phase base" "$(git -C "$REPO" rev-parse HEAD)" "$out"
+assert_eq "phase: plan base still the original" "$head1" "$(jq -r '.base_sha' "$PLAN")"
+assert_fail "--if-unset outside --set-base refused" "--if-unset only applies to --set-base" \
+  vp --ready "$PLAN" --if-unset
 
 echo "=== tasks and render unaffected ==="
 
