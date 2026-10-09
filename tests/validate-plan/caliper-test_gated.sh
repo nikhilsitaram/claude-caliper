@@ -95,6 +95,19 @@ setup_gated_a2
 assert_fail "gated task blocked even with deps complete" "task_gated: task A2 is gated on: $GATE" \
   "$VALIDATE" --check-deps "$TMPDIR/plan.json" --task A2
 
+setup_gated_a2
+mutate '.phases[1].tasks[0].depends_on = ["A1", "A2"] | .phases[0].tasks[0].status = "pending" | .phases[1].tasks[0].gated_on = ["vendor API key"]'
+blockers=$("$VALIDATE" --check-deps "$TMPDIR/plan.json" --task B1 2>&1 || true)
+if [[ "$blockers" == *"depends on A1 which has status 'pending'"* \
+   && "$blockers" == *"depends on A2 which has status 'pending'"* \
+   && "$blockers" == *"task_gated: task B1 is gated on: vendor API key"* ]]; then
+  echo "PASS: check-deps lists every unmet dependency and the open gate"
+  ((PASS++)) || true
+else
+  echo "FAIL: check-deps should list both deps and the gate (got: $blockers)"
+  ((FAIL++)) || true
+fi
+
 echo "=== --update-status ==="
 
 setup_gated_a2
