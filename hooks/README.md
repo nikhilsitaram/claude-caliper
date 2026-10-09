@@ -8,13 +8,13 @@ Hook scripts and configuration for the claude-caliper plugin.
 |------|---------|
 | `hooks.json` | Hook registry — wired automatically by the plugin system |
 | `pretooluse-deny-plan-md.sh` | PreToolUse(Edit/Write/MultiEdit): denies hand-edits to a rendered `plan.md`, pointing Claude at the `validate-plan` command that mutates `plan.json` instead |
-| `permission-request-accept-edits.sh` | PermissionRequest(Edit/Write): consumes the `.design-approved` sentinel to enable acceptEdits mode for the session; auto-allows writes to `.claude/claude-caliper/` plan dirs. All fallthrough paths emit `{"continue": true}` to avoid [anthropics/claude-code#12070](https://github.com/anthropics/claude-code/issues/12070) (silent fallthrough = deny). |
+| `permission-request-accept-edits.sh` | PermissionRequest(Edit/Write): consumes the `.design-approved` sentinel to enable acceptEdits mode for the session; auto-allows writes into a `.claude/claude-caliper/` plan dir of the cwd, the main checkout, or a worktree nested under either. The target is checked with symlinks resolved; a path containing `..`, a symlink that doesn't resolve to an existing directory, the steering files `.design-approved` and `reviews.json`, or anything outside those dirs falls through to the normal prompt (#307). All fallthrough paths emit `{"continue": true}` to avoid [anthropics/claude-code#12070](https://github.com/anthropics/claude-code/issues/12070) (silent fallthrough = deny). |
 | `subagentstop-sync-agent-memory.sh` | SubagentStop: syncs a worktree subagent's `memory: project` writes back to the main repo's `.claude/agent-memory/` |
 
 ## Architecture
 
 - **PreToolUse** — fires on every tool call. Used only for **deny** decisions (with `permissionDecisionReason` visible to Claude for self-correction). Never returns allow.
-- **PermissionRequest** — fires only when a permission prompt would appear (or a call that can't prompt would be auto-denied), so auto-mode classifier approvals never reach it. Used only for Edit/Write: the design-approval → acceptEdits handoff, and auto-allowing writes under `.claude/claude-caliper/`.
+- **PermissionRequest** — fires only when a permission prompt would appear (or a call that can't prompt would be auto-denied), so auto-mode classifier approvals never reach it. Used only for Edit/Write: the design-approval → acceptEdits handoff, and auto-allowing writes into the session's own plan dirs.
 
 ## Bash permissions are not caliper's job
 
