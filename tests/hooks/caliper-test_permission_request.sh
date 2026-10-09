@@ -268,6 +268,7 @@ for p in \
     "$T12/.caliper-draft/.x" \
     "$T12/src/../.claude/settings.json" \
     "$TMPDIR/elsewhere/x.py" \
+    "$T12/.claude/worktrees/wt/src/x.py" \
     ""; do
   assert_falls_through "sentinel held for: ${p:-<no file_path>}" "$(run_hook_for "$T12" "$p")"
 done
@@ -275,6 +276,27 @@ assert_exists "the sentinel survives every refused target" "$T12/.claude/claude-
 assert_mode_switch "the next ordinary edit" "$(run_hook_for "$T12" "$T12/src/x.py")"
 approve "$T12/.claude/claude-caliper/topic"
 assert_mode_switch "a design draft" "$(run_hook_for "$T12" "$T12/.caliper-draft/design-topic.md")"
+
+echo "Test 13: The design skill's own sentinel command arms the hook"
+# Run the command skills/design/SKILL.md gives the agent, not approve()'s copy
+# of it, so the two sides of the sentinel format can't drift apart.
+SENTINEL_CMD=$(sed -n 's/.*On approval, create the sentinel[^`]*`\([^`]*\)`.*/\1/p' "$REPO_ROOT/skills/design/SKILL.md")
+T13="$(cd "$TMPDIR" && pwd -P)/t13"
+mkdir -p "$T13"
+if [[ -z "$SENTINEL_CMD" ]]; then
+  echo "FAIL: no sentinel command found in skills/design/SKILL.md"
+  ((FAIL++)) || true
+else
+  PLAN_DIR="$T13/.claude/claude-caliper/topic" CLAUDE_CODE_SESSION_ID="$SID" bash -c "$SENTINEL_CMD"
+  assert_mode_switch "the design skill's sentinel" "$(run_hook_for "$T13" "$T13/src/x.py")"
+  if env -u CLAUDE_CODE_SESSION_ID PLAN_DIR="$T13/.claude/claude-caliper/unset" bash -c "$SENTINEL_CMD" 2>/dev/null; then
+    echo "FAIL: the sentinel command succeeded without a session id"
+    ((FAIL++)) || true
+  else
+    echo "PASS: the sentinel command fails without a session id"
+    ((PASS++)) || true
+  fi
+fi
 
 echo ""
 echo "$PASS passed, $FAIL failed"
