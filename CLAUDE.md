@@ -48,7 +48,7 @@ Plan artifacts (design docs, plan.json, task briefs) are created by the design/d
 
 ## Testing
 
-Bash test scripts live in `tests/`. Run with `bash tests/<dir>/<script>.sh`. Skill-eval is available for dedicated skill refactors — see Skill Testing above.
+Bash test scripts live in `tests/`. Run with `./tests/<dir>/<script>.sh`. Skill-eval is available for dedicated skill refactors — see Skill Testing above.
 
 ## Scripts
 
