@@ -186,6 +186,63 @@ assert_output_contains "plan criteria" "PASS" \
 assert_exit_code "plan criteria exits 0" 0 \
   "$VALIDATE" --criteria "$TMPDIR/t12/plan.json" --plan
 
+echo "Test 13: --cwd runs criteria in the given directory"
+mkdir -p "$TMPDIR/t13/wt"
+touch "$TMPDIR/t13/wt/marker"
+write_plan "$TMPDIR/t13/plan.json" '[{"run": "test -f marker", "expect_exit": 0}]' "task"
+assert_exit_code "--cwd finds repo-relative file" 0 \
+  "$VALIDATE" --criteria "$TMPDIR/t13/plan.json" --task A1 --cwd "$TMPDIR/t13/wt"
+assert_exit_code "--cwd accepted before the target flag" 0 \
+  "$VALIDATE" --criteria "$TMPDIR/t13/plan.json" --cwd "$TMPDIR/t13/wt" --task A1
+assert_exit_code "without --cwd runs in caller's directory" 1 \
+  bash -c 'cd "$1" && "$2" --criteria "$3" --task A1' _ "$TMPDIR/t13" "$VALIDATE" "$TMPDIR/t13/plan.json"
+
+echo "Test 14: --cwd applies to phase and plan scope"
+mkdir -p "$TMPDIR/t14p/wt" "$TMPDIR/t14l/wt"
+touch "$TMPDIR/t14p/wt/marker" "$TMPDIR/t14l/wt/marker"
+write_plan "$TMPDIR/t14p/plan.json" '[{"run": "test -f marker", "expect_exit": 0}]' "phase"
+write_plan "$TMPDIR/t14l/plan.json" '[{"run": "test -f marker", "expect_exit": 0}]' "plan"
+assert_exit_code "--cwd with --phase" 0 \
+  "$VALIDATE" --criteria "$TMPDIR/t14p/plan.json" --phase A --cwd "$TMPDIR/t14p/wt"
+assert_exit_code "--cwd with --plan" 0 \
+  "$VALIDATE" --criteria "$TMPDIR/t14l/plan.json" --plan --cwd "$TMPDIR/t14l/wt"
+
+echo "Test 15: --cwd with a missing directory exits 2 before running criteria"
+write_plan "$TMPDIR/t15/plan.json" "$(jq -n --arg f "$TMPDIR/t15-ran" '[{run: ("touch " + $f), expect_exit: 0}]')" "task"
+assert_exit_code "missing --cwd dir exits 2" 2 \
+  "$VALIDATE" --criteria "$TMPDIR/t15/plan.json" --task A1 --cwd "$TMPDIR/t15/nope"
+if [ ! -e "$TMPDIR/t15-ran" ]; then
+  echo "PASS: missing --cwd dir runs no criteria"
+  ((PASS++)) || true
+else
+  echo "FAIL: missing --cwd dir runs no criteria (criterion ran anyway)"
+  ((FAIL++)) || true
+fi
+assert_output_contains "missing --cwd dir names the path" "$TMPDIR/t15/nope" \
+  "$VALIDATE" --criteria "$TMPDIR/t15/plan.json" --task A1 --cwd "$TMPDIR/t15/nope"
+assert_exit_code "--cwd without a value exits 2" 2 \
+  "$VALIDATE" --criteria "$TMPDIR/t15/plan.json" --task A1 --cwd
+
+echo "Test 16: --cwd outside --criteria is rejected, not silently ignored"
+write_plan "$TMPDIR/t16/plan.json" '[]' "task"
+assert_exit_code "--cwd with --schema exits 2" 2 \
+  "$VALIDATE" --schema "$TMPDIR/t16/plan.json" --cwd "$TMPDIR/t16"
+
+echo "Test 17: Summary line reports passed/total"
+write_plan "$TMPDIR/t17/plan.json" '[{"run": "true", "expect_exit": 0}, {"run": "true", "expect_exit": 0}]' "task"
+assert_output_contains "all-pass summary" "task A1: 2/2 criteria passed" \
+  "$VALIDATE" --criteria "$TMPDIR/t17/plan.json" --task A1
+assert_output_contains "mixed summary" "task A1: 1/2 criteria passed" \
+  "$VALIDATE" --criteria "$TMPDIR/t9/plan.json" --task A1
+assert_output_contains "warning summary" "task A1: 0/1 criteria passed" \
+  "$VALIDATE" --criteria "$TMPDIR/t7/plan.json" --task A1
+assert_output_contains "phase summary" "phase A: 1/1 criteria passed" \
+  "$VALIDATE" --criteria "$TMPDIR/t11/plan.json" --phase A
+
+echo "Test 18: Empty criteria prints an explicit no-op line"
+assert_output_contains "empty summary" "task A1: no criteria defined" \
+  "$VALIDATE" --criteria "$TMPDIR/t8/plan.json" --task A1
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
