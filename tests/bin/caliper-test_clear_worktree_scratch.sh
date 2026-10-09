@@ -121,6 +121,20 @@ echo "{}" > "$fix/.claude/caliper-draft/plan.json"
 check_fails "t4: main checkout refused" "$SCRIPT" "$fix"
 check_fails "t4: subdirectory of main refused" "$SCRIPT" "$fix/.claude"
 check "t4: main's scratch untouched" test -f "$fix/.claude/caliper-draft/plan.json"
+# A stray plain directory inside a linked worktree (e.g. a task-worktree path
+# left behind) must not resolve to — and clear — the worktree containing it.
+mkdir -p "$fix/wt/.claude/worktrees/a1" "$fix/wt/.claude/caliper-draft"
+echo "{}" > "$fix/wt/.claude/caliper-draft/plan.json"
+check_fails "t4: stray directory inside a worktree refused" "$SCRIPT" "$fix/wt/.claude/worktrees/a1"
+check "t4: containing worktree's scratch untouched" test -f "$fix/wt/.claude/caliper-draft/plan.json"
+# A main checkout whose git dir lives elsewhere (--separate-git-dir; submodules
+# look the same) has no `/.git` to strip, so it must still be recognized as main.
+sep="$TMPDIR_BASE/t4-sep"
+git init -q --separate-git-dir "$sep-gitdir" "$sep"
+mkdir -p "$sep/.claude/caliper-draft"
+echo "{}" > "$sep/.claude/caliper-draft/plan.json"
+check_fails "t4: --separate-git-dir main checkout refused" "$SCRIPT" "$sep"
+check "t4: its scratch untouched" test -f "$sep/.claude/caliper-draft/plan.json"
 
 # Test 5: a failed sync deletes nothing — the worktree copy may be the only one.
 fix="$(new_fixture t5)"
@@ -136,6 +150,12 @@ else
   check "t5: other scratch kept" test -f "$fix/wt/.claude/caliper-draft/plan.json"
 fi
 chmod u+w "$fix/.claude"
+# A sync skipped on a held lock counts as a failure too: nothing was persisted.
+fix="$(new_fixture t5-lock)"
+mkdir -p "$fix/.claude/agent-memory/.sync.lock.d" "$fix/wt/.claude/agent-memory/agent-x"
+echo "only copy" > "$fix/wt/.claude/agent-memory/agent-x/new.md"
+check_fails "t5: exits non-zero when sync skips on a held lock" env AGENT_MEMORY_LOCK_TRIES=2 "$SCRIPT" "$fix/wt"
+check "t5: memory kept when the lock was held" test -f "$fix/wt/.claude/agent-memory/agent-x/new.md"
 
 # Test 6: a leftover symlink from the retired link-agent-memory is unlinked,
 # never followed — main's memory behind it survives.

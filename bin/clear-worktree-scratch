@@ -14,8 +14,9 @@ set -euo pipefail
 #
 # Paths resolve under the worktree, never the caller's cwd — callers run this
 # from the main checkout or the integration worktree, which hold their own
-# files at the same relative paths. Refuses the main checkout. If the sync
-# fails, nothing is deleted: the worktree may hold the only copy of new memory.
+# files at the same relative paths. Refuses the main checkout and any path
+# that isn't a worktree root. If the sync fails or skips on a held lock,
+# nothing is deleted: the worktree may hold the only copy of new memory.
 
 usage() {
   echo "Usage: clear-worktree-scratch <worktree-path>" >&2
@@ -30,9 +31,19 @@ usage() {
 # bash would run `cd ""` as a no-op and clear the caller's cwd instead.
 TOP="$(git -C "$1" rev-parse --show-toplevel)"
 WORKTREE="$(cd "$TOP" && pwd -P)"
-MAIN_ROOT="$(git -C "$WORKTREE" rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
 
-if [[ "$WORKTREE" == "$(cd "$MAIN_ROOT" && pwd -P)" ]]; then
+# Only a worktree root: a stray directory inside a worktree would otherwise
+# resolve to the worktree containing it and clear that one instead.
+if [[ "$(cd "$1" && pwd -P)" != "$WORKTREE" ]]; then
+  echo "ERROR: not a worktree root: $1" >&2
+  exit 1
+fi
+
+# A linked worktree's git dir is <common-dir>/worktrees/<name>; the main
+# checkout's is the common dir itself, wherever it lives (--separate-git-dir,
+# submodules), so compare the two rather than stripping a `/.git` suffix.
+{ read -r GIT_DIR; read -r COMMON_DIR; } < <(git -C "$WORKTREE" rev-parse --path-format=absolute --git-dir --git-common-dir)
+if [[ "$GIT_DIR" == "$COMMON_DIR" ]]; then
   echo "ERROR: refusing to clear scratch in the main checkout: $WORKTREE" >&2
   exit 1
 fi
