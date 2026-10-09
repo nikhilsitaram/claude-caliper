@@ -360,6 +360,7 @@ Before an LLM reviewer ever sees the plan, `validate-plan --schema` runs structu
 Additional runtime gates:
 - `--ready [--phase X]` lists the dispatchable tasks (all `depends_on` complete, no open `gated_on`); `--check-deps --task <ID>` explains why one task is blocked
 - `gated_on` marks tasks waiting on outside input (another team's PR, an access grant); orchestrate asks the user and `--clear-gate` releases them
+- `--set-base` records each review range's starting commit once (plan and phase level), so a fresh orchestrate run can resume a stopped phase without dropping already-merged work
 - `--check-handoffs` / `--add-handoff` record and verify cross-phase handoff notes directly in `plan.json`
 - `--criteria` runs machine-executable success criteria at task, phase, and plan levels (`--cwd <dir>` runs them in another worktree without moving the caller's shell)
 - `--schema` / `--check-entry` warn when the plan dir sits inside a linked git worktree, where it would be deleted along with the worktree
