@@ -23,6 +23,7 @@ check "bin/sync-agent-memory exists" test -f "$REPO_ROOT/bin/sync-agent-memory"
 check "bin/caliper-main-root exists" test -f "$REPO_ROOT/bin/caliper-main-root"
 check "bin/clear-worktree-scratch exists" test -f "$REPO_ROOT/bin/clear-worktree-scratch"
 check "bin/caliper-draft exists" test -f "$REPO_ROOT/bin/caliper-draft"
+check "bin/delete-merged-branch exists" test -f "$REPO_ROOT/bin/delete-merged-branch"
 check "bin/validate-plan is executable" test -x "$REPO_ROOT/bin/validate-plan"
 check "bin/caliper-settings is executable" test -x "$REPO_ROOT/bin/caliper-settings"
 check "bin/seed-agent-memory is executable" test -x "$REPO_ROOT/bin/seed-agent-memory"
@@ -30,6 +31,7 @@ check "bin/sync-agent-memory is executable" test -x "$REPO_ROOT/bin/sync-agent-m
 check "bin/caliper-main-root is executable" test -x "$REPO_ROOT/bin/caliper-main-root"
 check "bin/clear-worktree-scratch is executable" test -x "$REPO_ROOT/bin/clear-worktree-scratch"
 check "bin/caliper-draft is executable" test -x "$REPO_ROOT/bin/caliper-draft"
+check "bin/delete-merged-branch is executable" test -x "$REPO_ROOT/bin/delete-merged-branch"
 check "retired bin/link-agent-memory is gone" test ! -e "$REPO_ROOT/bin/link-agent-memory"
 check "scripts/ directory does not exist" test ! -d "$REPO_ROOT/scripts"
 check_shebang() {
@@ -44,6 +46,7 @@ check "bin/sync-agent-memory has bash shebang" check_shebang "$REPO_ROOT/bin/syn
 check "bin/caliper-main-root has bash shebang" check_shebang "$REPO_ROOT/bin/caliper-main-root"
 check "bin/clear-worktree-scratch has bash shebang" check_shebang "$REPO_ROOT/bin/clear-worktree-scratch"
 check "bin/caliper-draft has bash shebang" check_shebang "$REPO_ROOT/bin/caliper-draft"
+check "bin/delete-merged-branch has bash shebang" check_shebang "$REPO_ROOT/bin/delete-merged-branch"
 
 echo ""
 echo "Results: $pass passed, $fail failed"
