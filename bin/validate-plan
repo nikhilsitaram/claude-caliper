@@ -1474,6 +1474,17 @@ do_add_dep() {
     echo "ERROR: cannot_add_dep: task '$downstream_id' is '$downstream_status' — dependencies can only be added to pending or in_progress tasks" >&2
     exit 1
   fi
+  # An already-dispatched task can't be ordered after unfinished work — and
+  # --add-file trusts depends_on ordering to allow same-phase file overlap.
+  if [[ "$downstream_status" == "in_progress" ]]; then
+    local source_status
+    source_status=$(jq -r --arg id "$source_id" '.phases[].tasks[] | select(.id == $id) | .status' "$plan_json")
+    if [[ "$source_status" != "complete" && "$source_status" != "skipped" ]]; then
+      unlock_plan "$plan_json"; trap - EXIT
+      echo "ERROR: cannot_add_dep: task '$downstream_id' is already in_progress and '$source_id' is '$source_status' — the edge can't order tasks that are already running" >&2
+      exit 1
+    fi
+  fi
   local already
   already=$(jq -r --arg did "$downstream_id" --arg sid "$source_id" '.phases[].tasks[] | select(.id == $did) | (.depends_on // []) | index($sid) // ""' "$plan_json")
   if [[ -n "$already" ]]; then

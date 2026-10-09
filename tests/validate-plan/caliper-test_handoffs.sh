@@ -300,6 +300,27 @@ write_two_phase_plan "$DIR" '[]'
 jq '(.phases[].tasks[] | select(.id == "B1")).status = "complete"' "$DIR/plan.json" > "$DIR/plan.json.tmp" && mv "$DIR/plan.json.tmp" "$DIR/plan.json"
 assert_fail "downstream already complete" "$VP" --add-dep "$DIR/plan.json" --task B1 --depends-on A1
 
+echo "Test 15b: --add-dep rejects an in-flight downstream whose source isn't finished"
+# The edge can't order tasks already running concurrently — and --add-file
+# trusts depends_on ordering to legalize same-phase file overlap.
+DIR=$(make_plan_dir)
+write_two_phase_plan "$DIR" '[]'
+jq '(.phases[].tasks[] | select(.id == "A1")).status = "in_progress" | (.phases[].tasks[] | select(.id == "B1")).status = "in_progress"' "$DIR/plan.json" > "$DIR/plan.json.tmp" && mv "$DIR/plan.json.tmp" "$DIR/plan.json"
+assert_fail "in_progress downstream onto in_progress source" "$VP" --add-dep "$DIR/plan.json" --task B1 --depends-on A1
+if jq -e '.phases[1].tasks[0].depends_on == []' "$DIR/plan.json" >/dev/null; then
+  echo "PASS: rejected edge not written"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: rejected edge should not be written"
+  FAIL=$((FAIL + 1))
+fi
+
+echo "Test 15c: --add-dep allows an in-flight downstream onto a finished source"
+DIR=$(make_plan_dir)
+write_two_phase_plan "$DIR" '[]'
+jq '(.phases[].tasks[] | select(.id == "B1")).status = "in_progress"' "$DIR/plan.json" > "$DIR/plan.json.tmp" && mv "$DIR/plan.json.tmp" "$DIR/plan.json"
+assert_pass "in_progress downstream onto complete source" "$VP" --add-dep "$DIR/plan.json" --task B1 --depends-on A1
+
 echo "Test 16: end-to-end — add ad-hoc dep then check-handoffs sees it as required"
 DIR=$(make_plan_dir)
 write_two_phase_plan "$DIR" '[]'
