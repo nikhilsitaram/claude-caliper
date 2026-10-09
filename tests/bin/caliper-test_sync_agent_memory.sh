@@ -183,6 +183,43 @@ echo "from wt2" > "$fix/wt2/.claude/agent-memory/agent-x/wt2.md"
 check "t8: first worktree's memory persisted" test -f "$fix/.claude/agent-memory/agent-x/wt1.md"
 check "t8: second worktree's memory persisted" test -f "$fix/.claude/agent-memory/agent-x/wt2.md"
 
+# Layouts whose git dir isn't <main>/.git: a submodule (git dir under the
+# superproject's .git/modules/) and a --separate-git-dir repo.
+sub_fixture() {
+  local base="$TMPDIR_BASE/$1"
+  mkdir -p "$base"
+  base="$(cd "$base" && pwd -P)"
+  git -C "$base" init -q subsrc
+  git -C "$base/subsrc" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m init
+  git -C "$base" init -q super
+  git -C "$base/super" -c protocol.file.allow=always submodule -q add "$base/subsrc" sub
+  git -C "$base/super/sub" worktree add -q "$base/sub-wt" -b w
+  echo "$base"
+}
+
+# Test 10: a submodule's linked worktree syncs into the submodule checkout, not
+# into a .claude/ inside its git dir.
+base="$(sub_fixture t10)"
+mkdir -p "$base/sub-wt/.claude/agent-memory/agent-x"
+echo "learned" > "$base/sub-wt/.claude/agent-memory/agent-x/new.md"
+"$SCRIPT" "$base/sub-wt"
+check_eq "t10: synced into the submodule checkout" "learned" "$(cat "$base/super/sub/.claude/agent-memory/agent-x/new.md" 2>/dev/null || true)"
+check "t10: nothing written inside the submodule's git dir" test ! -e "$base/super/.git/modules/sub/.claude"
+
+# Test 10b: the submodule checkout itself is the main checkout — a no-op.
+mkdir -p "$base/super/sub/.claude/agent-memory/agent-y"
+echo "main" > "$base/super/sub/.claude/agent-memory/agent-y/own.md"
+"$SCRIPT" "$base/super/sub"
+check "t10b: submodule main checkout is a no-op" test ! -e "$base/super/.git/modules/sub/.claude"
+
+# Test 11: a --separate-git-dir main checkout is a no-op too.
+sep="$TMPDIR_BASE/t11/sep"
+git init -q --separate-git-dir "$TMPDIR_BASE/t11/sep.gitdir" "$sep"
+mkdir -p "$sep/.claude/agent-memory/agent-x"
+echo "main" > "$sep/.claude/agent-memory/agent-x/own.md"
+"$SCRIPT" "$sep"
+check "t11: separate-git-dir main checkout is a no-op" test ! -e "$TMPDIR_BASE/t11/sep.gitdir/.claude"
+
 # Test 9: errors without the required argument
 if "$SCRIPT" >/dev/null 2>&1; then
   echo "FAIL: t9: should error when invoked without arg"; fail=$((fail + 1))

@@ -123,6 +123,39 @@ touch -t 202612310000 "$fix/.claude/agent-memory/agent-x/MEMORY.md"   # main's i
 "$SCRIPT" "$fix/wt"
 check "t7c: worktree's un-synced index line survives re-seed" grep -q "WT only" "$fix/wt/.claude/agent-memory/agent-x/MEMORY.md"
 
+# Layouts whose git dir isn't <main>/.git: a submodule (git dir under the
+# superproject's .git/modules/) and a --separate-git-dir repo.
+sub_fixture() {
+  local base="$TMPDIR_BASE/$1"
+  mkdir -p "$base"
+  base="$(cd "$base" && pwd -P)"
+  git -C "$base" init -q subsrc
+  git -C "$base/subsrc" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m init
+  git -C "$base" init -q super
+  git -C "$base/super" -c protocol.file.allow=always submodule -q add "$base/subsrc" sub
+  git -C "$base/super/sub" worktree add -q "$base/sub-wt" -b w
+  echo "$base"
+}
+
+# Test 9: a submodule's linked worktree is seeded from the submodule checkout,
+# and no .claude/ is created inside its git dir.
+base="$(sub_fixture t9)"
+seed_main "$base/super/sub"
+"$SCRIPT" "$base/sub-wt"
+check "t9: submodule checkout's memory copied into worktree" test -f "$base/sub-wt/.claude/agent-memory/agent-x/prior.md"
+check "t9: nothing created inside the submodule's git dir" test ! -e "$base/super/.git/modules/sub/.claude"
+
+# Test 9b: the submodule checkout itself is the main checkout — a no-op.
+"$SCRIPT" "$base/super/sub"
+check "t9b: submodule main checkout is a no-op" test ! -e "$base/super/.git/modules/sub/.claude"
+
+# Test 10: a --separate-git-dir main checkout is a no-op too.
+sep="$TMPDIR_BASE/t10/sep"
+git init -q --separate-git-dir "$TMPDIR_BASE/t10/sep.gitdir" "$sep"
+seed_main "$sep"
+"$SCRIPT" "$sep"
+check "t10: separate-git-dir main checkout is a no-op" test ! -e "$TMPDIR_BASE/t10/sep.gitdir/.claude"
+
 # Test 8: errors when invoked without the required argument
 if "$SCRIPT" >/dev/null 2>&1; then
   echo "FAIL: t8: should error when invoked without arg"; fail=$((fail + 1))
