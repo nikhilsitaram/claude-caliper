@@ -10,7 +10,6 @@ For each task in the phase, check deps: `validate-plan --check-deps "$PLAN_JSON"
 PARENT_WORKTREE="$(git rev-parse --show-toplevel)"
 MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
 [[ "$PARENT_WORKTREE" == "$MAIN_ROOT" ]] && { echo "ERROR: orchestrator CWD is the main repo; dispatching from here creates sibling task worktrees that trigger silent permission denials in background subagents. cd into the feature or phase worktree before dispatching." >&2; exit 1; }
-PRE_TASK_SHA=$(git -C "$PARENT_WORKTREE" rev-parse HEAD)
 git -C "$PARENT_WORKTREE" worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
 TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 seed-agent-memory "$TASK_WORKTREE"  # copy $MAIN_ROOT/.claude/agent-memory into the task worktree as a real dir so memory: project subagents read accumulated memory and write locally; step-3 cleanup + the SubagentStop hook sync writes back (symlinks are blocked under worktree isolation, issue #244)
@@ -50,18 +49,28 @@ TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 ```
 
 1. Read the agent's return message for completion notes and task summary
-2. Verify the commit landed on the task branch — not the parent worktree's branch. The real check is whether the parent HEAD is still at `PRE_TASK_SHA`:
+2. Verify the commit landed on the task branch — not the parent worktree's branch. Find the task's fork point, list how the parent branch moved since then (its reflog, newest first), and count the task-branch commits the parent lacks. All of it comes from git, so no dispatch-time state is needed and sibling merges can't be mistaken for a misplaced commit:
     ```bash
-    git -C "$TASK_WORKTREE" log --oneline -3 --decorate
-    git -C "$PARENT_WORKTREE" rev-parse HEAD
+    PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)
+    PRE_TASK_SHA=$(git -C "$PARENT_WORKTREE" merge-base {TASK_ID_LOWER} HEAD)
+    echo "PRE_TASK_SHA=$PRE_TASK_SHA PARENT_BRANCH=$PARENT_BRANCH"
+    git -C "$PARENT_WORKTREE" log -g --format='%H %gs' "refs/heads/$PARENT_BRANCH" | awk -v pre="$PRE_TASK_SHA" '$1 == pre {exit} {print}'
+    git -C "$PARENT_WORKTREE" rev-list --count HEAD..{TASK_ID_LOWER}
     ```
-    Parent HEAD must still equal `$PRE_TASK_SHA`. If it has advanced, the implementer committed to the parent branch instead. Correct via a 3-stage recovery — capture, verify, rewind. **Each stage's exit code matters: stop and surface to the user if any stage fails.**
+    Reflog lines whose subject starts `merge ` or `commit (merge):` are your own task merges (the latter when you resolved a conflict by hand). Any other line — typically `commit: …` — is a commit made directly on the parent: a misplaced commit.
+    - No misplaced commit, count ≥ 1 → the work is on the task branch; go to step 3.
+    - No misplaced commit, count 0 → the implementer committed nothing; send the task back to it.
+    - Misplaced commit, count 0, no task merges listed → correct via the 3-stage recovery below — capture, verify, rewind. **Each stage's exit code matters: stop and surface to the user if any stage fails.**
+    - Misplaced commit otherwise → stop and surface to the user. With task merges listed, Stage 3's rewind to `$PRE_TASK_SHA` would strip them off the parent; with count ≥ 1, the work is split across both branches and Stage 1 can't fast-forward.
 
-    **Stage 1 — capture the rogue commit on the task branch.** FF-only fails loudly if `WRONG_HEAD` isn't a descendant of the task branch's tip (a more confused state than a single misplaced commit):
+    Each stage is its own Bash call and shell variables don't carry across, so substitute the printed `$PRE_TASK_SHA`, `$WRONG_HEAD`, and `$PARENT_BRANCH` values into later stages as literals — `$PRE_TASK_SHA` can't be re-derived once Stage 1 moves the task branch.
+
+    **Stage 1 — capture the misplaced commit on the task branch.** The count of 0 above means the task tip is an ancestor of parent HEAD, so FF-only should succeed; if it fails, a branch moved after that check:
 
     ```bash
     WRONG_HEAD=$(git -C "$PARENT_WORKTREE" rev-parse HEAD)
     PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)
+    echo "WRONG_HEAD=$WRONG_HEAD PARENT_BRANCH=$PARENT_BRANCH"
     git -C "$TASK_WORKTREE" merge --ff-only "$WRONG_HEAD"
     ```
 
