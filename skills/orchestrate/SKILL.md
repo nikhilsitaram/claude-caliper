@@ -46,7 +46,7 @@ Note: These model settings are substituted into dispatch template variables `{TA
 - Validate base branch: `validate-plan --check-base "$PLAN_JSON"`
 - Validate consistency: `validate-plan --consistency "$PLAN_JSON"`
 - `validate-plan --update-status "$PLAN_JSON" --plan --status "In Development"`
-- `PLAN_BASE_SHA=$(git rev-parse HEAD)`
+- `PLAN_BASE_SHA` is what `validate-plan --set-base "$PLAN_JSON" --plan --sha HEAD --if-unset` prints: it records HEAD on the first run and keeps that base on a resume.
 - `[ -f "$PLAN_DIR/reviews.json" ] || echo '[]' > "$PLAN_DIR/reviews.json"`
 - Push branch: `git push -u origin HEAD`
 - Read the dispatch protocol: **See:** `./dispatch-subagents.md`
@@ -57,13 +57,14 @@ Process phases in order (A, B, C...). For each phase:
 
 ### Prepare Phase
 
-1. Determine phase resumption state (multi-phase only — single-phase: use feature worktree, no resumption check needed). Phase status is the primary signal because squash-merge in step 7 typically deletes the phase branch ref, making `git merge-base --is-ancestor` unreliable.
+1. Enter the phase worktree (multi-phase only — single-phase stays in the feature worktree). Phase status is the signal: squash-merge in step 7 usually deletes the phase branch, so ancestry checks are unreliable.
    - If phase status starts with "Complete": run `gh pr list --base integrate/<feature> --head phase-<letter> --state merged --json number --jq 'length'`. If non-zero, the phase is fully merged — skip to next phase. If zero (status Complete but PR not yet merged), skip directly to Phase Wrap-Up step 7, reusing any open PR or creating one if absent.
-   - Otherwise (status "Not Started" or "In Progress"): re-validate the base branch **before creating the worktree** — `validate-plan --check-base "$PLAN_JSON"` demands the current branch equal `integration_branch`, so it can never pass once you're on `phase-<letter>`. Then, from the integration worktree root, create the phase worktree **nested** inside it — `git worktree add .claude/worktrees/phase-<letter> -b phase-<letter>`, i.e. `PHASE_WORKTREE="$MAIN_ROOT/.claude/worktrees/<feature>/.claude/worktrees/phase-<letter>"` (a sibling under the main checkout is unusable under isolation) — and `seed-agent-memory "$PHASE_WORKTREE"` so the Phase Wrap-Up implementation-reviewer reads accumulated memory (synced back at step e). Continue with the remaining numbered steps below.
-2. `PHASE_BASE_SHA=$(git rev-parse HEAD)` in worktree
+   - Otherwise (status "Not Started" or "In Progress"): re-validate the base branch **before creating the worktree** — `validate-plan --check-base "$PLAN_JSON"` demands the current branch equal `integration_branch`, so it can never pass once you're on `phase-<letter>`. The phase worktree nests inside the integration worktree — `PHASE_WORKTREE="$MAIN_ROOT/.claude/worktrees/<feature>/.claude/worktrees/phase-<letter>"` (a sibling under the main checkout is unusable under isolation). From the integration worktree root, run `git worktree prune` and reuse what a stopped run left. A surviving branch (`git rev-parse --verify --quiet refs/heads/phase-<letter>` succeeds) must have forked from this integration branch: if `git merge-base --is-ancestor HEAD phase-<letter>` fails, it's stale from another plan — stop and surface it to the user. Then: if `git worktree list --porcelain` lists `branch refs/heads/phase-<letter>`, use that worktree (its `worktree` line is `PHASE_WORKTREE`); else if the branch exists, `git worktree add .claude/worktrees/phase-<letter> phase-<letter>` (no `-b`); else `git worktree add .claude/worktrees/phase-<letter> -b phase-<letter>`. `cd` into it and `seed-agent-memory "$PHASE_WORKTREE"` so the Phase Wrap-Up implementation-reviewer reads accumulated memory (synced back at step e). Continue with the remaining numbered steps below.
+2. `PHASE_BASE_SHA`: run Setup's `--set-base` command from the worktree, with `--phase {LETTER}` in place of `--plan`.
 3. **Bootstrap dependencies** in the worktree. **See:** skills/design/dependency-bootstrap.md
 4. Extract context: tasks JSON, plan dir, phase dir, prior completions (from depends_on closure) — prior-phase handoff notes are recorded in plan.json (written at prior phase's wrap-up via `--add-handoff`) and render into plan.md
 5. Set phase to "In Progress": `validate-plan --update-status "$PLAN_JSON" --phase {LETTER} --status "In Progress"` — required before any task can be marked in_progress (transition gate rejects task advancement when parent phase is "Not Started")
+6. Reconcile tasks a stopped run left behind. **See:** `./dispatch-subagents.md` Resuming In-Flight Tasks
 
 ### Dispatch and Complete Tasks
 
@@ -120,8 +121,8 @@ Append record to `{PLAN_DIR}/reviews.json`:
 
 Skip integration branch and phase worktrees. Work directly in the feature worktree:
 
-1. Dispatch tasks, process completions, wrap up (same dispatch protocol as above)
-2. Dispatch implementation-review, run Review Loop Protocol (scope: `phase-a`)
+1. If phase A's status already starts with "Complete", a stopped run got past review — skip to step 3. Otherwise run Prepare Phase steps 2–6, then dispatch tasks, process completions, wrap up (same dispatch protocol as above)
+2. Dispatch implementation-review with `PHASE_BASE_SHA..HEAD`, run Review Loop Protocol (scope: `phase-a`)
 3. `validate-plan --check-review "$PLAN_JSON" --type impl-review --scope phase-a`
 4. Run plan criteria: `validate-plan --criteria "$PLAN_JSON" --plan`
 5. `validate-plan --update-status "$PLAN_JSON" --plan --status done`
@@ -149,8 +150,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 |------------|-----|
 | Resolve `PLAN_JSON` as absolute path at setup | Phase worktrees don't have the gitignored plan artifacts; one absolute path means every agent reads the same file |
 | Validate schema before execution | Catches file-set overlap and structural issues early |
-| Record PLAN_BASE_SHA before first phase | Final cross-phase review needs total diff |
-| Record PHASE_BASE_SHA per phase | Per-phase review needs exact phase start |
+| Record plan and phase bases with `--set-base --if-unset` | Review ranges start where the plan/phase did, even after a resume |
 | Use validate-plan for all status updates | Keeps plan.json and plan.md in sync |
 | All tasks complete before advancing phase | Phase completion gate prevents unresolved work |
 | Run gate checks at startup and after status changes | Entry gates prevent wasted work, base-branch checks prevent wrong-worktree dispatch, consistency checks catch state drift |

@@ -121,13 +121,36 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
 4. Re-run `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` for newly unblocked tasks
 5. Dispatch them (same pattern as above). If nothing is ready, no implementer is in flight, and the phase still has `pending` tasks, they're waiting on gates — see Gated Tasks. (No `GATED:` lines on stderr means a dependency is stuck `in_progress`; surface it to the user.)
 
+## Resuming In-Flight Tasks
+
+A run that stopped mid-phase can strand task work at any point between dispatch and cleanup: an `in_progress` task with no live implementer (`--ready` never re-lists it), a `pending` task whose worktree was created just before the claim, or a `complete` task whose branch was never merged (After Completion marks done before it merges). Prepare Phase step 6 settles all of these before the dispatch loop starts. If the stopped session might still be running, ask the user before touching its tasks.
+
+Work from the phase worktree (the feature worktree for a single-phase plan). Get its absolute path as in Dispatch Implementers — line 1 of `git rev-parse --path-format=absolute --show-toplevel` — and write it below as the literal `<PARENT_WORKTREE>`, so a CWD left in a subdirectory (e.g. by dependency bootstrap) can't misplace a worktree. If `git rev-parse -q --verify MERGE_HEAD` succeeds, a task merge stopped mid-conflict — surface it to the user before settling anything. Then list the phase's task statuses and the task branches still present:
+
+```bash
+jq -r --arg l "{LETTER}" '.phases[] | select(.letter == $l) | .tasks[] | "\(.id) \(.status)"' "$PLAN_JSON"
+git branch --list '{letter_lower}[0-9]*'
+```
+
+Settle every task that is `in_progress` or still has a branch. Where a branch survives but its worktree directory doesn't, run `git worktree prune`, then re-attach it: `git worktree add <PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER} {TASK_ID_LOWER}`. Steps borrowed from Process Completions and After Completion use `$TASK_WORKTREE` as derived there. Only After Completion steps 1–3 apply here — re-running `--ready` and dispatching (steps 4–5) wait until every task is settled.
+
+- **`complete` with a branch** → finished but not cleaned up. If `git merge-base --is-ancestor {TASK_ID_LOWER} HEAD` fails, it was never merged: run After Completion step 3 (merge, clean up). Otherwise run only step 3's clean-up.
+- **`pending` with a branch** → the claim never landed, so no implementer ran. Remove it as in the count-0 case below.
+- **`skipped` with a branch** → the user dropped the task; ask before discarding its worktree and branch.
+- **`in_progress` with no branch** → nothing to recover: `validate-plan --update-status "$PLAN_JSON" --task {TASK_ID} --status pending`.
+- **`in_progress` with a branch** → treat it as if its implementer had just returned: Process Completions step 2, then After Completion steps 1–3. There is no implementer to send it back to, and no return message vouching that it finished, so:
+  - **No misplaced commit, count 0** (nothing committed) → `git worktree remove "$TASK_WORKTREE"`, `git branch -d {TASK_ID_LOWER}`, then `--status pending` so `--ready` lists it again. If the removal fails on uncommitted changes, surface the worktree path to the user rather than forcing it.
+  - **Uncommitted changes** (`git -C <PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER} status --porcelain` prints anything — check before criteria) → the implementer died mid-edit, and criteria would pass or fail on edits the merge won't carry. Ask the user as for a criteria failure.
+  - **Criteria pass** → mark done, merge, clean up (After Completion steps 2–3). But if `--criteria` printed `no criteria defined`, nothing vouches for the commits — ask the user as for a failure, adding "merge as done" as an option.
+  - **Criteria fail** → ask the user: re-dispatch into the existing worktree (skip `worktree add` and the status update; tell the implementer the branch carries partial work and which criteria failed), or discard (`git worktree remove`, adding `--force` only for uncommitted changes the user chose to drop, then `git branch -D`, `--status pending`).
+
 ## Gated Tasks
 
 A task's `gated_on` names outside inputs (another team's PR, reviewer-supplied data, an access grant) that you can't verify yourself — so the user decides, not the lead. Dispatch everything else first; ask only once the phase is otherwise stuck.
 
 1. Ask one AskUserQuestion with `multiSelect: true` — "Which of these inputs now exist?" — one option per `GATED:` task from `--ready`'s stderr, labeled with its task ID and input, plus a "None yet" option (questions take 2–4 options and a call up to 4 questions — spread larger sets across questions).
 2. For each selected task → `validate-plan --clear-gate "$PLAN_JSON" --task {TASK_ID}`, then re-run `--ready` and dispatch.
-3. Only "None yet" selected → pause: report the gated tasks with the phase worktree path and wait for the user, keeping this session and its worktrees intact. Don't hand off to a fresh orchestrate run — its Prepare Phase recreates the phase worktree and re-captures the base SHAs, so it can't resume mid-phase. When the user confirms an input exists, `--clear-gate` it and continue this loop. (To drop a task instead, `--update-status --status skipped` is allowed while gated.)
+3. Only "None yet" selected → stop: report the gated tasks with the phase worktree path, leaving the worktrees in place. Resuming — later in this session, or from a fresh orchestrate run — re-enters this loop: `--clear-gate` each input the user confirms exists and continue. (To drop a task instead, `--update-status --status skipped` is allowed while gated.)
 
 ## Worktree Placement
 

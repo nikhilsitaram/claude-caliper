@@ -139,6 +139,15 @@ else
   ((PASS++)) || true
 fi
 
+# Orchestrate's resume reconciliation returns an orphaned in_progress task to
+# pending so --ready lists it again (gh issue #296)
+reset_fixture
+jq '.status = "In Development" | .phases[0].status = "In Progress" | .phases[0].tasks[0].status = "in_progress"' "$TMPDIR/plan.json" > "$TMPDIR/plan_tmp.json" && mv "$TMPDIR/plan_tmp.json" "$TMPDIR/plan.json"
+"$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status pending
+actual=$(jq -r '.phases[0].tasks[0].status' "$TMPDIR/plan.json")
+assert_eq "in_progress task can return to pending" "pending" "$actual"
+assert_eq "returned task is listed by --ready again" "A1" "$("$VALIDATE" --ready "$TMPDIR/plan.json" --phase A 2>/dev/null)"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
