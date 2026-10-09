@@ -22,7 +22,7 @@ caliper ships no Bash allow- or deny-list. Both used to exist and both were reti
 
 Use Claude Code's own mechanisms instead — they parse commands with a real shell parser:
 
-- **Auto mode** (`permissions.defaultMode: "auto"`) — the classifier approves routine commands, including in background subagents. Recommended for the large tier: background subagents (orchestrate's task implementers, the plan drafter) can't answer a prompt, so in default mode any call that would prompt is denied. Rules can't cover all of it — the plan drafter `cp`s its draft into `.claude/claude-caliper/`, and only a blanket `Bash(cp:*)` would match that.
+- **Auto mode** (`permissions.defaultMode: "auto"`) — the classifier approves routine commands, including in background subagents. Recommended for the large tier: background subagents (orchestrate's task implementers, the plan drafter) can't answer a prompt, so in default mode any call that would prompt is denied. Rules can cover the plan drafter: it moves its draft into `.claude/claude-caliper/` with `caliper-draft` (below), and its Writes to `.caliper-draft/` fall under acceptEdits, which design approval switches on. They can't cover task implementers, which run whatever commands their task's tests need.
 - **Native allow rules** to cut prompts in default-mode sessions. Rules covering caliper's own tooling:
 
   ```json
@@ -31,7 +31,7 @@ Use Claude Code's own mechanisms instead — they parse commands with a real she
       "allow": [
         "Bash(validate-plan:*)", "Bash(validate-design:*)", "Bash(caliper-settings:*)", "Bash(caliper-main-root:*)",
         "Bash(seed-agent-memory:*)", "Bash(sync-agent-memory:*)", "Bash(clear-worktree-scratch:*)",
-        "Bash(jq:*)",
+        "Bash(caliper-draft:*)", "Bash(jq:*)",
         "Glob", "Grep", "Skill"
       ]
     }
