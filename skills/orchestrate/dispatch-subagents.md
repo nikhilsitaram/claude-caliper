@@ -4,7 +4,7 @@ Parallel task execution via Agent tool dispatches with worktree isolation.
 
 ## Dispatch Implementers
 
-For each task in the phase, check deps: `validate-plan --check-deps "$PLAN_JSON" --task {TASK_ID}`. Collect all tasks that pass. For each ready task, create a worktree nested under the parent (feature or phase) worktree and extract metadata (strip `status` — orchestrator state not needed by implementer):
+List the dispatchable tasks: `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` prints one task ID per line — `pending`, every dependency `complete`/`skipped`, no open `gated_on` (in-flight `in_progress` tasks are never re-listed). Tasks held only by a gate are reported on stderr as `GATED: <id> — <input>`. For each ready task, create a worktree nested under the parent (feature or phase) worktree and extract metadata (strip `status` — orchestrator state not needed by implementer):
 
 ```bash
 PARENT_WORKTREE="$(git rev-parse --show-toplevel)"
@@ -12,6 +12,10 @@ MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.g
 [[ "$PARENT_WORKTREE" == "$MAIN_ROOT" ]] && { echo "ERROR: orchestrator CWD is the main repo; dispatching from here creates sibling task worktrees that trigger silent permission denials in background subagents. cd into the feature or phase worktree before dispatching." >&2; exit 1; }
 git -C "$PARENT_WORKTREE" worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
 TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
+# Claim the task before dispatch: --ready lists only `pending` tasks, so a task
+# still `pending` while its implementer starts up would be re-listed — and
+# dispatched twice — after the next completion.
+validate-plan --update-status "$PLAN_JSON" --task {TASK_ID} --status in_progress
 seed-agent-memory "$TASK_WORKTREE"  # copy $MAIN_ROOT/.claude/agent-memory into the task worktree as a real dir so memory: project subagents read accumulated memory and write locally; step-3 cleanup + the SubagentStop hook sync writes back (symlinks are blocked under worktree isolation, issue #244)
 TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
 TASK_COMPLEXITY=$(echo "$TASK_METADATA" | jq -r '.complexity')
@@ -102,14 +106,22 @@ TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 Never `cd` into a task worktree — not for inspection, not for criteria. Step 3 removes it, and once the session's own CWD is deleted every later tool call is refused (Bash, Edit, even `EnterWorktree`) until the user restarts the session — the post-removal CWD reset never gets to run. Use `git -C "$TASK_WORKTREE"` for inspection and `--cwd` for criteria.
 
 1. Validate criteria: `validate-plan --criteria "$PLAN_JSON" --task {TASK_ID} --cwd "$TASK_WORKTREE"` — criteria `run` commands are repo-relative and the task branch isn't merged yet, so they must run against the task worktree; `--cwd` runs them there without moving your shell. A failed criterion means the task is not done; send it back to the implementer instead of advancing status
-2. Mark task complete: `validate-plan --update-status "$PLAN_JSON" --task {TASK_ID} --status complete`
+2. Mark task complete: `validate-plan --update-status "$PLAN_JSON" --task {TASK_ID} --status done` — `done` is stored as `complete`; spell it `done` because worktree-isolated sessions refuse any command containing a bare `complete` word (read as the shell builtin)
 3. Merge and clean up the agent's worktree:
    - Guard before merge: `PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)` — then `[[ "$PARENT_BRANCH" == integrate/* ]] && { echo "ERROR: PARENT_WORKTREE is on the integration branch. Task branches must merge into the phase branch; integration happens only in Phase Wrap-Up step 7." >&2; exit 1; }`. This catches state drift from the wrong-worktree recovery path where the phase branch was reset to integration HEAD.
    - Merge: `git -C "$PARENT_WORKTREE" merge {TASK_ID_LOWER}` (task branch into the phase branch, never directly into integration)
    - Clean up: `sync-agent-memory "$TASK_WORKTREE"` (persist the task-implementer's `memory: project` writes to `$MAIN_ROOT` before removal — belt-and-suspenders with the `SubagentStop` hook), then `git worktree remove "$TASK_WORKTREE"` then `git branch -d {TASK_ID_LOWER}`
    - Reset CWD after removal: `cd "$PARENT_WORKTREE" && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted. Return to the parent (phase) worktree, not the multi-phase feature/integration worktree: the next dispatch and completion derive `PARENT_WORKTREE` from CWD
-4. Check if dependent tasks are now unblocked (`validate-plan --check-deps`)
-5. Dispatch newly unblocked tasks (same pattern as above)
+4. Re-run `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` for newly unblocked tasks
+5. Dispatch them (same pattern as above). If nothing is ready, no implementer is in flight, and the phase still has `pending` tasks, they're waiting on gates — see Gated Tasks. (No `GATED:` lines on stderr means a dependency is stuck `in_progress`; surface it to the user.)
+
+## Gated Tasks
+
+A task's `gated_on` names outside inputs (another team's PR, reviewer-supplied data, an access grant) that you can't verify yourself — so the user decides, not the lead. Dispatch everything else first; ask only once the phase is otherwise stuck.
+
+1. Ask one AskUserQuestion with `multiSelect: true` — "Which of these inputs now exist?" — one option per `GATED:` task from `--ready`'s stderr, labeled with its task ID and input, plus a "None yet" option (questions take 2–4 options and a call up to 4 questions — spread larger sets across questions).
+2. For each selected task → `validate-plan --clear-gate "$PLAN_JSON" --task {TASK_ID}`, then re-run `--ready` and dispatch.
+3. Only "None yet" selected → pause: report the gated tasks with the phase worktree path and wait for the user, keeping this session and its worktrees intact. Don't hand off to a fresh orchestrate run — its Prepare Phase recreates the phase worktree and re-captures the base SHAs, so it can't resume mid-phase. When the user confirms an input exists, `--clear-gate` it and continue this loop. (To drop a task instead, `--update-status --status skipped` is allowed while gated.)
 
 ## Worktree Placement
 

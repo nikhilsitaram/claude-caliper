@@ -396,6 +396,14 @@ cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE57"
 OUT57=$(run_allow 'PLAN_DIR=/repo/.claude/caliper/plan; PLAN_JSON=$PLAN_DIR/plan.json; TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ"); jq --arg ts "$TS" ". += [{\"verdict\":\"pass\",\"timestamp\":\$ts}]" "$PLAN_DIR/reviews.json" > "$PLAN_DIR/reviews.json.tmp" && mv "$PLAN_DIR/reviews.json.tmp" "$PLAN_DIR/reviews.json"; TODAY=$(date +"%Y-%m-%d"); validate-plan --update-status "$PLAN_JSON" --phase A --status "Complete ($TODAY)"' "$SAFE57")
 assert_output_contains "phase-complete pattern with date allowed" "$OUT57" '"behavior":"allow"'
 
+echo "Test 57a: --status done / --ready / --clear-gate — #290 orchestrate dispatch verbs"
+# `done` is a shell reserved word; it must stay an ordinary argument to the segmenter
+SAFE57A="$TMPDIR_TEST/safe57a.txt"
+cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAFE57A"
+# shellcheck disable=SC2016
+OUT57A=$(run_allow 'PLAN_JSON=/repo/.claude/caliper/plan/plan.json; validate-plan --update-status "$PLAN_JSON" --task A5 --status done && validate-plan --ready "$PLAN_JSON" --phase A; validate-plan --clear-gate "$PLAN_JSON" --task A6' "$SAFE57A")
+assert_output_contains "task-done, ready, and clear-gate pattern allowed" "$OUT57A" '"behavior":"allow"'
+
 echo "Test 57b: VAR=\$(/abs/path/cmd args) — absolute path inside subshell assignment"
 SAFE57B="$TMPDIR_TEST/safe57b.txt"
 printf 'caliper-settings\n' > "$SAFE57B"

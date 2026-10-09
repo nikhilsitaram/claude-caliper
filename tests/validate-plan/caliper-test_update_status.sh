@@ -51,6 +51,30 @@ else
   ((FAIL++)) || true
 fi
 
+# `done` aliases `complete` — a bare `complete` word is refused by Claude Code's
+# worktree-isolation command parser (gh issue #290)
+reset_fixture
+jq '.status = "In Development" | .phases[0].status = "In Progress"' "$TMPDIR/plan.json" > "$TMPDIR/plan_tmp.json" && mv "$TMPDIR/plan_tmp.json" "$TMPDIR/plan.json"
+"$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status "done"
+actual=$(jq -r '.phases[0].tasks[0].status' "$TMPDIR/plan.json")
+assert_eq "--status done stores task status as complete" "complete" "$actual"
+if grep -q '\[x\] A1' "$TMPDIR/plan.md"; then
+  echo "PASS: done task renders as [x]"
+  ((PASS++)) || true
+else
+  echo "FAIL: done task should render as [x]"
+  ((FAIL++)) || true
+fi
+
+reset_fixture
+if "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status "done" 2>/dev/null; then
+  echo "FAIL: --status done should honor the parent-phase gate like complete"
+  ((FAIL++)) || true
+else
+  echo "PASS: --status done honors the parent-phase gate"
+  ((PASS++)) || true
+fi
+
 reset_fixture
 jq '.status = "In Development"' "$TMPDIR/plan.json" > "$TMPDIR/plan_tmp.json" && mv "$TMPDIR/plan_tmp.json" "$TMPDIR/plan.json"
 "$VALIDATE" --update-status "$TMPDIR/plan.json" --phase A --status "In Progress"

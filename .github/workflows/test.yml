@@ -45,9 +45,10 @@ jobs:
         run: bash tests/handoff/caliper-test_spawn_pane.sh
 
       - name: Validate-plan tests
+        # Glob so new tests/validate-plan/caliper-test_*.sh auto-enroll — the
+        # enumerated list had left most suites for bin/validate-plan out of CI.
         run: |
-          bash tests/validate-plan/caliper-test_schema.sh
-          bash tests/validate-plan/caliper-test_e2e.sh
-          bash tests/validate-plan/caliper-test_render.sh
-          bash tests/validate-plan/caliper-test_update_status.sh
-          bash tests/validate-plan/caliper-test_criteria.sh
+          for t in tests/validate-plan/caliper-test_*.sh; do
+            echo "== $t =="
+            bash "$t"
+          done

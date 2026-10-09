@@ -18,7 +18,7 @@ normalized_path="${file_path#./}"
 
 case "$normalized_path" in
   .claude/claude-caliper/*/plan.md|*/.claude/claude-caliper/*/plan.md)
-    reason="plan.md is a deterministic render of plan.json — direct edits are silently overwritten on the next validate-plan run. To change file lists, run: validate-plan --add-file <plan.json> --task <ID> --kind <create|modify|test> --path <FILE> (or --remove-file). To change task/phase status, run: validate-plan --update-status. To add a dependency, run: validate-plan --add-dep. After mutating plan.json, validate-plan re-renders plan.md automatically; if you need a manual re-render, run: validate-plan --render <plan.json>."
+    reason="plan.md is a deterministic render of plan.json — direct edits are silently overwritten on the next validate-plan run. To change file lists, run: validate-plan --add-file <plan.json> --task <ID> --kind <create|modify|test> --path <FILE> (or --remove-file). To change task/phase status, run: validate-plan --update-status. To add a dependency, run: validate-plan --add-dep. To clear an external gate (gated_on), run: validate-plan --clear-gate. After mutating plan.json, validate-plan re-renders plan.md automatically; if you need a manual re-render, run: validate-plan --render <plan.json>."
     jq -nc --arg r "$reason" '{
       hookSpecificOutput: {
         hookEventName: "PreToolUse",

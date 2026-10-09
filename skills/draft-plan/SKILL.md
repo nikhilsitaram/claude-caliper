@@ -84,7 +84,7 @@ A plan is `plan.json` — a structured manifest of phases and tasks. Each task c
 
 **Gates:** 8+ tasks single-phase → look for hidden boundary. 7+ tasks per phase → examine cut points.
 
-Phase boundaries = meaningful "run full suite" points. `depends_on` (phase level) declares phase ordering. Tasks within a phase execute in parallel — file sets must be disjoint (`validate-plan --schema` enforces this).
+Phase boundaries = meaningful "run full suite" points. `depends_on` (phase level) declares phase ordering. Tasks within a phase execute in parallel, so file sets must be disjoint unless `depends_on` orders them — prefer that over one oversized task.
 
 Inherit phases from design doc if approved.
 
@@ -110,6 +110,7 @@ Every task is a single plan.json entry — no split prose file. The two fields t
 | **done_when** | Measurable end state | `login returns JWT, 4/4 tests pass` |
 | **depends_on** | Task IDs this consumes | `["A1"]` (same phase for ordering, prior phase for cross-phase deps) |
 | **complexity** | Enum: low, medium, high | `"medium"` |
+| **gated_on** | Optional. Outside inputs the task can't start without; orchestrate holds it until the user clears the gate — don't encode this in `name`/`intent` | `["Platform PR #812 merged"]` |
 
 The implementer reads the codebase directly, so `intent` states the outcome and seams — not line-by-line code.
 

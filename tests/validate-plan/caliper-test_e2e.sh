@@ -52,10 +52,16 @@ assert_eq "plan status" "In Development" "$(jq -r '.status' "$TMPDIR/plan.json")
 
 # Task completion no longer requires a per-task review record (per-task review is retired) —
 # reviews.json only needs to carry the phase-level impl-review record for phase completion below.
+# Drive tasks the way orchestrate's dispatch loop does: the lead marks what
+# --ready lists in_progress as it dispatches, then done (stored as complete).
+assert_eq "ready before any work" "A1" "$("$VALIDATE" --ready "$TMPDIR/plan.json" --phase A)"
 "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status in_progress
-"$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status complete
+assert_eq "in-flight A1 not re-listed; A2 still blocked" "" "$("$VALIDATE" --ready "$TMPDIR/plan.json" --phase A)"
+"$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status "done"
+assert_eq "A2 ready once A1 is done" "A2" "$("$VALIDATE" --ready "$TMPDIR/plan.json" --phase A)"
 "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A2 --status in_progress
-"$VALIDATE" --update-status "$TMPDIR/plan.json" --task A2 --status complete
+"$VALIDATE" --update-status "$TMPDIR/plan.json" --task A2 --status "done"
+assert_eq "phase A drained" "" "$("$VALIDATE" --ready "$TMPDIR/plan.json" --phase A)"
 
 printf '[{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 "$VALIDATE" --update-status "$TMPDIR/plan.json" --phase A --status "Complete (2026-03-19)"

@@ -50,7 +50,7 @@ Handled by `validate-plan --schema`:
 - Duplicate file paths in creates lists
 - Empty success_criteria run commands
 - Missing expect fields
-- File-set overlap within a phase (create, modify, test paths must be disjoint per task)
+- File-set overlap within a phase (create, modify, test paths must be disjoint per task unless a `depends_on` path orders the two tasks)
 
 ### Prose + Design Review (LLM reviewer)
 

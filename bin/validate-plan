@@ -11,9 +11,9 @@ usage() {
 Usage:
   validate-plan --schema <plan.json>
   validate-plan --render <plan.json>
-  validate-plan --update-status <plan.json> --task <ID> --status <STATUS>
+  validate-plan --update-status <plan.json> --task <ID> --status <STATUS>   (done = complete)
   validate-plan --update-status <plan.json> --phase <LETTER> --status <STATUS>
-  validate-plan --update-status <plan.json> --plan --status <STATUS>
+  validate-plan --update-status <plan.json> --plan --status <STATUS>        (done = Complete)
   validate-plan --criteria <plan.json> --task <ID> [--cwd <DIR>]
   validate-plan --criteria <plan.json> --phase <LETTER> [--cwd <DIR>]
   validate-plan --criteria <plan.json> --plan [--cwd <DIR>]
@@ -22,6 +22,8 @@ Usage:
   validate-plan --check-entry <plan.json> --stage <STAGE>
   validate-plan --check-base <plan.json>
   validate-plan --check-deps <plan.json> --task <ID>
+  validate-plan --ready <plan.json> [--phase <LETTER>]
+  validate-plan --clear-gate <plan.json> --task <ID>
   validate-plan --check-workflow <plan.json>
   validate-plan --add-dep <plan.json> --task <DOWNSTREAM_ID> --depends-on <SOURCE_ID>
   validate-plan --add-file <plan.json> --task <ID> --kind <create|modify|test> --path <FILE>
@@ -38,6 +40,33 @@ USAGE
 
 ERRORS=()
 err() { ERRORS+=("$1"); }
+
+# Shared jq defs over a whole plan.
+# - ordered: two tasks in one phase may share a file only when a depends_on path
+#   (direct or transitive) orders them — orchestrate dispatches a dependent only
+#   after its prerequisite has merged, so they never run at once. BFS with a
+#   seen set so a cyclic plan (--add-file runs on unvalidated plans) can't hang.
+# - unmet_deps: the dependency half of "ready to dispatch" (--check-deps, --ready).
+# shellcheck disable=SC2016
+JQ_TASK_DEFS='
+  def dep_graph:
+    [(.phases // [])[] | (.tasks // [])[]
+     | {key: (.id // "" | tostring), value: (.depends_on // [])}] | from_entries;
+  def ancestors($g; $id):
+    {seen: [], frontier: (($g[$id] // []) | unique)}
+    | until((.frontier | length) == 0;
+        .seen as $s | (.frontier - $s) as $new
+        | {seen: ($s + $new), frontier: ([$new[] | ($g[tostring] // [])[]] | unique - $s - $new)})
+    | .seen;
+  def ordered($g; $a; $b):
+    (ancestors($g; $a) | any(. == $b)) or (ancestors($g; $b) | any(. == $a));
+  def task_files: (.files.create // []) + (.files.modify // []) + (.files.test // []);
+  def status_map:
+    [(.phases // [])[] | (.tasks // [])[]
+     | {key: (.id // "" | tostring), value: (.status // "")}] | from_entries;
+  def unmet_deps($st):
+    [(.depends_on // [])[] | select(($st[tostring] // "") as $s | $s != "complete" and $s != "skipped")];
+'
 
 lock_plan() {
   local plan_json="$1"
@@ -201,7 +230,8 @@ do_schema() {
       test_files: (.files.test // []),
       criteria: (.success_criteria // []),
       avoid: (.avoid // null),
-      intent: (.intent // null)
+      intent: (.intent // null),
+      gated_on: (.gated_on // null)
     }')
 
   # --- Level 5: Bulk extract BFS dependency graph (1 jq call) ---
@@ -283,8 +313,6 @@ do_schema() {
     fi
 
     # --- Validate tasks for this phase from pre-extracted scalars ---
-    local _phase_file_paths=()
-    local _phase_file_tids=()
     for ((ti=0; ti<_total_tasks; ti++)); do
       local tbase=$((ti * 13))
       local _tp="${_ts[$tbase]}"
@@ -376,7 +404,19 @@ do_schema() {
               "ERROR: invalid_avoid: task \($id) avoid[\($av)] missing non-empty string 'why'"
             else empty end)
           end
-        end)
+        end),
+        (if .gated_on != null and ((.gated_on | type) != "array"
+              or any(.gated_on[]; type != "string" or . == "")) then
+          "ERROR: invalid_gated_on: task \($id) gated_on must be an array of non-empty strings"
+        else empty end),
+        # depends_on and file lists drive the overlap and readiness checks; a
+        # non-array would otherwise be skipped by the []? reads below
+        (if (.depends_on | type) != "array" or any(.depends_on[]; type != "string") then
+          "ERROR: invalid_dependency: task \($id) depends_on must be an array of task ID strings"
+        else empty end),
+        (["create", .create], ["modify", .modify], ["test", .test_files]
+          | select((.[1] | type) != "array" or any(.[1][]; type != "string"))
+          | "ERROR: invalid_files: task \($id) files.\(.[0]) must be an array of path strings")
       ')
       if [[ -n "$_v2_errors" ]]; then
         while IFS= read -r _v2e; do
@@ -431,30 +471,33 @@ do_schema() {
         done
       fi
 
-      # Fileset overlap — collect files during task validation (no second pass)
-      local _all_files
-      _all_files=$(echo "$_tarr" | jq -r '(.create[]?, .modify[]?, .test_files[]?)')
-      while IFS= read -r fpath; do
-        [[ -z "$fpath" ]] && continue
-        local existing_owner=""
-        for ((fi=0; fi<${#_phase_file_paths[@]}; fi++)); do
-          if [[ "${_phase_file_paths[$fi]}" == "$fpath" ]]; then
-            existing_owner="${_phase_file_tids[$fi]}"
-            break
-          fi
-        done
-        if [[ -n "$existing_owner" && "$existing_owner" != "$id" ]]; then
-          err "ERROR: fileset_overlap: file '$fpath' claimed by tasks $existing_owner and $id in phase $letter"
-        elif [[ -z "$existing_owner" ]]; then
-          _phase_file_paths+=("$fpath")
-          _phase_file_tids+=("$id")
-        fi
-      done <<< "$_all_files"
-
       all_task_ids+=("$id")
     done
 
   done
+
+  # Fileset overlap: every pair of same-phase tasks sharing a path must be
+  # ordered by depends_on (1 jq call). Pairwise, not first-owner: A2 and A3 both
+  # after A1 are still unordered with each other. Captured rather than read
+  # from a process substitution so a jq failure fails the check instead of
+  # silently passing the plan.
+  local _overlaps _ov_path _ov_a _ov_b _ov_letter
+  if _overlaps=$(echo "$json" | jq -r "$JQ_TASK_DEFS"'
+    dep_graph as $g
+    | (.phases // [])[] | (.letter // "") as $letter
+    | [(.tasks // [])[] | (.id // "") as $id | task_files | unique | .[] | {path: ., id: $id}]
+    | group_by(.path)[] | select(length > 1)
+    | .[0].path as $path | [.[].id] as $ids
+    | range(0; $ids | length) as $i | range($i + 1; $ids | length) as $j
+    | select($ids[$i] != $ids[$j] and (ordered($g; $ids[$i]; $ids[$j]) | not))
+    | [$path, $ids[$i], $ids[$j], $letter] | @tsv' 2>/dev/null); then
+    while IFS=$'\t' read -r _ov_path _ov_a _ov_b _ov_letter; do
+      [[ -z "$_ov_path" ]] && continue
+      err "ERROR: fileset_overlap: file '$_ov_path' claimed by tasks $_ov_a and $_ov_b in phase $_ov_letter — no depends_on path orders them, so they may run in parallel"
+    done <<< "$_overlaps"
+  else
+    err "ERROR: fileset_overlap_unchecked: same-phase file overlap could not be evaluated — fix the depends_on/files type errors"
+  fi
 
   # Defense-in-depth: BFS cycle check using pre-extracted dependency graph
   local cd_cycle_detected=0
@@ -762,6 +805,11 @@ do_render() {
 
         printf -- '- %s %s: %s — *%s*\n' "$checkbox" "$tid" "$tname" "$done_when"
 
+        local gate
+        while IFS= read -r gate; do
+          [[ -n "$gate" ]] && printf '  - Gated on: %s\n' "$gate"
+        done < <(jq -r ".phases[$i].tasks[$j].gated_on // [] | .[]" "$plan_json")
+
         local handoff_count
         handoff_count=$(jq ".phases[$i].tasks[$j].handoffs // [] | length" "$plan_json")
         for ((h=0; h<handoff_count; h++)); do
@@ -778,6 +826,10 @@ do_render() {
 
 do_update_status_task() {
   local plan_json="$1" task_id="$2" new_status="$3"
+  # `done` aliases the completion status: Claude Code's worktree-isolation
+  # command parser refuses any command carrying a bare `complete`/`Complete`
+  # word (it reads it as the `complete` builtin), so callers spell it `done`.
+  [[ "$new_status" == "done" ]] && new_status="complete"
   local valid_statuses=("pending" "in_progress" "complete" "skipped")
   local valid=false
   for s in "${valid_statuses[@]}"; do
@@ -817,6 +869,14 @@ do_update_status_task() {
       unlock_plan "$plan_json"
       trap - EXIT
       echo "ERROR: cannot advance task $task_id — dependencies not complete: $incomplete_deps" >&2
+      exit 1
+    fi
+    local gates
+    gates=$(jq -r --arg id "$task_id" '.phases[].tasks[] | select(.id == $id) | (.gated_on // []) | join("; ")' "$plan_json")
+    if [[ -n "$gates" ]]; then
+      unlock_plan "$plan_json"
+      trap - EXIT
+      echo "ERROR: cannot advance task $task_id — gated on: $gates. Once that input exists, run: validate-plan --clear-gate <plan.json> --task $task_id" >&2
       exit 1
     fi
   fi
@@ -894,6 +954,7 @@ do_update_status_phase() {
 
 do_update_status_plan() {
   local plan_json="$1" new_status="$2"
+  [[ "$new_status" == "done" ]] && new_status="Complete"  # see do_update_status_task
   local valid_plan_statuses=("Not Yet Started" "In Development" "Complete")
   local valid=false
   for s in "${valid_plan_statuses[@]}"; do
@@ -1313,51 +1374,91 @@ do_check_workflow() {
 }
 
 do_check_deps() {
-  local plan_json="$1"
-  local task_id="$2"
+  local plan_json="$1" task_id="$2"
 
-  local json
-  json=$(cat "$plan_json")
+  # One line per blocker: DEP<TAB>dep_id<TAB>dep_status, or GATE<TAB>gates
+  local blockers
+  blockers=$(jq -r --arg id "$task_id" "$JQ_TASK_DEFS"'
+    status_map as $st
+    | [.phases[].tasks[] | select(.id == $id)][0]
+    | if . == null then "NOT_FOUND"
+      else (unmet_deps($st)[] | "DEP\t\(.)\t\($st[.] // "")"),
+           (select((.gated_on // []) | length > 0) | "GATE\t\(.gated_on | join("; "))")
+      end' "$plan_json")
 
-  declare -A _status_map
-  local _deps_for_target=""
-  local _found=false
-
-  local _bulk=()
-  mapfile -d '' _bulk < <(echo "$json" | jq -j --arg tid "$task_id" '
-    [.phases[].tasks[] | [.id, .status, (if .id == $tid then (.depends_on // [] | join(",")) else "" end), (if .id == $tid then "FOUND" else "" end)]
-    | map(. + "\u0000") | join("")] | join("")')
-
-  local _count=$(( ${#_bulk[@]} / 4 ))
-  for ((i=0; i<_count; i++)); do
-    local base=$((i * 4))
-    _status_map["${_bulk[$base]}"]="${_bulk[$((base+1))]}"
-    if [[ "${_bulk[$((base+3))]}" == "FOUND" ]]; then
-      _deps_for_target="${_bulk[$((base+2))]}"
-      _found=true
-    fi
-  done
-
-  if [[ "$_found" != "true" ]]; then
+  if [[ "$blockers" == "NOT_FOUND" ]]; then
     echo "ERROR: task '$task_id' not found in plan" >&2
     exit 1
   fi
+  [[ -z "$blockers" ]] && exit 0
 
-  if [[ -z "$_deps_for_target" ]]; then
-    exit 0
+  local kind detail dep_status
+  while IFS=$'\t' read -r kind detail dep_status; do
+    case "$kind" in
+      DEP)  echo "ERROR: dependency_not_complete: task $task_id depends on $detail which has status '$dep_status' (expected: complete or skipped)" >&2 ;;
+      GATE) echo "ERROR: task_gated: task $task_id is gated on: $detail — once that input exists, run: validate-plan --clear-gate <plan.json> --task $task_id" >&2 ;;
+    esac
+  done <<< "$blockers"
+  exit 1
+}
+
+# Prints dispatchable task IDs (pending, deps complete/skipped, no open gate) one
+# per line; pending tasks held only by a gate go to stderr so the lead can ask
+# the user about them. Exits 0 even when nothing is ready.
+do_ready() {
+  local plan_json="$1" phase_letter="$2"
+  if [[ -n "$phase_letter" ]] && ! jq -e --arg l "$phase_letter" 'any(.phases[]; .letter == $l)' "$plan_json" >/dev/null; then
+    echo "ERROR: phase_not_found: '$phase_letter' not found in plan" >&2
+    exit 1
   fi
+  # Captured (not streamed) so a plan jq can't evaluate fails loudly instead of
+  # printing a partial or empty listing that reads as "nothing to dispatch".
+  local rows
+  if ! rows=$(jq -r --arg l "$phase_letter" "$JQ_TASK_DEFS"'
+    status_map as $st
+    | .phases[] | select($l == "" or .letter == $l) | .tasks[]
+    | select(.status == "pending" and (unmet_deps($st) | length) == 0)
+    | if (.gated_on // []) | length > 0
+      then ["GATED", .id, (.gated_on | join("; "))]
+      else ["READY", .id, ""] end
+    | @tsv' "$plan_json" 2>/dev/null); then
+    echo "ERROR: ready_unchecked: could not evaluate task readiness — run validate-plan --schema $plan_json" >&2
+    exit 1
+  fi
+  local kind tid gates
+  while IFS=$'\t' read -r kind tid gates; do
+    case "$kind" in
+      READY) echo "$tid" ;;
+      GATED) echo "GATED: $tid — $gates" >&2 ;;
+    esac
+  done <<< "$rows"
+}
 
-  IFS=',' read -ra dep_arr <<< "$_deps_for_target"
-  for dep_id in "${dep_arr[@]}"; do
-    [[ -z "$dep_id" ]] && continue
-    local dep_status="${_status_map[$dep_id]:-}"
-    if [[ "$dep_status" != "complete" && "$dep_status" != "skipped" ]]; then
-      echo "ERROR: dependency_not_complete: task $task_id depends on $dep_id which has status '$dep_status' (expected: complete or skipped)" >&2
-      exit 1
-    fi
-  done
-
-  exit 0
+do_clear_gate() {
+  local plan_json="$1" task_id="$2"
+  lock_plan "$plan_json"
+  trap 'unlock_plan "'"$plan_json"'"' EXIT
+  local task_found
+  task_found=$(jq --arg id "$task_id" '[.phases[].tasks[] | select(.id == $id)] | length' "$plan_json")
+  if [[ "$task_found" -eq 0 ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: task_not_found: '$task_id'" >&2
+    exit 1
+  fi
+  local gates
+  gates=$(jq -r --arg id "$task_id" '.phases[].tasks[] | select(.id == $id) | (.gated_on // []) | join("; ")' "$plan_json")
+  if [[ -z "$gates" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "task $task_id has no open gates (no change)"
+    return 0
+  fi
+  local tmp="${plan_json}.tmp.$$"
+  jq --arg id "$task_id" '(.phases[].tasks[] | select(.id == $id)) |= del(.gated_on)' "$plan_json" > "$tmp" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: jq update failed" >&2; exit 1; }
+  mv "$tmp" "$plan_json" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
+  do_render "$plan_json"
+  unlock_plan "$plan_json"
+  trap - EXIT
+  echo "cleared gates on $task_id: $gates"
 }
 
 do_add_dep() {
@@ -1393,6 +1494,17 @@ do_add_dep() {
     unlock_plan "$plan_json"; trap - EXIT
     echo "ERROR: cannot_add_dep: task '$downstream_id' is '$downstream_status' — dependencies can only be added to pending or in_progress tasks" >&2
     exit 1
+  fi
+  # An already-dispatched task can't be ordered after unfinished work — and
+  # --add-file trusts depends_on ordering to allow same-phase file overlap.
+  if [[ "$downstream_status" == "in_progress" ]]; then
+    local source_status
+    source_status=$(jq -r --arg id "$source_id" '.phases[].tasks[] | select(.id == $id) | .status' "$plan_json")
+    if [[ "$source_status" != "complete" && "$source_status" != "skipped" ]]; then
+      unlock_plan "$plan_json"; trap - EXIT
+      echo "ERROR: cannot_add_dep: task '$downstream_id' is already in_progress and '$source_id' is '$source_status' — the edge can't order tasks that are already running" >&2
+      exit 1
+    fi
   fi
   local already
   already=$(jq -r --arg did "$downstream_id" --arg sid "$source_id" '.phases[].tasks[] | select(.id == $did) | (.depends_on // []) | index($sid) // ""' "$plan_json")
@@ -1466,15 +1578,17 @@ do_add_file() {
   fi
 
   local phase_owner
-  phase_owner=$(jq -r --arg letter "$task_letter" --arg id "$task_id" --arg p "$path" '
-    .phases[] | select(.letter == $letter) | .tasks[] |
-    select(.id != $id) |
-    select(((.files.create // []) + (.files.modify // []) + (.files.test // [])) | index($p)) |
-    .id
+  phase_owner=$(jq -r --arg letter "$task_letter" --arg id "$task_id" --arg p "$path" "$JQ_TASK_DEFS"'
+    dep_graph as $g
+    | .phases[] | select(.letter == $letter) | .tasks[]
+    | select(.id != $id)
+    | select(task_files | index($p))
+    | select(ordered($g; .id; $id) | not)
+    | .id
   ' "$plan_json" | head -n 1)
   if [[ -n "$phase_owner" ]]; then
     unlock_plan "$plan_json"; trap - EXIT
-    echo "ERROR: fileset_overlap_add: path '$path' already claimed by task '$phase_owner' in phase $task_letter" >&2
+    echo "ERROR: fileset_overlap_add: path '$path' already claimed by task '$phase_owner' in phase $task_letter, with no depends_on path ordering them" >&2
     exit 1
   fi
 
@@ -1795,6 +1909,22 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
+    --ready)
+      MODE="ready"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --clear-gate)
+      MODE="clear-gate"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
     --check-handoffs)
       MODE="check-handoffs"
       shift
@@ -1941,6 +2071,20 @@ case "$MODE" in
       exit 2
     fi
     do_check_deps "$PLAN_JSON" "$UPDATE_ID"
+    ;;
+  ready)
+    if [[ -n "$UPDATE_TARGET" && ( "$UPDATE_TARGET" != "phase" || -z "$UPDATE_ID" ) ]]; then
+      echo "ERROR: --ready takes only an optional --phase <LETTER>" >&2
+      exit 2
+    fi
+    do_ready "$PLAN_JSON" "$UPDATE_ID"
+    ;;
+  clear-gate)
+    if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" ]]; then
+      echo "ERROR: --clear-gate requires --task <ID>" >&2
+      exit 2
+    fi
+    do_clear_gate "$PLAN_JSON" "$UPDATE_ID"
     ;;
   add-dep)
     if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" || -z "$DEPENDS_ON_ID" ]]; then

@@ -107,11 +107,12 @@ There is exactly one `completion.md` per phase — the point where the orchestra
 - `phases[].tasks[].status` (string, required): `pending` | `in_progress` | `complete` | `skipped`.
 - `phases[].tasks[].intent` (string, required): 2–4 sentences of *what* the task builds and *why*. This replaces per-task prose entirely. It must let a fresh Claude — reading the codebase directly at full context — execute the task unambiguously: which component, what behavior, how it fits the phase. It carries intent, never pasted implementation code.
 - `phases[].tasks[].depends_on` (array of strings): Task IDs this task consumes output from. Must reference same or prior phase only.
+- `phases[].tasks[].gated_on` (array of non-empty strings, optional): External inputs the task can't start without — another team's PR, reviewer-supplied data, an access grant — one description each. While any gate is open, `--check-deps` reports the task blocked, `--ready` withholds it, and `--update-status` refuses `in_progress`/`done`. The user clears gates once the input exists (`validate-plan --clear-gate plan.json --task A5`); the orchestrator can't verify outside inputs itself. Use this instead of encoding the gate in `name` or `intent`, which orchestrate can't act on.
 - `phases[].tasks[].complexity` (string, required): `low` | `medium` | `high`.
   - `low`: mechanical/rote — rename, config update, import addition, single-line edits
   - `medium`: standard implementation with clear boundaries following existing patterns
   - `high`: multi-system integration, complex logic, novel patterns, or architectural decisions
-- `phases[].tasks[].files` (object, required): `create`, `modify`, `test` — arrays of file paths (each key required, arrays may be empty). File paths must be unique across all tasks in the plan; file *sets* must be disjoint across tasks within a phase (they run in parallel).
+- `phases[].tasks[].files` (object, required): `create`, `modify`, `test` — arrays of file paths (each key required, arrays may be empty). A `create` path may appear in only one task in the plan. Within a phase, two tasks may share a path only when a `depends_on` path (direct or transitive) orders them — unordered tasks run in parallel, while a dependent is dispatched only after its prerequisite merges. Prefer an ordered pair of reviewable tasks over one oversized task.
 - `phases[].tasks[].verification` (string, required): Runnable command, <60s.
 - `phases[].tasks[].done_when` (string, required): Measurable end state.
 - `phases[].tasks[].avoid` (array, required): Array of `{rule, why}` objects. Each object needs a non-empty `rule` (the pitfall to avoid) and a non-empty `why` (the reason). This is where task-specific pitfalls live now that there is no prose section.
@@ -120,7 +121,7 @@ There is exactly one `completion.md` per phase — the point where the orchestra
 
 ## plan.md (rendered outline)
 
-Deterministically generated from `plan.json` by `validate-plan --render` — never edited directly, never LLM-generated. It emits the `> **For Claude:** REQUIRED SUB-SKILL: Use orchestrate` trigger line, one checklist entry per task (`complete`/`skipped` → `[x]`, else `[ ]`) with the task's `done_when` as the italic suffix, and a nested bullet per recorded handoff. `plan.json` is the source of truth; `plan.md` is derived.
+Deterministically generated from `plan.json` by `validate-plan --render` — never edited directly, never LLM-generated. It emits the `> **For Claude:** REQUIRED SUB-SKILL: Use orchestrate` trigger line, one checklist entry per task (`complete`/`skipped` → `[x]`, else `[ ]`) with the task's `done_when` as the italic suffix, a nested `Gated on:` bullet per open gate, and a nested bullet per recorded handoff. `plan.json` is the source of truth; `plan.md` is derived.
 
 ## Handoffs
 
@@ -136,13 +137,16 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 
 | Mode | When | What |
 |---|---|---|
-| `--schema plan.json` | Pre-orchestration, plan-review | Validate JSON structure, required fields/types, schema version, task-ID/phase-letter rules, `depends_on` ordering, `intent`/`avoid` presence and shape, disjoint file sets, non-empty criteria `run` strings. Chains to `--consistency`. |
+| `--schema plan.json` | Pre-orchestration, plan-review | Validate JSON structure, required fields/types, schema version, task-ID/phase-letter rules, `depends_on` ordering, `intent`/`avoid` presence and shape, no unordered same-phase file overlap, non-empty criteria `run` strings. Chains to `--consistency`. |
 | `--render plan.json` | Standalone (also called internally by `--update-status`/`--add-handoff`) | Deterministically generate plan.md from plan.json |
-| `--update-status plan.json --task A1 --status complete` | After each task | Update task status + regenerate plan.md (enforces phase/dependency preconditions) |
+| `--update-status plan.json --task A1 --status done` | After each task | Update task status + regenerate plan.md (enforces phase/dependency/gate preconditions). `done` is stored as `complete` — use it, since worktree-isolated sessions refuse a bare `complete` word |
 | `--update-status plan.json --phase A --status "In Progress"` | Phase start/complete | Update phase status + regenerate plan.md (phase-complete requires all tasks done + impl-review gate) |
-| `--update-status plan.json --plan --status "In Development"` | Plan lifecycle | Update plan status + regenerate plan.md |
+| `--update-status plan.json --plan --status "In Development"` | Plan lifecycle | Update plan status + regenerate plan.md (`--status done` is stored as `Complete`) |
 | `--add-handoff plan.json --task B1 --from A2 --note "..."` | Phase wrap-up (cross-phase deps) | Record a handoff as structured data + regenerate plan.md |
 | `--check-handoffs plan.json --phase A` | Phase wrap-up | Verify cross-phase deps into later phases have recorded handoffs |
+| `--ready plan.json [--phase A]` | Dispatch loop | Print dispatchable task IDs (pending, deps complete/skipped, no open gate), one per line; gated tasks go to stderr. Exit 0 even when empty |
+| `--check-deps plan.json --task A2` | Diagnosing one task | Exit 1 listing every unmet dependency and open gate |
+| `--clear-gate plan.json --task A5` | User confirms a gated input exists | Remove the task's `gated_on` + regenerate plan.md |
 | `--criteria plan.json --task A1 \| --phase A \| --plan [--cwd DIR]` | Verification | Run `success_criteria` (in DIR if given) and report pass/fail |
 | `--check-entry`, `--check-base`, `--check-review`, `--check-workflow`, `--consistency` | Gates | Review-gate, base-branch, and cross-status consistency checks |
 
@@ -153,7 +157,7 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 - `run` strings in `success_criteria` are non-empty; each criterion has `expect_exit` or `expect_output`.
 - `depends_on` references (task and phase) point to the same or a prior scope; no dependency cycles.
 - Task IDs unique with phase-matching prefixes; phase letters unique and alphabetically ordered.
-- No duplicate `create` paths across tasks; no file-set overlap between tasks in the same phase.
+- No duplicate `create` paths across tasks; no file shared by two same-phase tasks unless a `depends_on` path orders them.
 
 ### Output format
 
@@ -164,6 +168,6 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 
 - **Plan:** `Not Yet Started` → `In Development` → `Complete`. A plan can't be `Complete` while any phase is incomplete or a required review gate is unmet; a phase can't advance while the plan is `Not Yet Started`.
 - **Phase:** `Not Started` → `In Progress` → `Complete (YYYY-MM-DD)`. Marking a phase complete requires all its tasks `complete`/`skipped` and a passing `impl-review` record for `phase-{letter}`.
-- **Task:** `pending` → `in_progress` → `complete` (or `skipped`). A task can't advance while its parent phase is `Not Started` or any dependency is still `pending`/`in_progress`.
+- **Task:** `pending` → `in_progress` → `complete` (or `skipped`). A task can't advance while its parent phase is `Not Started`, any dependency is still `pending`/`in_progress`, or it has an open `gated_on`.
 
 Only `validate-plan` edits `plan.json` — no LLM hand-edits the manifest. Every status change regenerates plan.md, so progress is visible in real time.

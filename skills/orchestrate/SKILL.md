@@ -69,7 +69,7 @@ Process phases in order (A, B, C...). For each phase:
 ### Dispatch and Complete Tasks
 
 Follow the dispatch protocol in `./dispatch-subagents.md`. Invariants:
-- Only dispatch tasks whose dependencies are met (`validate-plan --check-deps "$PLAN_JSON"`)
+- Only dispatch what `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` lists
 - On implementer completion: verify the commit landed on the task branch, validate criteria (`validate-plan --criteria "$PLAN_JSON" --task {TASK_ID} --cwd "$TASK_WORKTREE"`), merge it into the phase branch, then check for newly unblocked tasks
 - No per-task review — the phase implementation-review (Phase Wrap-Up) is the review gate
 
@@ -125,7 +125,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 2. Dispatch implementation-review, run Review Loop Protocol (scope: `phase-a`)
 3. `validate-plan --check-review "$PLAN_JSON" --type impl-review --scope phase-a`
 4. Run plan criteria: `validate-plan --criteria "$PLAN_JSON" --plan`
-5. `validate-plan --update-status "$PLAN_JSON" --plan --status Complete`
+5. `validate-plan --update-status "$PLAN_JSON" --plan --status done`
 6. Route on workflow:
    - `"orchestrate"`: `validate-plan --check-workflow "$PLAN_JSON"`, report worktree path, stop
    - `"pr-create"`: invoke pr-create (targets main), `validate-plan --check-workflow "$PLAN_JSON"`, stop
@@ -136,7 +136,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 1. Run plan criteria: `validate-plan --criteria "$PLAN_JSON" --plan`. If exit 1, do not mark complete.
 2. Final review: dispatch implementation-review with `PLAN_BASE_SHA..HEAD`, run Review Loop Protocol (scope: `final`)
 3. `validate-plan --check-review "$PLAN_JSON" --type impl-review --scope final`
-4. `validate-plan --update-status "$PLAN_JSON" --plan --status Complete`
+4. `validate-plan --update-status "$PLAN_JSON" --plan --status done`
 5. Route on workflow:
    - `"orchestrate"`: `validate-plan --check-workflow "$PLAN_JSON"`, report worktree path, stop
    - `"pr-merge"`: create final PR, pr-review --automated-merge (no pre-merge check poll — pr-merge auto-merges and waits for `MERGED`), `validate-plan --check-workflow "$PLAN_JSON"`, clean up
