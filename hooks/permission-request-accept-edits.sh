@@ -16,11 +16,8 @@ if [[ -n "$file_path" && "$file_path" == *"/.claude/claude-caliper/"* ]]; then
   is_caliper_file=1
 fi
 
-git_common_dir=$(git -C "$cwd" rev-parse --git-common-dir 2>/dev/null || true)
-if [[ -n "$git_common_dir" && "$git_common_dir" != /* ]]; then
-  git_common_dir="$cwd/$git_common_dir"
-fi
-MAIN_ROOT="${git_common_dir%/.git}"
+# Plan dirs live in the main checkout; empty outside a repo.
+MAIN_ROOT=$("$(dirname "$0")/../bin/caliper-main-root" "$cwd" 2>/dev/null || true)
 
 find_args=("$cwd/.claude/claude-caliper")
 for d in "$cwd/.claude/worktrees"/*/.claude/claude-caliper; do

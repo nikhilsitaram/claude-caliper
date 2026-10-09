@@ -22,7 +22,7 @@ git rev-parse --path-format=absolute --git-dir --git-common-dir
 If inside a worktree, note `IN_WORKTREE=true` and capture paths for cleanup:
 
 ```bash
-MAIN_REPO=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
+MAIN_REPO=$(caliper-main-root)
 WORKTREE_PATH=$(pwd)
 CWD_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 ```

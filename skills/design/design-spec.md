@@ -19,7 +19,7 @@ The plan-drafter reads the design doc and nothing else. Every assumption, file r
 $MAIN_ROOT/.claude/claude-caliper/YYYY-MM-DD-<topic>/design-<topic>.md
 ```
 
-Where `$MAIN_ROOT` is the main repo root (resolved from `git rev-parse --git-common-dir`). Plans live in the main repo so they survive worktree cleanup. Example: `/Users/you/repo/.claude/claude-caliper/2026-04-11-auth-redesign/design-auth-redesign.md`
+Where `$MAIN_ROOT` is the main repo root (resolved by `caliper-main-root`). Plans live in the main repo so they survive worktree cleanup. Example: `/Users/you/repo/.claude/claude-caliper/2026-04-11-auth-redesign/design-auth-redesign.md`
 
 ---
 

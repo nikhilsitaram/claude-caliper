@@ -110,6 +110,24 @@ else
   echo "PASS: non-caliper file emits no decision"
   ((PASS++)) || true
 fi
+
+echo "Test 10: From a submodule's linked worktree, the sentinel in the submodule checkout is found"
+# A submodule's git dir is <super>/.git/modules/<name>, so stripping /.git from
+# the common dir never reaches the checkout that holds the plan dirs.
+SUBBASE="$(cd "$TMPDIR" && pwd -P)/t10"
+mkdir -p "$SUBBASE"
+git -C "$SUBBASE" init -q subsrc
+git -C "$SUBBASE/subsrc" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m init
+git -C "$SUBBASE" init -q super
+git -C "$SUBBASE/super" -c protocol.file.allow=always submodule -q add "$SUBBASE/subsrc" sub
+git -C "$SUBBASE/super/sub" worktree add -q "$SUBBASE/sub-wt" -b w
+SUB_SENTINEL="$SUBBASE/super/sub/.claude/claude-caliper/2026-03-20-topic"
+mkdir -p "$SUB_SENTINEL"
+touch "$SUB_SENTINEL/.design-approved"
+INPUT10=$(jq -n --arg cwd "$SUBBASE/sub-wt" '{cwd: $cwd}')
+OUTPUT10=$(echo "$INPUT10" | bash "$HOOK" 2>/dev/null)
+assert_output_contains "submodule checkout's sentinel found from its linked worktree" "$OUTPUT10" '"behavior": "allow"'
+
 echo ""
 echo "$PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

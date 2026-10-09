@@ -73,7 +73,7 @@ Runs 3 independent full-codebase Opus reviewers in parallel, a peer cross-verifi
 Compute these absolute paths and create the artifact directory:
 
 ```bash
-MAIN_ROOT=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||')
+MAIN_ROOT=$(caliper-main-root)
 if [ -z "$MAIN_ROOT" ]; then
   echo "ERROR: codebase-review team mode must be run inside a git repository (MAIN_ROOT could not be resolved)." >&2
   exit 1
@@ -85,7 +85,7 @@ ESCALATION_FILE="$ARTIFACT_DIR/escalations.md"
 mkdir -p "$ARTIFACT_DIR" "$MAIN_ROOT/docs/reviews"
 ```
 
-`MAIN_ROOT` uses `--git-common-dir` because in a worktree, `--show-toplevel` returns the worktree, not the main repo. Artifacts must live in the main repo root so they survive worktree cleanup (per project `CLAUDE.md`).
+`MAIN_ROOT` comes from `caliper-main-root` because in a worktree, `--show-toplevel` returns the worktree, not the main repo. Artifacts must live in the main repo root so they survive worktree cleanup (per project `CLAUDE.md`).
 
 ### TeamCreate
 

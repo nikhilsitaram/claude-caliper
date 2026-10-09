@@ -30,7 +30,7 @@ Complete in order:
 6. **Set up worktree** — create it with git from the main checkout (branching from current HEAD), then `EnterWorktree(path: "$WORKTREE")`. A path-entered worktree is never auto-removed; one made by `EnterWorktree(name:)` is, on exit, if it looks unchanged — an integration branch with no commits yet does. **See:** ./worktree-isolation.md for the rules the session runs under once inside.
 
      ```bash
-     MAIN_ROOT=$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')
+     MAIN_ROOT=$(caliper-main-root)
      PLAN_DIR="$MAIN_ROOT/.claude/claude-caliper/YYYY-MM-DD-<topic>"
      WORKTREE="$MAIN_ROOT/.claude/worktrees/<feature>"
      git worktree add "$WORKTREE" -b <feature>
