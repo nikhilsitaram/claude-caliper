@@ -23,7 +23,9 @@ find_args=("$cwd/.claude/claude-caliper")
 for d in "$cwd/.claude/worktrees"/*/.claude/claude-caliper; do
   [[ -e "$d" ]] && find_args+=("$d")
 done
-if [[ -n "$MAIN_ROOT" && "$MAIN_ROOT" != "$cwd" ]]; then
+# MAIN_ROOT is physical (pwd -P); compare it to the physical cwd so a symlinked
+# cwd doesn't search the same plan dirs twice.
+if [[ -n "$MAIN_ROOT" && "$MAIN_ROOT" != "$(cd "$cwd" && pwd -P)" ]]; then
   find_args+=("$MAIN_ROOT/.claude/claude-caliper")
   for d in "$MAIN_ROOT/.claude/worktrees"/*/.claude/claude-caliper; do
     [[ -e "$d" ]] && find_args+=("$d")
