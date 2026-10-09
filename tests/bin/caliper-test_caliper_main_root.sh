@@ -58,6 +58,17 @@ g -C "$BASE/super/sub" worktree add -q "$BASE/sub-wt" -b w
 check_eq "t2: submodule main checkout" "$BASE/super/sub" "$(root_of "$BASE/super/sub")"
 check_eq "t2: submodule linked worktree" "$BASE/super/sub" "$(root_of "$BASE/sub-wt")"
 check_eq "t2: no warning for a submodule" "" "$(cat "$BASE/err")"
+# sparse-checkout turns on extensions.worktreeConfig and moves core.worktree
+# into config.worktree; a worktree outside the checkout must still resolve.
+mkdir -p "$BASE/subsrc/a"
+echo x > "$BASE/subsrc/a/f"
+g -C "$BASE/subsrc" add -A
+g -C "$BASE/subsrc" commit -q -m files
+g -C "$BASE/super" submodule -q add "$BASE/subsrc" sparse
+g -C "$BASE/super/sparse" sparse-checkout set a
+g -C "$BASE/super/sparse" worktree add -q "$BASE/sparse-wt" -b w
+check_eq "t2: sparse-checkout submodule's linked worktree" "$BASE/super/sparse" "$(root_of "$BASE/sparse-wt")"
+check_eq "t2: no warning for a sparse-checkout submodule" "" "$(cat "$BASE/err")"
 
 # Test 3: --separate-git-dir — the main checkout resolves exactly; from a linked
 # worktree git records no path back to it, so fall back to the git dir and warn.
@@ -83,6 +94,13 @@ g -C "$BASE/norm" push -q "$BASE/bare.git" HEAD:refs/heads/main
 g -C "$BASE/bare.git" worktree add -q "$BASE/bare-wt" main
 check_eq "t4: bare repo's linked worktree resolves to the bare dir" "$BASE/bare.git" "$(root_of "$BASE/bare-wt")"
 check_eq "t4: no warning for a bare repo" "" "$(cat "$BASE/err")"
+# With extensions.worktreeConfig, core.bare lives in config.worktree instead.
+git -C "$BASE/bare.git" config extensions.worktreeConfig true
+git config --file "$BASE/bare.git/config.worktree" core.bare true
+git config --file "$BASE/bare.git/config" --unset core.bare
+check_eq "t4: worktreeConfig bare repo resolves to the bare dir" "$BASE/bare.git" "$(root_of "$BASE/bare-wt")"
+check_eq "t4: no warning when core.bare is in config.worktree" "" "$(cat "$BASE/err")"
+check_eq "t4: the bare dir itself resolves to itself" "$BASE/bare.git" "$(root_of "$BASE/bare.git")"
 
 # Test 5: errors.
 mkdir -p "$BASE/plain"
