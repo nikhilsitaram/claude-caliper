@@ -71,7 +71,7 @@ Check for:
 - `done_when` that isn't measurable
 - `verification` that isn't a runnable command, or references wrong paths / project tooling
   (e.g. `npm test` where the project uses `yarn`)
-- Files listed in `files.modify` that don't exist in the codebase
+- Files listed in `files.modify` that don't exist in the codebase and aren't created by a task this one `depends_on` (directly or transitively)
 
 - Flag: `intent` says "modify the auth handler" without naming the file
 - Flag: `done_when` says "authentication complete" (not measurable)
