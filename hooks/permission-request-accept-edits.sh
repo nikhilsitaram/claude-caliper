@@ -16,17 +16,16 @@ if [[ -n "$file_path" && "$file_path" == *"/.claude/claude-caliper/"* ]]; then
   is_caliper_file=1
 fi
 
-git_common_dir=$(git -C "$cwd" rev-parse --git-common-dir 2>/dev/null || true)
-if [[ -n "$git_common_dir" && "$git_common_dir" != /* ]]; then
-  git_common_dir="$cwd/$git_common_dir"
-fi
-MAIN_ROOT="${git_common_dir%/.git}"
+# Plan dirs live in the main checkout; empty outside a repo.
+MAIN_ROOT=$("$(dirname "$0")/../bin/caliper-main-root" "$cwd" 2>/dev/null || true)
 
 find_args=("$cwd/.claude/claude-caliper")
 for d in "$cwd/.claude/worktrees"/*/.claude/claude-caliper; do
   [[ -e "$d" ]] && find_args+=("$d")
 done
-if [[ -n "$MAIN_ROOT" && "$MAIN_ROOT" != "$cwd" ]]; then
+# MAIN_ROOT is physical (pwd -P); compare it to the physical cwd so a symlinked
+# cwd doesn't search the same plan dirs twice.
+if [[ -n "$MAIN_ROOT" && "$MAIN_ROOT" != "$(cd "$cwd" && pwd -P)" ]]; then
   find_args+=("$MAIN_ROOT/.claude/claude-caliper")
   for d in "$MAIN_ROOT/.claude/worktrees"/*/.claude/claude-caliper; do
     [[ -e "$d" ]] && find_args+=("$d")

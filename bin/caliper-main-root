@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# caliper-main-root [path]
+#
+# Print the absolute path of the repo's main checkout — the working tree that
+# owns the shared git dir — from the main checkout itself or any linked
+# worktree. Defaults to the current directory. Caliper keeps state that must
+# outlive worktrees there (.claude/agent-memory/, plan artifacts).
+#
+# Stripping `/.git` from --git-common-dir only works when the git dir is
+# <main>/.git. Resolution, first match wins:
+#   1. In the main checkout (its git dir is the common dir): its toplevel. Exact
+#      in every layout.
+#   2. The main worktree's core.worktree, resolved against the common dir.
+#      Submodules set it: their git dir is <super>/.git/modules/<name>.
+#      With extensions.worktreeConfig (sparse-checkout turns it on) it lives in
+#      config.worktree rather than config.
+#   3. A common dir named `.git`: its parent. The normal case.
+#   4. The nearest enclosing checkout of the same repo whose git dir is the
+#      common dir. A --separate-git-dir repo records no path back to its main
+#      checkout (`git worktree list` reports the git dir), but caliper nests
+#      worktrees under <main>/.claude/worktrees/, so walking up past any
+#      intermediate linked worktrees reaches it.
+#   5. Otherwise the common dir itself. A bare repo has no main checkout, so its
+#      git dir is the shared home. Anything else is a worktree outside its main
+#      checkout in a --separate-git-dir repo: warn, since state kept in the git
+#      dir is separate from the main checkout's.
+
+usage() {
+  echo "Usage: caliper-main-root [path]" >&2
+  exit 1
+}
+
+[[ $# -le 1 ]] || usage
+DIR="${1:-.}"
+[[ -d "$DIR" ]] || { echo "ERROR: path does not exist: $DIR" >&2; exit 1; }
+
+DIRS="$(git -C "$DIR" rev-parse --path-format=absolute --git-dir --git-common-dir)"
+GIT_DIR="${DIRS%%$'\n'*}"
+COMMON_DIR="$(cd "${DIRS#*$'\n'}" && pwd -P)"
+
+if [[ "$(cd "$GIT_DIR" && pwd -P)" == "$COMMON_DIR" ]] \
+    && TOP="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null)" && [[ -n "$TOP" ]]; then
+  cd "$TOP" && pwd -P
+  exit 0
+fi
+
+# The main worktree's own setting: its config.worktree when worktreeConfig is
+# on, else the repo config. Never global config, never another worktree's.
+main_config() {
+  git --git-dir="$COMMON_DIR" config --worktree "$@" 2>/dev/null \
+    || git --git-dir="$COMMON_DIR" config --local "$@" 2>/dev/null \
+    || true
+}
+
+CORE_WORKTREE="$(main_config --get core.worktree)"
+if [[ -n "$CORE_WORKTREE" ]] && ROOT="$(cd "$COMMON_DIR" && cd "$CORE_WORKTREE" 2>/dev/null && pwd -P)"; then
+  echo "$ROOT"
+  exit 0
+fi
+
+if [[ "$(basename "$COMMON_DIR")" == ".git" ]]; then
+  dirname "$COMMON_DIR"
+  exit 0
+fi
+
+# Each step moves to a strictly higher toplevel, so the walk ends; it stops at
+# the first directory outside any checkout of this repo. A bare dir has no
+# toplevel to start from, so it skips the walk.
+TOP="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || echo /)"
+while [[ "$TOP" != "/" ]]; do
+  UP="$(git -C "$(dirname "$TOP")" rev-parse --path-format=absolute --git-dir --git-common-dir --show-toplevel 2>/dev/null)" || break
+  { read -r UP_GIT_DIR; read -r UP_COMMON_DIR; read -r TOP; } <<<"$UP"
+  [[ "$(cd "$UP_COMMON_DIR" && pwd -P)" == "$COMMON_DIR" ]] || break
+  if [[ "$(cd "$UP_GIT_DIR" && pwd -P)" == "$COMMON_DIR" ]]; then
+    cd "$TOP" && pwd -P
+    exit 0
+  fi
+done
+
+if [[ "$(main_config --bool --get core.bare)" != "true" ]]; then
+  echo "WARN: can't locate the main checkout from $DIR (git dir $COMMON_DIR has no path back to it, as with --separate-git-dir); using the git dir" >&2
+fi
+echo "$COMMON_DIR"

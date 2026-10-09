@@ -7,10 +7,10 @@ Parallel task execution via Agent tool dispatches with worktree isolation.
 List the dispatchable tasks: `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` prints one task ID per line — `pending`, every dependency `complete`/`skipped`, no open `gated_on` (in-flight `in_progress` tasks are never re-listed). Tasks held only by a gate are reported on stderr as `GATED: <id> — <input>`. For each ready task, create a worktree nested under the parent (feature or phase) worktree and extract metadata (strip `status` — orchestrator state not needed by implementer). Use plain git calls and carry their printed values forward as literals — the worktree-isolation guard refuses git arguments built from `$(git …)` (**See:** `skills/design/worktree-isolation.md`). First:
 
 ```bash
-git rev-parse --path-format=absolute --show-toplevel --git-common-dir
+git rev-parse --path-format=absolute --show-toplevel --git-dir --git-common-dir
 ```
 
-Line 1 is `PARENT_WORKTREE`. If it equals line 2 minus `/.git`, the CWD is the main repo — stop: dispatching from there creates sibling task worktrees that trigger silent permission denials in background subagents; `cd` into the feature or phase worktree first. Otherwise, with that literal:
+Line 1 is `PARENT_WORKTREE`. If lines 2 and 3 are equal, the CWD is the main repo — stop: dispatching from there creates sibling task worktrees that trigger silent permission denials in background subagents; `cd` into the feature or phase worktree first. Otherwise, with that literal:
 
 ```bash
 git worktree add <PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD

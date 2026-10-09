@@ -33,7 +33,7 @@ If design already ran its own worktree setup before handing off — it does this
 - From the main checkout, create the worktree with git and register the main repo for permission-free access, then `EnterWorktree(path: "$WORKTREE")` — a path-entered worktree is never auto-removed by the harness. **See:** `skills/design/worktree-isolation.md` for the rules the session runs under once inside.
 
   ```bash
-  MAIN_ROOT=$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')
+  MAIN_ROOT=$(caliper-main-root)
   WORKTREE="$MAIN_ROOT/.claude/worktrees/<feature>"
   git worktree add "$WORKTREE" -b <feature>
   mkdir -p "$WORKTREE/.claude" && jq -n --arg d "$MAIN_ROOT" '{permissions:{additionalDirectories:[$d]}}' > "$WORKTREE/.claude/settings.local.json"

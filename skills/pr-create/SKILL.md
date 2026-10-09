@@ -29,7 +29,7 @@ DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|
 if [ -z "$DEFAULT_BRANCH" ]; then
   DEFAULT_BRANCH=$(git branch -r | grep -oP 'origin/\K(main|master)' | head -1)
 fi
-MAIN_REPO=$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/.git$||')
+MAIN_REPO=$(caliper-main-root)
 ```
 
 Use `$DEFAULT_BRANCH` (never hardcode `main`) for all subsequent steps.

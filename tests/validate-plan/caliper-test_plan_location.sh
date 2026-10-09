@@ -64,6 +64,19 @@ rm "$WT_PLAN/plan.json"
 stderr=$("$VALIDATE" --check-entry "$WT_PLAN/plan.json" --stage draft-plan 2>&1 >/dev/null) || true
 if [[ "$stderr" == *"$WARNING"* ]]; then pass "check-entry warns without plan.json"; else fail "check-entry silent: $stderr"; fi
 
+echo "Test 7: in a submodule, the warning names the submodule checkout, not its git dir"
+# A submodule's git dir is <super>/.git/modules/<name>, so stripping /.git from
+# it would point the user inside the git dir.
+git init -q "$TMPDIR/subsrc"
+git -C "$TMPDIR/subsrc" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+git init -q "$TMPDIR/super"
+git -C "$TMPDIR/super" -c protocol.file.allow=always submodule -q add "$TMPDIR/subsrc" sub
+SUB_WT="$TMPDIR/super/sub/.claude/worktrees/feature"
+git -C "$TMPDIR/super/sub" worktree add -q "$SUB_WT" -b feature
+seed_plan "$SUB_WT/.claude/claude-caliper/2026-01-01-topic"
+stderr=$("$VALIDATE" --schema "$SUB_WT/.claude/claude-caliper/2026-01-01-topic/plan.json" 2>&1 >/dev/null) || true
+if [[ "$stderr" == *"main checkout under $TMPDIR/super/sub/.claude/claude-caliper/"* ]]; then pass "submodule warning names the submodule checkout"; else fail "submodule warning: $stderr"; fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

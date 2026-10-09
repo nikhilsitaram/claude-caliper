@@ -31,10 +31,10 @@ usage() {
 WORKTREE="$1"
 [[ -d "$WORKTREE" ]] || { echo "ERROR: worktree path does not exist: $WORKTREE" >&2; exit 1; }
 
-MAIN_ROOT="$(git -C "$WORKTREE" rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+MAIN_ROOT="$("$(dirname "$0")/caliper-main-root" "$WORKTREE")"
 
 # No-op against the main repo — memory already lives there.
-if [[ "$(cd "$WORKTREE" && pwd -P)" == "$(cd "$MAIN_ROOT" && pwd -P)" ]]; then
+if [[ "$(cd "$WORKTREE" && pwd -P)" == "$MAIN_ROOT" ]]; then
   exit 0
 fi
 

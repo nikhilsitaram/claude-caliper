@@ -26,7 +26,7 @@ TaskCreate one entry per task in plan.json (e.g. "Implement A1", "Implement A2",
 ## Setup
 
 Before first phase:
-- Resolve main repo and plan paths. Plan artifacts live in the main repo at `$MAIN_ROOT/.claude/claude-caliper/` (gitignored, so they outlive worktree cleanup), not in the worktree CWD. The session usually runs worktree-isolated: write `$PLAN_DIR` files through Bash (`jq`, `cat >>`), never Write/Edit, and keep git calls plain (**See:** `skills/design/worktree-isolation.md`). `MAIN_ROOT` is `git rev-parse --path-format=absolute --git-common-dir` minus `/.git`; then separately:
+- Resolve main repo and plan paths. Plan artifacts live in the main repo at `$MAIN_ROOT/.claude/claude-caliper/` (gitignored, so they outlive worktree cleanup), not in the worktree CWD. The session usually runs worktree-isolated: write `$PLAN_DIR` files through Bash (`jq`, `cat >>`), never Write/Edit, and keep git calls plain (**See:** `skills/design/worktree-isolation.md`). `MAIN_ROOT` is the output of `caliper-main-root`; then separately:
 
   ```bash
   PLAN_JSON=$(realpath -- "<absolute-path-passed-by-caller>")
