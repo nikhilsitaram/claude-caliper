@@ -97,6 +97,22 @@ out=$(vp --set-base "$PLAN" --phase B --sha HEAD)
 assert_eq "each phase keeps its own first write" "$head2" "$out"
 assert_eq "phase A base survives phase B write" "$head1" "$(jq -r '.phases[0].base_sha' "$PLAN")"
 
+echo "=== orchestrate read-then-set flow (skills/orchestrate/SKILL.md Setup) ==="
+
+# Fresh run: the read prints nothing, so the lead records HEAD. Resumed run after
+# merges: the read returns the original, so the lead never calls --set-base.
+setup
+read_plan_base() { jq -r '.base_sha // empty' "$PLAN"; }
+assert_eq "fresh plan: base read is empty" "" "$(read_plan_base)"
+head1=$(git -C "$REPO" rev-parse HEAD)
+vp --set-base "$PLAN" --plan --sha HEAD > /dev/null
+git_commit "phase A merged"
+assert_eq "resumed run: base read returns the original base" "$head1" "$(read_plan_base)"
+read_phase_base() { jq -r --arg l "$1" '.phases[] | select(.letter == $l) | .base_sha // empty' "$PLAN"; }
+assert_eq "fresh phase: base read is empty" "" "$(read_phase_base A)"
+vp --set-base "$PLAN" --phase A --sha HEAD > /dev/null
+assert_eq "phase base read returns the recorded SHA" "$(git -C "$REPO" rev-parse HEAD)" "$(read_phase_base A)"
+
 echo "=== tasks and render unaffected ==="
 
 setup
