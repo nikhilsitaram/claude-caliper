@@ -55,10 +55,12 @@ fi
 # .design-approved would flip the next prompt to acceptEdits, and reviews.json
 # holds the review gates.
 file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty | select(contains("\n") | not)')
+target=""
+if [[ "$file_path" != */../* && "$file_path" != */.. ]]; then
+  target=$(physical_path "$file_path") || target=""
+fi
 is_caliper_file=0
-if [[ "$file_path" != */../* && "$file_path" != */.. ]] \
-    && target=$(physical_path "$file_path") \
-    && [[ "${target##*/}" != .design-approved && "${target##*/}" != reviews.json ]]; then
+if [[ -n "$target" && "${target##*/}" != .design-approved && "${target##*/}" != reviews.json ]]; then
   for d in "${find_args[@]}"; do
     if [[ "$target" == "$d"/* ]]; then
       is_caliper_file=1
@@ -67,13 +69,36 @@ if [[ "$file_path" != */../* && "$file_path" != */.. ]] \
   done
 fi
 
+# An ordinary file sits under the cwd with no dot-named segment below it. That
+# rules out every path Claude Code protects (.claude/, .git/, shell rc files)
+# without copying its list. Caliper's draft dir (#306) is the one exception.
+is_ordinary_file=0
+if [[ -n "$target" && "$target" == "$cwd_phys"/* ]]; then
+  rel="${target#"$cwd_phys"/}"
+  rel="${rel#.caliper-draft/}"
+  [[ "/$rel" != */.* ]] && is_ordinary_file=1
+fi
+
+# The sentinel's allow lands on whichever Edit/Write prompts first, and a
+# PermissionRequest allow skips Claude Code's protected-path check (#311). So
+# it waits for a target acceptEdits would pass anyway: a plan-dir file or an
+# ordinary one. Until then it stays put for the next edit.
+#
+# The design skill writes the session id into the sentinel, so only this
+# session's approval counts. A sentinel committed to a repo, planted by a
+# build step, or left by another session can't name an unguessable id. Only a
+# regular file is read, since a symlink could lead anywhere. A mismatch isn't
+# ours to delete.
+session_id=$(echo "$input" | jq -r '.session_id // empty')
 sentinel=""
-while IFS= read -r f; do
-  if [[ -n "$f" ]]; then
-    sentinel="$f"
-    break
-  fi
-done < <(find "${find_args[@]}" -maxdepth 2 -name .design-approved 2>/dev/null)
+if [[ -n "$session_id" ]] && (( is_caliper_file || is_ordinary_file )); then
+  while IFS= read -r f; do
+    if [[ -n "$f" && "$(head -c 128 "$f" 2>/dev/null)" == "$session_id" ]]; then
+      sentinel="$f"
+      break
+    fi
+  done < <(find "${find_args[@]}" -maxdepth 2 -name .design-approved -type f 2>/dev/null)
+fi
 
 if [[ -n "$sentinel" ]]; then
   rm -f "$sentinel"
