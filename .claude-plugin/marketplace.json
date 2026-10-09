@@ -62,7 +62,7 @@
     {
       "name": "claude-caliper-tooling",
       "description": "Standalone tools: codebase audit, test audit, skill evaluation, usage-window scheduling (queue / usage-guard), and session handoff",
-      "version": "1.54.1",
+      "version": "1.54.2",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
