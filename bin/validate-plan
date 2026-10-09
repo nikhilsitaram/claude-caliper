@@ -24,6 +24,7 @@ Usage:
   validate-plan --check-deps <plan.json> --task <ID>
   validate-plan --ready <plan.json> [--phase <LETTER>]
   validate-plan --clear-gate <plan.json> --task <ID>
+  validate-plan --set-base <plan.json> (--plan | --phase <LETTER>) --sha <REV>
   validate-plan --check-workflow <plan.json>
   validate-plan --add-dep <plan.json> --task <DOWNSTREAM_ID> --depends-on <SOURCE_ID>
   validate-plan --add-file <plan.json> --task <ID> --kind <create|modify|test> --path <FILE>
@@ -174,6 +175,23 @@ do_schema() {
       "Not Yet Started"|"In Development"|"Complete") ;;
       *) err "ERROR: invalid_plan_status: '$status' (expected: Not Yet Started, In Development, or Complete)" ;;
     esac
+  fi
+
+  # base_sha (optional, plan and phase level) is written by --set-base as a full
+  # commit SHA; a symbolic rev or abbreviation would shift the review ranges.
+  local _base_errors
+  if ! _base_errors=$(echo "$json" | jq -r '
+      def bad: if type == "string" then test("^[0-9a-f]{40}([0-9a-f]{24})?$") | not else true end;
+      (select(has("base_sha") and (.base_sha | bad))
+        | "ERROR: invalid_base_sha: plan base_sha must be a full commit SHA"),
+      (.phases // [] | .[]? | select(type == "object" and has("base_sha") and (.base_sha | bad))
+        | "ERROR: invalid_base_sha: phase \(.letter // "?") base_sha must be a full commit SHA")'); then
+    err "ERROR: invalid_base_sha: base_sha could not be evaluated"
+  fi
+  if [[ -n "$_base_errors" ]]; then
+    while IFS= read -r _be; do
+      [[ -n "$_be" ]] && err "$_be"
+    done <<< "$_base_errors"
   fi
 
   # --- Level 2: Bulk extract plan-level success_criteria (1 jq call) ---
@@ -1472,6 +1490,56 @@ do_clear_gate() {
   echo "cleared gates on $task_id: $gates"
 }
 
+# Records the commit a review range starts from: plan level for the final
+# review, phase level for that phase's review. First write wins, so a resumed
+# orchestrate run reads the original base rather than re-capturing HEAD after
+# tasks have merged (gh issue #296). <rev> is resolved in the caller's CWD so the
+# lead can pass HEAD — worktree-isolated sessions refuse "$(git rev-parse HEAD)".
+do_set_base() {
+  local plan_json="$1" phase_letter="$2" rev="$3"
+  local label="plan"
+  [[ -n "$phase_letter" ]] && label="phase $phase_letter"
+  local sha
+  if ! sha=$(git rev-parse --verify --quiet --end-of-options "${rev}^{commit}" 2>/dev/null); then
+    echo "ERROR: invalid_sha: '$rev' does not name a commit in $(pwd)" >&2
+    exit 1
+  fi
+  lock_plan "$plan_json"
+  trap 'unlock_plan "'"$plan_json"'"' EXIT
+  if [[ -n "$phase_letter" ]] && ! jq -e --arg l "$phase_letter" 'any(.phases[]; .letter == $l)' "$plan_json" >/dev/null; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: phase_not_found: '$phase_letter' not found in plan" >&2
+    exit 1
+  fi
+  local current
+  if ! current=$(jq -r --arg l "$phase_letter" '
+      (if $l == "" then . else (.phases[] | select(.letter == $l)) end) | .base_sha // "" | tostring
+    ' "$plan_json"); then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: could not read $label base_sha — run validate-plan --schema $plan_json" >&2
+    exit 1
+  fi
+  if [[ "$current" == "$sha" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "$sha"
+    return 0
+  fi
+  if [[ -n "$current" ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: base_sha_conflict: $label base_sha is already $current; refusing $sha. A resumed run reuses the recorded base — read it from plan.json instead of setting it again." >&2
+    exit 1
+  fi
+  local tmp="${plan_json}.tmp.$$"
+  jq --arg l "$phase_letter" --arg sha "$sha" '
+    if $l == "" then .base_sha = $sha else (.phases[] | select(.letter == $l)).base_sha = $sha end
+  ' "$plan_json" > "$tmp" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: jq update failed" >&2; exit 1; }
+  mv "$tmp" "$plan_json" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
+  do_render "$plan_json"
+  unlock_plan "$plan_json"
+  trap - EXIT
+  echo "$sha"
+}
+
 do_add_dep() {
   local plan_json="$1" downstream_id="$2" source_id="$3"
   if [[ "$downstream_id" == "$source_id" ]]; then
@@ -1784,6 +1852,7 @@ HANDOFF_FROM=""
 HANDOFF_NOTE=""
 CRITERIA_CWD=""
 CRITERIA_CWD_SET=""
+SET_BASE_SHA=""
 # shellcheck disable=SC2034
 CHECK_ENTRY_STAGE=""
 
@@ -1933,6 +2002,21 @@ while [[ $# -gt 0 ]]; do
       shift
       if [[ $# -gt 0 ]]; then
         PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --set-base)
+      MODE="set-base"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --sha)
+      shift
+      if [[ $# -gt 0 ]]; then
+        SET_BASE_SHA="$1"
         shift
       fi
       ;;
@@ -2100,6 +2184,17 @@ case "$MODE" in
       exit 2
     fi
     do_clear_gate "$PLAN_JSON" "$UPDATE_ID"
+    ;;
+  set-base)
+    if [[ -z "$SET_BASE_SHA" ]] || [[ "$UPDATE_TARGET" != "plan" && ( "$UPDATE_TARGET" != "phase" || -z "$UPDATE_ID" ) ]]; then
+      echo "ERROR: --set-base requires --plan or --phase <LETTER>, and --sha <REV>" >&2
+      exit 2
+    fi
+    if [[ "$UPDATE_TARGET" == "plan" ]]; then
+      do_set_base "$PLAN_JSON" "" "$SET_BASE_SHA"
+    else
+      do_set_base "$PLAN_JSON" "$UPDATE_ID" "$SET_BASE_SHA"
+    fi
     ;;
   add-dep)
     if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" || -z "$DEPENDS_ON_ID" ]]; then
