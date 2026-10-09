@@ -20,8 +20,8 @@ set -euo pipefail
 # file must resolve under <main root>/.claude/claude-caliper/ of the repo the
 # cwd belongs to, and be named plan.json or design-*.md — never the files that
 # steer caliper (.design-approved flips the session to acceptEdits;
-# reviews.json holds the review gates). Symlinked or directory targets are
-# refused rather than written through.
+# reviews.json holds the review gates). A symlink or directory at either end
+# of the copy is refused rather than followed.
 
 usage() {
   echo "Usage: caliper-draft pull|push <plan-dir-file>" >&2
@@ -67,7 +67,8 @@ PLAN_FILE="$PLAN_DIR/$NAME"
 DRAFT_DIR="$TOP/.caliper-draft"
 DRAFT="$DRAFT_DIR/$NAME"
 
-# Refuse rather than follow: a symlink could point anywhere, and `mv` onto a
+# Refuse rather than follow: a symlink could point anywhere — a source would
+# copy that file in, a destination would be written through — and `mv` onto a
 # directory would land the file inside it.
 refuse_link_or_dir() {
   if [[ -L "$1" || -d "$1" ]]; then
@@ -87,6 +88,7 @@ prepare_draft_dir() {
 # so a reader never sees a half-written document.
 install_file() {
   local src="$1" dest="$2" tmp
+  refuse_link_or_dir "$src"
   refuse_link_or_dir "$dest"
   tmp="$(mktemp "$(dirname -- "$dest")/.caliper-draft.XXXXXX")"
   if ! cp -- "$src" "$tmp"; then

@@ -136,6 +136,17 @@ mkdir -p "$PLAN_DIR/design-dir.md"
 write_draft design-dir.md 'x'
 check_fails "t6: directory target refused" run_from "$WT" "$SCRIPT" push "$PLAN_DIR/design-dir.md"
 check_eq "t6: nothing written into the directory" "" "$(ls -A "$PLAN_DIR/design-dir.md")"
+# A symlinked source is refused too, so neither copy can read a file from
+# outside the draft or the plan root.
+printf '%s\n' 'secret' > "$TMPDIR_BASE/outside/secret"
+rm -f "$WT/.caliper-draft/design-src.md"
+ln -s "$TMPDIR_BASE/outside/secret" "$WT/.caliper-draft/design-src.md"
+check_fails "t6: symlinked draft refused on push" run_from "$WT" "$SCRIPT" push "$PLAN_DIR/design-src.md"
+check "t6: nothing pushed from the symlinked draft" test ! -e "$PLAN_DIR/design-src.md"
+rm "$WT/.caliper-draft/design-src.md"
+ln -s "$TMPDIR_BASE/outside/secret" "$PLAN_DIR/design-src.md"
+check_fails "t6: symlinked plan-dir file refused on pull" run_from "$WT" "$SCRIPT" pull "$PLAN_DIR/design-src.md"
+check "t6: nothing pulled from the symlinked plan-dir file" test ! -e "$WT/.caliper-draft/design-src.md"
 # pull's target is the draft: a symlinked draft dir is refused too.
 mv "$WT/.caliper-draft" "$TMPDIR_BASE/draft-moved"
 ln -s "$TMPDIR_BASE/outside" "$WT/.caliper-draft"

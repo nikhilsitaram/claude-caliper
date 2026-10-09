@@ -182,13 +182,13 @@ echo "{}" > "$fix/wt/.claude/caliper-draft/plan.json"
 check_fails "t7: non-repo directory exits non-zero" run_from "$fix/wt" "$SCRIPT" "$TMPDIR_BASE/plain"
 check "t7: caller's worktree scratch untouched" test -f "$fix/wt/.claude/caliper-draft/plan.json"
 
-# Test 8: a pushed draft dir ignores itself (caliper-draft writes a `*`
-# .gitignore), so it never blocks a bare remove and goes with the worktree.
+# Test 8: once caliper-draft has pushed it, a draft dir ignores itself, so it
+# never blocks a bare remove and goes with the worktree.
 fix="$(new_fixture t8)"
-mkdir -p "$fix/wt/.caliper-draft"
-printf '*\n' > "$fix/wt/.caliper-draft/.gitignore"
+mkdir -p "$fix/.claude/claude-caliper/2026-01-01-topic" "$fix/wt/.caliper-draft"
 echo "{}" > "$fix/wt/.caliper-draft/plan.json"
-check_eq "t8: self-ignored draft leaves the worktree clean" "" "$(git -C "$fix/wt" status --porcelain)"
+check "t8: caliper-draft push succeeds" run_from "$fix/wt" "$REPO_ROOT/bin/caliper-draft" push "$fix/.claude/claude-caliper/2026-01-01-topic/plan.json"
+check_eq "t8: pushed draft leaves the worktree clean" "" "$(git -C "$fix/wt" status --porcelain)"
 check "t8: runs cleanly from main's cwd" run_from "$fix" "$SCRIPT" "$fix/wt"
 check "t8: bare git worktree remove succeeds" git -C "$fix" worktree remove "$fix/wt"
 check "t8: draft is gone with the worktree" test ! -e "$fix/wt/.caliper-draft"

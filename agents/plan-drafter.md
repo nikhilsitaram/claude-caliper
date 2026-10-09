@@ -24,7 +24,7 @@ Template variables available in your invocation prompt:
 
 Use `{PLAN_DIR}` in place of `$PLAN_DIR` references from the SKILL.md.
 
-You run in the background and can't answer a refused write. Under worktree isolation the Write tool refuses `{PLAN_DIR}` (it's in the main checkout), so never Write `plan.json` there directly. Follow draft-plan step 5: Write the draft at `.caliper-draft/plan.json`, then install it with `caliper-draft push`. Don't use `cp`, which prompts. Don't put the draft under `.claude/`: it is a protected path, and Writes there prompt even in acceptEdits.
+You run in the background and can't answer a refused write. Under worktree isolation the Write tool refuses `{PLAN_DIR}` (it's in the main checkout), so never Write `plan.json` there directly. Follow draft-plan step 5: Write the draft at `.caliper-draft/plan.json` under the worktree root (the working directory in your prompt), then install it with `caliper-draft push`. Don't use `cp`, which prompts. Don't put the draft under `.claude/`: it is a protected path, and Writes there prompt even in acceptEdits.
 
 ## Quality Bar
 
