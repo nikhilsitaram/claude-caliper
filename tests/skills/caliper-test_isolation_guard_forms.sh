@@ -21,7 +21,9 @@ REFERENCE="skills/design/worktree-isolation.md"  # documents the refused forms
 # once its snippet is rewritten.
 ALLOWLIST=()
 
-REFUSED='"\$\(git |\[\[? +\$\(git '
+# $(git anywhere inside a quoted string, or inside a [ / [[ test. The span
+# stops at a backtick so prose like `"$X" … $(git …)` in inline code doesn't hit.
+REFUSED='"[^"`]*\$\(git |\[\[? +\$\(git '
 
 declare -A USED=()
 

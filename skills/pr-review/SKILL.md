@@ -41,13 +41,12 @@ mode=$(caliper-settings get review_mode)
 
 ```bash
 git fetch origin
-if ! git merge-base --is-ancestor origin/$BASE_BRANCH HEAD; then
-  git rebase origin/$BASE_BRANCH
-  git push -u origin HEAD --force-with-lease
-fi
+git merge-base --is-ancestor origin/<BASE_BRANCH> HEAD
 ```
 
-Use bare `git fetch origin` (no branch arg) so the remote-tracking ref `refs/remotes/origin/$BASE_BRANCH` actually advances. `git fetch origin $BASE_BRANCH` only updates `FETCH_HEAD`, leaving `origin/$BASE_BRANCH` stale — which silently widens the reviewer's diff scope when other PRs merge during the session.
+If behind (non-zero exit): `git rebase origin/<BASE_BRANCH>`, then `git push -u origin HEAD --force-with-lease`. `<BASE_BRANCH>` is written in as a literal — the worktree-isolation guard refuses a `$VAR` git argument not assigned in the same call (**See:** `skills/design/worktree-isolation.md`).
+
+Use bare `git fetch origin` (no branch arg) so the remote-tracking ref `refs/remotes/origin/<BASE_BRANCH>` actually advances. `git fetch origin <BASE_BRANCH>` only updates `FETCH_HEAD`, leaving `origin/<BASE_BRANCH>` stale — which silently widens the reviewer's diff scope when other PRs merge during the session.
 
 If rebased, log it. If conflicts, stop and ask user. After force-push, only process comments posted *after* the push timestamp (or wait for fresh bot comments).
 
@@ -74,9 +73,11 @@ Every inline thread — a subagent finding **or** an external bot's inline comme
 
 ```bash
 gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/comments/$COMMENT_ID/replies" \
-  -f body="Fixed in $(git rev-parse --short HEAD) — <what changed>."
+  -f body="Fixed in <short-sha> — <what changed>."
 # or: -f body="Dismissed — <technical reasoning>."
 ```
+
+Read `<short-sha>` from `git rev-parse --short HEAD` in its own call — a quoted `$(git …)` gets the reply refused under worktree isolation.
 
 Post replies **after** the fix commits are pushed — a reply citing a local-only SHA is unresolvable and unverifiable. So post all inline replies (external + subagent) at the step that pushes: Step 6 in automated mode (or Step 5 if `--skip-review`, where Step 5 is itself the push), Step 8 in deliberate mode. Replying to subagent threads (your own `$GH_USER` comments) is intended, separate from the Step 5 self-filter that only prevents *re-ingesting* findings. Conversation comments (source 1) and review bodies (source 3) have no thread → Step 9. The skill does not *resolve* threads (a separate GraphQL `resolveReviewThread` call); the author resolves them after confirming the fixes.
 
