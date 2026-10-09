@@ -22,6 +22,7 @@ Usage:
   validate-plan --check-entry <plan.json> --stage <STAGE>
   validate-plan --check-base <plan.json>
   validate-plan --check-deps <plan.json> --task <ID>
+  validate-plan --ready <plan.json> [--phase <LETTER>]
   validate-plan --clear-gate <plan.json> --task <ID>
   validate-plan --check-workflow <plan.json>
   validate-plan --add-dep <plan.json> --task <DOWNSTREAM_ID> --depends-on <SOURCE_ID>
@@ -1387,6 +1388,31 @@ do_check_deps() {
   exit 1
 }
 
+# Prints dispatchable task IDs (pending, deps complete/skipped, no open gate) one
+# per line; pending tasks held only by a gate go to stderr so the lead can ask
+# the user about them. Exits 0 even when nothing is ready.
+do_ready() {
+  local plan_json="$1" phase_letter="$2"
+  if [[ -n "$phase_letter" ]] && ! jq -e --arg l "$phase_letter" 'any(.phases[]; .letter == $l)' "$plan_json" >/dev/null; then
+    echo "ERROR: phase_not_found: '$phase_letter' not found in plan" >&2
+    exit 1
+  fi
+  local kind tid gates
+  while IFS=$'\t' read -r kind tid gates; do
+    case "$kind" in
+      READY) echo "$tid" ;;
+      GATED) echo "GATED: $tid — $gates" >&2 ;;
+    esac
+  done < <(jq -r --arg l "$phase_letter" "$JQ_TASK_DEFS"'
+    status_map as $st
+    | .phases[] | select($l == "" or .letter == $l) | .tasks[]
+    | select(.status == "pending" and (unmet_deps($st) | length) == 0)
+    | if (.gated_on // []) | length > 0
+      then ["GATED", .id, (.gated_on | join("; "))]
+      else ["READY", .id, ""] end
+    | @tsv' "$plan_json")
+}
+
 do_clear_gate() {
   local plan_json="$1" task_id="$2"
   lock_plan "$plan_json"
@@ -1851,6 +1877,14 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
+    --ready)
+      MODE="ready"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
     --clear-gate)
       MODE="clear-gate"
       shift
@@ -2005,6 +2039,13 @@ case "$MODE" in
       exit 2
     fi
     do_check_deps "$PLAN_JSON" "$UPDATE_ID"
+    ;;
+  ready)
+    if [[ -n "$UPDATE_TARGET" && ( "$UPDATE_TARGET" != "phase" || -z "$UPDATE_ID" ) ]]; then
+      echo "ERROR: --ready takes only an optional --phase <LETTER>" >&2
+      exit 2
+    fi
+    do_ready "$PLAN_JSON" "$UPDATE_ID"
     ;;
   clear-gate)
     if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" ]]; then

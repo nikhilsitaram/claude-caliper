@@ -4,7 +4,7 @@ Parallel task execution via Agent tool dispatches with worktree isolation.
 
 ## Dispatch Implementers
 
-For each task in the phase, check deps: `validate-plan --check-deps "$PLAN_JSON" --task {TASK_ID}`. Collect all tasks that pass. For each ready task, create a worktree nested under the parent (feature or phase) worktree and extract metadata (strip `status` — orchestrator state not needed by implementer):
+List the dispatchable tasks: `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` prints one task ID per line — `pending`, every dependency `complete`/`skipped`, no open `gated_on` (in-flight `in_progress` tasks are never re-listed). Tasks held only by a gate are reported on stderr as `GATED: <id> — <input>`. For each ready task, create a worktree nested under the parent (feature or phase) worktree and extract metadata (strip `status` — orchestrator state not needed by implementer):
 
 ```bash
 PARENT_WORKTREE="$(git rev-parse --show-toplevel)"
@@ -108,8 +108,16 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
    - Merge: `git -C "$PARENT_WORKTREE" merge {TASK_ID_LOWER}` (task branch into the phase branch, never directly into integration)
    - Clean up: `sync-agent-memory "$TASK_WORKTREE"` (persist the task-implementer's `memory: project` writes to `$MAIN_ROOT` before removal — belt-and-suspenders with the `SubagentStop` hook), then `git worktree remove "$TASK_WORKTREE"` then `git branch -d {TASK_ID_LOWER}`
    - Reset CWD after removal: `cd "$PARENT_WORKTREE" && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted. Return to the parent (phase) worktree, not the multi-phase feature/integration worktree: the next dispatch and completion derive `PARENT_WORKTREE` from CWD
-4. Check if dependent tasks are now unblocked (`validate-plan --check-deps`)
-5. Dispatch newly unblocked tasks (same pattern as above)
+4. Re-run `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` for newly unblocked tasks
+5. Dispatch them (same pattern as above). If nothing is ready, no implementer is in flight, and the phase still has `pending` tasks, they're waiting on gates — see Gated Tasks. (No `GATED:` lines on stderr means a dependency is stuck `in_progress`; surface it to the user.)
+
+## Gated Tasks
+
+A task's `gated_on` names outside inputs (another team's PR, reviewer-supplied data, an access grant) that you can't verify yourself — so the user decides, not the lead. Dispatch everything else first; ask only once the phase is otherwise stuck.
+
+1. Ask via AskUserQuestion — one question per `GATED:` task from `--ready`'s stderr, naming its input — whether that input now exists.
+2. Yes → `validate-plan --clear-gate "$PLAN_JSON" --task {TASK_ID}`, then re-run `--ready` and dispatch.
+3. No → stop the loop and report the gated tasks with the worktree path. The phase stays `In Progress`; resuming orchestrate re-enters this loop. (If the user wants to drop the task instead, `--update-status --status skipped` is allowed while gated.)
 
 ## Worktree Placement
 

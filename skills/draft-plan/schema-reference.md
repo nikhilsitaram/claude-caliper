@@ -144,7 +144,8 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 | `--update-status plan.json --plan --status "In Development"` | Plan lifecycle | Update plan status + regenerate plan.md (`--status done` is stored as `Complete`) |
 | `--add-handoff plan.json --task B1 --from A2 --note "..."` | Phase wrap-up (cross-phase deps) | Record a handoff as structured data + regenerate plan.md |
 | `--check-handoffs plan.json --phase A` | Phase wrap-up | Verify cross-phase deps into later phases have recorded handoffs |
-| `--check-deps plan.json --task A2` | Before dispatching one task | Exit 1 listing every unmet dependency and open gate |
+| `--ready plan.json [--phase A]` | Dispatch loop | Print dispatchable task IDs (pending, deps complete/skipped, no open gate), one per line; gated tasks go to stderr. Exit 0 even when empty |
+| `--check-deps plan.json --task A2` | Diagnosing one task | Exit 1 listing every unmet dependency and open gate |
 | `--clear-gate plan.json --task A5` | User confirms a gated input exists | Remove the task's `gated_on` + regenerate plan.md |
 | `--criteria plan.json --task A1 \| --phase A \| --plan [--cwd DIR]` | Verification | Run `success_criteria` (in DIR if given) and report pass/fail |
 | `--check-entry`, `--check-base`, `--check-review`, `--check-workflow`, `--consistency` | Gates | Review-gate, base-branch, and cross-status consistency checks |

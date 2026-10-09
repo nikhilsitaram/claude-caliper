@@ -358,7 +358,8 @@ Before an LLM reviewer ever sees the plan, `validate-plan --schema` runs structu
 - **Status consistency** — phase can't be "Complete" if any task is still pending
 
 Additional runtime gates:
-- `--check-deps` verifies all `depends_on` tasks are complete before spawning a dependent task subagent
+- `--ready [--phase X]` lists the dispatchable tasks (all `depends_on` complete, no open `gated_on`); `--check-deps --task <ID>` explains why one task is blocked
+- `gated_on` marks tasks waiting on outside input (another team's PR, an access grant); orchestrate asks the user and `--clear-gate` releases them
 - `--check-handoffs` / `--add-handoff` record and verify cross-phase handoff notes directly in `plan.json`
 - `--criteria` runs machine-executable success criteria at task, phase, and plan levels (`--cwd <dir>` runs them in another worktree without moving the caller's shell)
 
@@ -410,7 +411,7 @@ Dispatch → Implement (TDD) → Merge task branch → [phase complete] → Impl
 
 ### Dependency Gate
 
-Tasks with `depends_on` don't dispatch until all prerequisites are complete. The lead runs `validate-plan --check-deps` before dispatching any dependent subagent — and since branches merge incrementally, the new worktree always sees prerequisite code.
+Tasks with `depends_on` don't dispatch until all prerequisites are complete. The lead dispatches only what `validate-plan --ready` lists — and since branches merge incrementally, the new worktree always sees prerequisite code.
 
 ### File-Set Isolation
 
