@@ -46,12 +46,12 @@ esac
 
 # Own lines so set -e stops outside a repo.
 TOP="$(git rev-parse --show-toplevel)"
-COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir)"
+MAIN_ROOT="$("$(dirname "$0")/caliper-main-root")"
 
-# Same derivation as $MAIN_ROOT in the design skill, so this accepts exactly
-# the $PLAN_DIR those skills build — and never a plan root inside a worktree,
-# which is deleted with it (#288).
-ROOT_PATH="${COMMON_DIR%/.git}/.claude/claude-caliper"
+# caliper-main-root is how the design skill derives $MAIN_ROOT, so this accepts
+# exactly the $PLAN_DIR those skills build — and never a plan root inside a
+# worktree, which is deleted with it (#288).
+ROOT_PATH="$MAIN_ROOT/.claude/claude-caliper"
 [[ -d "$ROOT_PATH" ]] || die "no plan root at $ROOT_PATH"
 ROOT="$(cd "$ROOT_PATH" && pwd -P)"
 

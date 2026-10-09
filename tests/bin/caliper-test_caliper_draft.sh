@@ -179,11 +179,23 @@ check "t8: clear-worktree-scratch succeeds" run_from "$MAIN" "$REPO_ROOT/bin/cle
 check "t8: bare git worktree remove succeeds" git -C "$MAIN" worktree remove "$WT2"
 check_eq "t8: installed plan outlives the worktree" '{"seam":1}' "$(cat "$PLAN_DIR/plan.json")"
 
-# Test 9: argument errors.
-check_fails "t9: no args" run_from "$WT" "$SCRIPT"
-check_fails "t9: unknown subcommand" run_from "$WT" "$SCRIPT" copy "$PLAN_DIR/plan.json"
-check_fails "t9: missing path" run_from "$WT" "$SCRIPT" push
-check_fails "t9: extra argument" run_from "$WT" "$SCRIPT" push "$PLAN_DIR/plan.json" extra
+# Test 9: the plan root is the one design builds $PLAN_DIR under
+# (caliper-main-root), also when the main checkout's git dir lives elsewhere
+# (--separate-git-dir) and stripping `/.git` from the common dir would miss it.
+SEP="$TMPDIR_BASE/sep"
+git init -q -b main --separate-git-dir "$TMPDIR_BASE/sep.gitdir" "$SEP"
+git -C "$SEP" -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m init
+git -C "$SEP" worktree add -q "$SEP/.claude/worktrees/feat" -b feat
+mkdir -p "$SEP/.claude/claude-caliper/2026-01-01-topic" "$SEP/.claude/worktrees/feat/.caliper-draft"
+printf '%s\n' '{"sep":1}' > "$SEP/.claude/worktrees/feat/.caliper-draft/plan.json"
+check "t9: push from a --separate-git-dir worktree" run_from "$SEP/.claude/worktrees/feat" "$SCRIPT" push "$SEP/.claude/claude-caliper/2026-01-01-topic/plan.json"
+check_eq "t9: plan installed in the main checkout's root" '{"sep":1}' "$(cat "$SEP/.claude/claude-caliper/2026-01-01-topic/plan.json" 2>/dev/null || true)"
+
+# Test 10: argument errors.
+check_fails "t10: no args" run_from "$WT" "$SCRIPT"
+check_fails "t10: unknown subcommand" run_from "$WT" "$SCRIPT" copy "$PLAN_DIR/plan.json"
+check_fails "t10: missing path" run_from "$WT" "$SCRIPT" push
+check_fails "t10: extra argument" run_from "$WT" "$SCRIPT" push "$PLAN_DIR/plan.json" extra
 
 echo ""
 echo "Passed: $pass, Failed: $fail"
