@@ -172,6 +172,6 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 
 - **Plan:** `Not Yet Started` → `In Development` → `Complete`. A plan can't be `Complete` while any phase is incomplete or a required review gate is unmet; a phase can't advance while the plan is `Not Yet Started`.
 - **Phase:** `Not Started` → `In Progress` → `Complete (YYYY-MM-DD)`. Marking a phase complete requires all its tasks `complete`/`skipped` and a passing `impl-review` record for `phase-{letter}`.
-- **Task:** `pending` → `in_progress` → `complete` (or `skipped`). A task can't advance while its parent phase is `Not Started`, any dependency is still `pending`/`in_progress`, or it has an open `gated_on`.
+- **Task:** `pending` → `in_progress` → `complete` (or `skipped`). A task can't advance while its parent phase is `Not Started`, any dependency is still `pending`/`in_progress`, or it has an open `gated_on`. A resumed orchestrate run moves an `in_progress` task whose implementer left nothing back to `pending`.
 
 Only `validate-plan` edits `plan.json` — no LLM hand-edits the manifest. Every status change regenerates plan.md, so progress is visible in real time.

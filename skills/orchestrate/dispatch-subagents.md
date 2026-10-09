@@ -125,14 +125,14 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
 
 A run that stopped mid-phase can strand task work at any point between dispatch and cleanup: an `in_progress` task with no live implementer (`--ready` never re-lists it), a `pending` task whose worktree was created just before the claim, or a `complete` task whose branch was never merged (After Completion marks done before it merges). Prepare Phase step 6 settles all of these before the dispatch loop starts. If the stopped session might still be running, ask the user before touching its tasks.
 
-After Prepare Phase step 1 your CWD is the phase worktree (the feature worktree for a single-phase plan), so plain `git` commands act on it. If `git rev-parse -q --verify MERGE_HEAD` succeeds, a task merge stopped mid-conflict — surface it to the user before settling anything. Then list the phase's task statuses and the task branches still present:
+Work from the phase worktree (the feature worktree for a single-phase plan). Get its absolute path as in Dispatch Implementers — line 1 of `git rev-parse --path-format=absolute --show-toplevel` — and write it below as the literal `<PARENT_WORKTREE>`, so a CWD left in a subdirectory (e.g. by dependency bootstrap) can't misplace a worktree. If `git rev-parse -q --verify MERGE_HEAD` succeeds, a task merge stopped mid-conflict — surface it to the user before settling anything. Then list the phase's task statuses and the task branches still present:
 
 ```bash
 jq -r --arg l "{LETTER}" '.phases[] | select(.letter == $l) | .tasks[] | "\(.id) \(.status)"' "$PLAN_JSON"
 git branch --list '{letter_lower}[0-9]*'
 ```
 
-Settle every task that is `in_progress` or still has a branch. Where a branch survives but its worktree directory doesn't, run `git worktree prune`, then re-attach it: `git worktree add .claude/worktrees/{TASK_ID_LOWER} {TASK_ID_LOWER}`. Steps borrowed from Process Completions and After Completion use `$TASK_WORKTREE` as derived there. Only After Completion steps 1–3 apply here — re-running `--ready` and dispatching (steps 4–5) wait until every task is settled.
+Settle every task that is `in_progress` or still has a branch. Where a branch survives but its worktree directory doesn't, run `git worktree prune`, then re-attach it: `git worktree add <PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER} {TASK_ID_LOWER}`. Steps borrowed from Process Completions and After Completion use `$TASK_WORKTREE` as derived there. Only After Completion steps 1–3 apply here — re-running `--ready` and dispatching (steps 4–5) wait until every task is settled.
 
 - **`complete` with a branch** → finished but not cleaned up. If `git merge-base --is-ancestor {TASK_ID_LOWER} HEAD` fails, it was never merged: run After Completion step 3 (merge, clean up). Otherwise run only step 3's clean-up.
 - **`pending` with a branch** → the claim never landed, so no implementer ran. Remove it as in the count-0 case below.
@@ -140,7 +140,7 @@ Settle every task that is `in_progress` or still has a branch. Where a branch su
 - **`in_progress` with no branch** → nothing to recover: `validate-plan --update-status "$PLAN_JSON" --task {TASK_ID} --status pending`.
 - **`in_progress` with a branch** → treat it as if its implementer had just returned: Process Completions step 2, then After Completion steps 1–3. There is no implementer to send it back to, and no return message vouching that it finished, so:
   - **No misplaced commit, count 0** (nothing committed) → `git worktree remove "$TASK_WORKTREE"`, `git branch -d {TASK_ID_LOWER}`, then `--status pending` so `--ready` lists it again. If the removal fails on uncommitted changes, surface the worktree path to the user rather than forcing it.
-  - **Uncommitted changes** (`git -C .claude/worktrees/{TASK_ID_LOWER} status --porcelain` prints anything — check before criteria) → the implementer died mid-edit, and criteria would pass or fail on edits the merge won't carry. Ask the user as for a criteria failure.
+  - **Uncommitted changes** (`git -C <PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER} status --porcelain` prints anything — check before criteria) → the implementer died mid-edit, and criteria would pass or fail on edits the merge won't carry. Ask the user as for a criteria failure.
   - **Criteria pass** → mark done, merge, clean up (After Completion steps 2–3). But if `--criteria` printed `no criteria defined`, nothing vouches for the commits — ask the user as for a failure, adding "merge as done" as an option.
   - **Criteria fail** → ask the user: re-dispatch into the existing worktree (skip `worktree add` and the status update; tell the implementer the branch carries partial work and which criteria failed), or discard (`git worktree remove`, adding `--force` only for uncommitted changes the user chose to drop, then `git branch -D`, `--status pending`).
 
