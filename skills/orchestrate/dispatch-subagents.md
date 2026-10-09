@@ -42,6 +42,13 @@ The agent runs in background automatically (defined in agent frontmatter). Track
 
 When a background agent completes (push notification — do not poll):
 
+Shell variables don't persist between Bash calls, and with parallel tasks a leftover `$TASK_WORKTREE` names whichever task was dispatched last — checks and criteria would silently run against the wrong worktree. Re-derive both paths from the completing task's ID at the start of each command below and in After Completion that uses them:
+
+```bash
+PARENT_WORKTREE="$(git rev-parse --show-toplevel)"
+TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
+```
+
 1. Read the agent's return message for completion notes and task summary
 2. Verify the commit landed on the task branch — not the parent worktree's branch. The real check is whether the parent HEAD is still at `PRE_TASK_SHA`:
     ```bash
@@ -90,7 +97,7 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
 3. Merge and clean up the agent's worktree:
    - Guard before merge: `PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)` — then `[[ "$PARENT_BRANCH" == integrate/* ]] && { echo "ERROR: PARENT_WORKTREE is on the integration branch. Task branches must merge into the phase branch; integration happens only in Phase Wrap-Up step 7." >&2; exit 1; }`. This catches state drift from the wrong-worktree recovery path where the phase branch was reset to integration HEAD.
    - Merge: `git -C "$PARENT_WORKTREE" merge {TASK_ID_LOWER}` (task branch into the phase branch, never directly into integration)
-   - Clean up: `sync-agent-memory <agent-worktree-path>` (persist the task-implementer's `memory: project` writes to `$MAIN_ROOT` before removal — belt-and-suspenders with the `SubagentStop` hook), then `git worktree remove <agent-worktree-path>` then `git branch -d <agent-branch>`
+   - Clean up: `sync-agent-memory "$TASK_WORKTREE"` (persist the task-implementer's `memory: project` writes to `$MAIN_ROOT` before removal — belt-and-suspenders with the `SubagentStop` hook), then `git worktree remove "$TASK_WORKTREE"` then `git branch -d {TASK_ID_LOWER}`
    - Reset CWD after removal: `cd <feature-worktree-path> && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted
 4. Check if dependent tasks are now unblocked (`validate-plan --check-deps`)
 5. Dispatch newly unblocked tasks (same pattern as above)
