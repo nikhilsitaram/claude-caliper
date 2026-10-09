@@ -30,7 +30,8 @@ Use Claude Code's own mechanisms instead — they parse commands with a real she
     "permissions": {
       "allow": [
         "Bash(validate-plan:*)", "Bash(validate-design:*)", "Bash(caliper-settings:*)",
-        "Bash(seed-agent-memory:*)", "Bash(sync-agent-memory:*)", "Bash(jq:*)",
+        "Bash(seed-agent-memory:*)", "Bash(sync-agent-memory:*)", "Bash(clear-worktree-scratch:*)",
+        "Bash(jq:*)",
         "Glob", "Grep", "Skill"
       ]
     }
