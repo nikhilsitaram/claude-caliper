@@ -9,8 +9,9 @@ set -euo pipefail
 #
 # A narrow backstop, not proof: the guard also refuses forms a grep can't see
 # (a substitution result reused as a standalone word, a test on a derived var,
-# any quoted "$(…)" in a call naming git). Probe rewritten snippets verbatim
-# from an isolated session; gh #295 tracks the remaining snippets.
+# any quoted "$(…)" in a call naming git — and "naming git" includes the word
+# inside a message string). Probe rewritten snippets verbatim from an isolated
+# session (gh #295).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -18,9 +19,7 @@ REFERENCE="skills/design/worktree-isolation.md"  # documents the refused forms
 
 # Known offenders awaiting a dedicated fix: "<file>:<substring>". Drop an entry
 # once its snippet is rewritten.
-ALLOWLIST=(
-  'skills/pr-merge/SKILL.md:git ls-remote origin'  # gh #295 — #285 branch-delete containment guard
-)
+ALLOWLIST=()
 
 REFUSED='"\$\(git |\[\[? +\$\(git '
 
