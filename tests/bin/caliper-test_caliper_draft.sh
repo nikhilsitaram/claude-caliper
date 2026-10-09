@@ -157,11 +157,22 @@ git init -q -b main "$NOROOT"
 mkdir -p "$NOROOT/plans"
 check_fails "t7: repo without a plan root fails" run_from "$NOROOT" "$SCRIPT" push "$NOROOT/plans/plan.json"
 
-# Test 8: argument errors.
-check_fails "t8: no args" run_from "$WT" "$SCRIPT"
-check_fails "t8: unknown subcommand" run_from "$WT" "$SCRIPT" copy "$PLAN_DIR/plan.json"
-check_fails "t8: missing path" run_from "$WT" "$SCRIPT" push
-check_fails "t8: extra argument" run_from "$WT" "$SCRIPT" push "$PLAN_DIR/plan.json" extra
+# Test 8: seam with clear-worktree-scratch — a worktree holding pushed drafts
+# still takes a bare `git worktree remove`, and the plan survives in main.
+WT2="$MAIN/.claude/worktrees/seam"
+git -C "$MAIN" worktree add -q "$WT2" -b seam
+mkdir -p "$WT2/.caliper-draft"
+printf '%s\n' '{"seam":1}' > "$WT2/.caliper-draft/plan.json"
+check "t8: push from the seam worktree" run_from "$WT2" "$SCRIPT" push "$PLAN_DIR/plan.json"
+check "t8: clear-worktree-scratch succeeds" run_from "$MAIN" "$REPO_ROOT/bin/clear-worktree-scratch" "$WT2"
+check "t8: bare git worktree remove succeeds" git -C "$MAIN" worktree remove "$WT2"
+check_eq "t8: installed plan outlives the worktree" '{"seam":1}' "$(cat "$PLAN_DIR/plan.json")"
+
+# Test 9: argument errors.
+check_fails "t9: no args" run_from "$WT" "$SCRIPT"
+check_fails "t9: unknown subcommand" run_from "$WT" "$SCRIPT" copy "$PLAN_DIR/plan.json"
+check_fails "t9: missing path" run_from "$WT" "$SCRIPT" push
+check_fails "t9: extra argument" run_from "$WT" "$SCRIPT" push "$PLAN_DIR/plan.json" extra
 
 echo ""
 echo "Passed: $pass, Failed: $fail"
