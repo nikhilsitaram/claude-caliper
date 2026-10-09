@@ -89,15 +89,16 @@ TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 
     If the `merge --ff-only` failed, **stop and surface to the user with `<WRONG_HEAD>`, `$TASK_WORKTREE`, and `$PARENT_WORKTREE`** — do NOT proceed to Stage 2.
 
-    **Stage 2 — verify preconditions for the rewind.** All three must hold — the first prints `<WRONG_HEAD>`, the second prints `1`, the third exits 0:
+    **Stage 2 — verify preconditions for the rewind.** All four must hold — the first prints `<WRONG_HEAD>`, the second `<PARENT_BRANCH>`, the third `1`, the fourth exits 0:
 
     ```bash
     git -C "$TASK_WORKTREE" rev-parse HEAD
+    git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD
     git -C "$PARENT_WORKTREE" worktree list --porcelain | grep -cFx "branch refs/heads/<PARENT_BRANCH>"
     git -C "$PARENT_WORKTREE" diff --quiet && git -C "$PARENT_WORKTREE" diff --cached --quiet
     ```
 
-    The first confirms task HEAD is exactly `<WRONG_HEAD>` — Stage 1's FF-merge landed where expected. The second confirms `<PARENT_BRANCH>` is checked out in exactly one worktree (we know it's `$PARENT_WORKTREE`, where step 2 read it, so a count of 1 implies that one worktree) — Stage 3's final `switch` would fail if any other worktree had it checked out. `grep -Fx` matches the line literally (no regex meta-character interpretation in branch names like `feat/foo.bar`). The third confirms `$PARENT_WORKTREE` has no modified or staged files — Stage 3's `switch --detach` would fail if local changes blocked the working-tree update.
+    The first confirms task HEAD is exactly `<WRONG_HEAD>` — Stage 1's FF-merge landed where expected. The second confirms `$PARENT_WORKTREE` is still on `<PARENT_BRANCH>` — step 2 and Stage 1 read it and `<WRONG_HEAD>` in separate calls, and a branch switch in between would let Stage 3's `switch --detach` run before its compare-and-swap fails. The third confirms `<PARENT_BRANCH>` is checked out in exactly one worktree (with the second, that one is `$PARENT_WORKTREE`) — Stage 3's final `switch` would fail if any other worktree had it checked out. `grep -Fx` matches the line literally (no regex meta-character interpretation in branch names like `feat/foo.bar`). The fourth confirms `$PARENT_WORKTREE` has no modified or staged files — Stage 3's `switch --detach` would fail if local changes blocked the working-tree update.
 
     If any check failed, **stop and surface to the user** — do NOT proceed to Stage 3.
 
@@ -120,7 +121,7 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
    - Guard before merge: `git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD` — if it prints `integrate/*`, stop: task branches must merge into the phase branch; integration happens only in Phase Wrap-Up step 7. This catches state drift from the wrong-worktree recovery path where the phase branch was reset to integration HEAD.
    - Merge: `git -C "$PARENT_WORKTREE" merge {TASK_ID_LOWER}` (task branch into the phase branch, never directly into integration)
    - Clean up: `clear-worktree-scratch "$TASK_WORKTREE"` (persists the task-implementer's `memory: project` writes to `$MAIN_ROOT` — belt-and-suspenders with the `SubagentStop` hook — then deletes the seeded memory, which in repos that don't ignore `.claude/` would block the remove), then `git worktree remove "$TASK_WORKTREE"` then `git branch -d {TASK_ID_LOWER}`. If the clear fails, stop and surface the path: its memory may be unsynced, and in repos that ignore `.claude/` the remove would still delete it
-   - Reset CWD after removal: `cd "$PARENT_WORKTREE" && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted. Return to the parent (phase) worktree, not the multi-phase feature/integration worktree: the next dispatch and completion derive `PARENT_WORKTREE` from CWD
+   - Reset CWD after removal: `cd "$PARENT_WORKTREE" && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted. Return to the parent (phase) worktree, not the multi-phase feature/integration worktree: the next dispatch derives `PARENT_WORKTREE` from CWD
 4. Re-run `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` for newly unblocked tasks
 5. Dispatch them (same pattern as above). If nothing is ready, no implementer is in flight, and the phase still has `pending` tasks, they're waiting on gates — see Gated Tasks. (No `GATED:` lines on stderr means a dependency is stuck `in_progress`; surface it to the user.)
 

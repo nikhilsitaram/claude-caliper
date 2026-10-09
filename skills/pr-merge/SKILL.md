@@ -44,10 +44,10 @@ If branch protection requires human approval and the PR lacks it, tell the user 
 
 ```bash
 git fetch origin
-git merge-base --is-ancestor origin/$DEFAULT_BRANCH HEAD
+git merge-base --is-ancestor origin/<DEFAULT_BRANCH> HEAD
 ```
 
-Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/$DEFAULT_BRANCH` actually advances. `git fetch origin $DEFAULT_BRANCH` only updates `FETCH_HEAD` — the `is-ancestor` check then compares against a stale ref and reports up-to-date when the branch is actually behind.
+Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/<DEFAULT_BRANCH>` actually advances. `git fetch origin <DEFAULT_BRANCH>` only updates `FETCH_HEAD` — the `is-ancestor` check then compares against a stale ref and reports up-to-date when the branch is actually behind.
 
 If behind (non-zero exit): rebase onto default branch, resolve conflicts, run tests, push with `git push -u origin HEAD --force-with-lease`. Comment on PR with conflict resolution details. Complex conflicts → stop and ask user.
 
@@ -119,7 +119,7 @@ It deletes the local branch only when GitHub reports the PR merged and the local
 git push --force-with-lease=refs/heads/<B>:<head> origin --delete <B>
 ```
 
-The lease makes it a compare-and-delete: the push is rejected unless origin's tip is still the merged head, so a branch another writer advanced after the merge survives. On rejection, `git ls-remote origin refs/heads/<B>` tells why — empty output means already gone; otherwise report `SKIP remote <B>` (advanced or protected). A `DELETED` line without `<head>` means leave the remote branch and report it. This stays its own visible call so a safety hook guarding remote deletes can see and gate it; the local cleanup above doesn't depend on it.
+The lease makes it a compare-and-delete: the push is rejected unless origin's tip is still the merged head, so a branch another writer advanced after the merge survives. `remote ref does not exist` means it's already gone; any rejection (`stale info` = advanced past the merged head, or protected) → report `SKIP remote <B>`. A `DELETED` line without `<head>` means leave the remote branch and report it. This stays its own visible call so a safety hook guarding remote deletes can see and gate it; the local cleanup above doesn't depend on it.
 
 **Worktree removal** uses bare `git worktree remove <wt>` (no `--force`). Before each one, run `clear-worktree-scratch <wt>`: it syncs agent memory back to main, then deletes caliper's own untracked scratch (what `discard_changes` used to discard) so only user content can block the remove. **This stop-on-failure rule applies to every `git worktree remove` call in this section:** if `clear-worktree-scratch` or the removal exits non-zero (a failed clear means memory may be unsynced, and an ignored `.claude/` wouldn't stop the remove from deleting it), the worktree holds content the user may want — stop the cleanup chain, report the path, and let the user decide rather than force-removing it. **Phase worktrees** are located by branch, not a built path (nested in the integration worktree, siblings in older plans; earlier runs may have removed some):
 
@@ -143,13 +143,13 @@ No output: already gone. Otherwise remove the printed path.
 5. `git worktree prune && git pull --rebase && git remote prune origin`
 
 **Standard worktree** (`IN_WORKTREE=true`):
-- If `IS_INTEGRATION_CWD=true`: pr-merge is running from the integration worktree for a phase PR (a manual run — orchestrate uses the phase worktree) — do NOT remove the integration worktree. Just delete `$BRANCH_NAME` (gh-verified) and prune remotes (`git remote prune origin`). The orchestrator handles the rest in Phase Wrap-Up 7d/7e.
+- If `IS_INTEGRATION_CWD=true`: pr-merge is running from the integration worktree for a phase PR (a manual run — orchestrate uses the phase worktree) — do NOT remove the integration worktree. Just delete `$BRANCH_NAME` (gh-verified) and prune remotes (`git remote prune origin`). While the phase worktree still exists the delete reports `SKIP … still checked out` — expected; the integration branch's own cleanup deletes the phase branch after removing its worktree. The orchestrator handles the rest in Phase Wrap-Up 7d/7e.
 - If `IS_INTEGRATION_CWD=false` (normal case, CWD branch matches PR branch):
   1. Leave and remove the current worktree
   2. Delete `$BRANCH_NAME` (gh-verified)
   3. `git worktree prune && git pull --rebase && git remote prune origin`
 
-**No worktree:** `git checkout $DEFAULT_BRANCH && git pull --rebase && git remote prune origin`, then delete `$BRANCH_NAME` (gh-verified).
+**No worktree:** `git checkout <DEFAULT_BRANCH> && git pull --rebase && git remote prune origin`, then delete `$BRANCH_NAME` (gh-verified).
 
 ### Step 4: Summary
 

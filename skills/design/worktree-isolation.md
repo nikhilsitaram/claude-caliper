@@ -11,6 +11,7 @@ After `EnterWorktree`, Claude Code confines the session (and every subagent it s
 | A variable assigned a literal, reused anywhere — `P=/abs/wt; git -C "$P" …`, `T="$P/sub"` | Allowed |
 | Any quoted `"$(…)"` — even `"$(pwd)"` — or `$(git …)` inside a test | Refused — except the `"$(cat <<'EOF' … EOF)"` message idiom |
 | A substitution result reused as a standalone word — `echo "$X"`, a git argument, `[ -z "$X" ]` | Refused |
+| A `$VAR` git argument not assigned in the same call, or one assigned `"${A:-$B}"` | Refused — write the value in as a literal |
 | `git -C <main checkout>`, or `cd <sibling worktree> && git …` | Refused |
 | `ExitWorktree(remove)` on a worktree entered by `path` | Refused — `ExitWorktree(keep)` lifts isolation, then `git worktree remove <path>` |
 

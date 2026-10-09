@@ -178,6 +178,35 @@ run 'bad..name'
 check_eq "t14: invalid branch name exits 1" 1 "$RC"
 check_eq "t14: gh never called" "" "$(cat "$GH_ARGS_LOG")"
 
+# Test 15: pr-merge's documented remote delete, fed the helper's DELETED line,
+# against a local bare remote — pins the doc's push line to the output format.
+PUSH_LINE="$(grep -m1 '^git push --force-with-lease=' "$REPO_ROOT/skills/pr-merge/SKILL.md" || true)"
+check_match "t15: pr-merge documents the leased remote delete" "git push --force-with-lease=*<B>*<head>*" "$PUSH_LINE"
+g init -q --bare "$BASE/remote.git"
+g -C "$REPO" remote add origin "$BASE/remote.git"
+remote_tip() { g -C "$REPO" ls-remote origin "refs/heads/$1" | cut -f1; }
+doc_push() {  # <branch> <DELETED line> — runs the documented line with its placeholders filled
+  local line argv
+  line="${PUSH_LINE//<B>/$1}"
+  line="${line//<head>/${2##* }}"
+  read -ra argv <<<"$line"
+  (cd "$REPO" && "${argv[@]}" >/dev/null 2>&1)
+}
+
+g -C "$REPO" branch b-remote "$F2"
+g -C "$REPO" push -q origin "$F2:refs/heads/b-remote"
+FAKE_GH_JSON="$(gh_json MERGED "$F2" "$SQUASH")" run b-remote
+RC_PUSH=0; doc_push b-remote "$OUT" || RC_PUSH=$?
+check_eq "t15: remote at the merged head is deleted" "0 " "$RC_PUSH $(remote_tip b-remote)"
+
+g -C "$REPO" branch b-advanced "$F2"
+g -C "$REPO" push -q origin "$F3:refs/heads/b-advanced"   # another writer pushed after the merge
+FAKE_GH_JSON="$(gh_json MERGED "$F2" "$SQUASH")" run b-advanced
+RC_PUSH=0; doc_push b-advanced "$OUT" || RC_PUSH=$?
+check_eq "t15: helper still deletes the local branch" 0 "$RC"
+check_eq "t15: advanced remote survives the leased delete" "$F3" "$(remote_tip b-advanced)"
+check_eq "t15: the push reports the refusal" 1 "$RC_PUSH"
+
 echo ""
 echo "Passed: $pass, Failed: $fail"
 [[ "$fail" -eq 0 ]]

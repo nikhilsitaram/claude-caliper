@@ -30,7 +30,7 @@ git symbolic-ref --short refs/remotes/origin/HEAD
 
 Line 1 is `CURRENT_BRANCH`; line 2 is `origin/<DEFAULT_BRANCH>`. If line 2 errors (the clone has no `origin/HEAD`), run `git remote set-head origin --auto` and repeat it. Plain calls, read and carried forward, because the worktree-isolation guard refuses tests on `$(git …)` results (**See:** `skills/design/worktree-isolation.md`).
 
-Use `$DEFAULT_BRANCH` (never hardcode `main`) for all subsequent steps.
+Use `<DEFAULT_BRANCH>` (never hardcode `main`) for all subsequent steps.
 
 **If on default branch:**
 1. Sync with origin first (stash → fetch → rebase → pop)
@@ -68,13 +68,14 @@ EOF
 
 ### Step 6: Rebase on Target Base
 
+`<BASE>` is the `--base` branch when given, else `<DEFAULT_BRANCH>`:
+
 ```bash
-REBASE_BASE="${BASE_BRANCH:-$DEFAULT_BRANCH}"
 git fetch origin
-git rebase "origin/$REBASE_BASE"
+git rebase origin/<BASE>
 ```
 
-Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/$REBASE_BASE` actually advances. `git fetch origin $REBASE_BASE` only updates `FETCH_HEAD`, leaving the remote-tracking ref stale — `git rebase origin/$REBASE_BASE` then rebases onto an outdated tip.
+Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/<BASE>` actually advances. `git fetch origin <BASE>` only updates `FETCH_HEAD`, leaving the remote-tracking ref stale — `git rebase origin/<BASE>` then rebases onto an outdated tip.
 
 If conflicts occur, resolve them and re-run tests before continuing.
 
@@ -88,10 +89,10 @@ If branch was rebased and already has remote, use `git push -u origin HEAD --for
 
 ### Step 8: Create PR
 
+Add `--base <BASE>` only when `--base` was given — written in as a literal, since a shell test in the same call as a body that mentions git gets the whole call refused under isolation:
+
 ```bash
-BASE_FLAG=""
-if [ -n "$BASE_BRANCH" ]; then BASE_FLAG="--base $BASE_BRANCH"; fi
-gh pr create $BASE_FLAG --title "<commit subject>" --body "$(cat <<'EOF'
+gh pr create --title "<commit subject>" --body "$(cat <<'EOF'
 ## Summary
 <1-3 bullet points>
 
@@ -103,7 +104,7 @@ EOF
 )"
 ```
 
-When `--base` is provided (e.g., from orchestrate for phase PRs), the PR targets that branch instead of `$DEFAULT_BRANCH`. This enables the integration branch model where phase PRs target `integrate/<feature>`.
+When `--base` is provided (e.g., from orchestrate for phase PRs), the PR targets that branch instead of `<DEFAULT_BRANCH>`. This enables the integration branch model where phase PRs target `integrate/<feature>`.
 
 ### Step 9: Summary
 
@@ -119,13 +120,13 @@ Report: branch name, test results, files changed, commit hash, PR URL.
 | `--no-push` | Commit only |
 | `--skip-tests` `-T` | Skip tests |
 | `-m "..."` | Use provided message |
-| `--base <branch>` | Target specific base branch for PR (default: `$DEFAULT_BRANCH`) |
+| `--base <branch>` | Target specific base branch for PR (default: `<DEFAULT_BRANCH>`) |
 
 ## Common Mistakes
 
 | Mistake | Why It Matters |
 |---------|----------------|
-| Hardcoding `main` instead of `$DEFAULT_BRANCH` | Some repos use `master` |
+| Hardcoding `main` instead of `<DEFAULT_BRANCH>` | Some repos use `master` |
 | Pushing unknown commits on local main | May push unintended WIP/experimental work |
 | Using `--force` instead of `--force-with-lease` | Can overwrite others' work |
 | Merging in /pr-create | Always stop at PR creation for external review |

@@ -9,8 +9,8 @@ set -euo pipefail
 #
 # A narrow backstop, not proof: the guard also refuses forms a grep can't see
 # (a substitution result reused as a standalone word, a test on a derived var,
-# any quoted "$(…)" in a call naming git — and "naming git" includes the word
-# inside a message string). Probe rewritten snippets verbatim from an isolated
+# a $VAR git argument not assigned in the same call, any quoted "$(…)" in a
+# call naming git — and "naming git" includes the word inside a message string). Probe rewritten snippets verbatim from an isolated
 # session (gh #295).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
