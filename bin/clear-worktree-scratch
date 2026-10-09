@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# clear-worktree-scratch <worktree-path>
+#
+# Prepare a caliper worktree for a bare (no --force) `git worktree remove`:
+# sync its agent memory back to $MAIN_ROOT, then delete caliper's own untracked
+# scratch — the seeded .claude/agent-memory/, .claude/caliper-draft/, and
+# .claude/settings.local.json. In repos that don't gitignore .claude/ that
+# scratch is untracked content, so the remove refuses and the caller's
+# stop-on-failure rule halts cleanup (issue #297). Only untracked, non-ignored
+# files are deleted: tracked memory (repos that commit it) stays, and ignored
+# files never block a remove. Removing the worktree is left to the caller.
+#
+# Paths resolve under the worktree, never the caller's cwd — callers run this
+# from the main checkout or the integration worktree, which hold their own
+# files at the same relative paths. Refuses the main checkout. If the sync
+# fails, nothing is deleted: the worktree may hold the only copy of new memory.
+
+usage() {
+  echo "Usage: clear-worktree-scratch <worktree-path>" >&2
+  exit 1
+}
+
+[[ $# -eq 1 ]] || usage
+
+[[ -d "$1" ]] || { echo "ERROR: worktree path does not exist: $1" >&2; exit 1; }
+
+WORKTREE="$(cd "$(git -C "$1" rev-parse --show-toplevel)" && pwd -P)"
+MAIN_ROOT="$(git -C "$WORKTREE" rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+
+if [[ "$WORKTREE" == "$(cd "$MAIN_ROOT" && pwd -P)" ]]; then
+  echo "ERROR: refusing to clear scratch in the main checkout: $WORKTREE" >&2
+  exit 1
+fi
+
+"$(dirname "$0")/sync-agent-memory" "$WORKTREE" || {
+  echo "ERROR: sync-agent-memory failed; leaving $WORKTREE untouched" >&2
+  exit 1
+}
+
+while IFS= read -r -d '' rel; do
+  rm -f -- "$WORKTREE/$rel"
+done < <(git -C "$WORKTREE" ls-files -z -o --exclude-standard -- \
+  .claude/agent-memory .claude/caliper-draft .claude/settings.local.json)
