@@ -51,3 +51,9 @@ jobs:
           bash tests/validate-plan/caliper-test_render.sh
           bash tests/validate-plan/caliper-test_update_status.sh
           bash tests/validate-plan/caliper-test_criteria.sh
+          bash tests/validate-plan/caliper-test_review_gates.sh
+          bash tests/validate-plan/caliper-test_fileset_overlap.sh
+          bash tests/validate-plan/caliper-test_add_remove_file.sh
+          bash tests/validate-plan/caliper-test_check_deps.sh
+          bash tests/validate-plan/caliper-test_gated.sh
+          bash tests/validate-plan/caliper-test_ready.sh
