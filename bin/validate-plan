@@ -1870,7 +1870,7 @@ while [[ $# -gt 0 ]]; do
     --cwd)
       shift
       CRITERIA_CWD_SET=1
-      if [[ $# -gt 0 ]]; then
+      if [[ $# -gt 0 && "$1" != --* ]]; then
         CRITERIA_CWD="$1"
         shift
       fi

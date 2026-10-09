@@ -25,7 +25,7 @@ assert_output_contains() {
   local desc="$1" expected_substr="$2"; shift 2
   local output
   output=$("$@" 2>&1) || true
-  if echo "$output" | grep -qF "$expected_substr"; then
+  if echo "$output" | grep -qF -- "$expected_substr"; then
     echo "PASS: $desc"
     ((PASS++)) || true
   else
@@ -222,6 +222,8 @@ assert_output_contains "missing --cwd dir names the path" "$TMPDIR/t15/nope" \
   "$VALIDATE" --criteria "$TMPDIR/t15/plan.json" --task A1 --cwd "$TMPDIR/t15/nope"
 assert_exit_code "--cwd without a value exits 2" 2 \
   "$VALIDATE" --criteria "$TMPDIR/t15/plan.json" --task A1 --cwd
+assert_output_contains "--cwd does not swallow the next flag" "--cwd requires a directory" \
+  "$VALIDATE" --criteria "$TMPDIR/t15/plan.json" --cwd --task A1
 
 echo "Test 16: --cwd outside --criteria is rejected, not silently ignored"
 write_plan "$TMPDIR/t16/plan.json" '[]' "task"
