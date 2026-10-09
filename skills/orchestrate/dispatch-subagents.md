@@ -33,7 +33,7 @@ Agent(name: "impl-{TASK_ID_LOWER}", subagent_type: "claude-caliper:task-implemen
 ... (one per ready task)
 ```
 
-The agent runs in background automatically (defined in agent frontmatter). Track each agent's name mapped to its task ID and worktree path, and which tasks you merge after each dispatch — Process Completions step 2 needs it.
+The agent runs in background automatically (defined in agent frontmatter). Track each agent's name mapped to its task ID and worktree path.
 
 **Note:** `--check-base` runs at orchestrate startup and before each phase dispatch (multi-phase). No separate dispatch-level base check is needed.
 
@@ -49,22 +49,23 @@ TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 ```
 
 1. Read the agent's return message for completion notes and task summary
-2. Verify the commit landed on the task branch — not the parent worktree's branch. Count the task-branch commits the parent doesn't have yet; sibling tasks merged into the parent since dispatch don't change this number, so no dispatch-time state is needed:
+2. Verify the commit landed on the task branch — not the parent worktree's branch. Find the task's fork point, list how the parent branch moved since then (its reflog, newest first), and count the task-branch commits the parent lacks. All of it comes from git, so no dispatch-time state is needed and sibling merges can't be mistaken for a misplaced commit:
     ```bash
+    PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)
+    PRE_TASK_SHA=$(git -C "$PARENT_WORKTREE" merge-base {TASK_ID_LOWER} HEAD)
+    echo "PRE_TASK_SHA=$PRE_TASK_SHA PARENT_BRANCH=$PARENT_BRANCH"
+    git -C "$PARENT_WORKTREE" log -g --format='%H %gs' "refs/heads/$PARENT_BRANCH" | awk -v pre="$PRE_TASK_SHA" '$1 == pre {exit} {print}'
     git -C "$PARENT_WORKTREE" rev-list --count HEAD..{TASK_ID_LOWER}
     ```
-    One or more → the work is on the task branch; go to step 3. Zero → find the task's fork point (a task branch with no commits of its own still sits on it) and compare it with parent HEAD:
-    ```bash
-    PRE_TASK_SHA=$(git -C "$PARENT_WORKTREE" merge-base {TASK_ID_LOWER} HEAD); echo "$PRE_TASK_SHA"
-    git -C "$PARENT_WORKTREE" rev-parse HEAD
-    ```
-    - Parent HEAD equals `$PRE_TASK_SHA` → the implementer committed nothing; send the task back to it.
-    - Parent HEAD has advanced and you merged another task into this parent since dispatching this one → stop and surface to the user. Sibling merges and a misplaced commit look the same here, and Stage 3's rewind to `$PRE_TASK_SHA` would strip the sibling merges off the parent.
-    - Parent HEAD has advanced and nothing was merged since dispatch → the implementer committed to the parent branch. Correct via a 3-stage recovery — capture, verify, rewind. **Each stage's exit code matters: stop and surface to the user if any stage fails.**
+    Reflog lines whose subject starts `merge ` or `commit (merge):` are your own task merges (the latter when you resolved a conflict by hand). Any other line — typically `commit: …` — is a commit made directly on the parent: a misplaced commit.
+    - No misplaced commit, count ≥ 1 → the work is on the task branch; go to step 3.
+    - No misplaced commit, count 0 → the implementer committed nothing; send the task back to it.
+    - Misplaced commit, count 0, no task merges listed → correct via the 3-stage recovery below — capture, verify, rewind. **Each stage's exit code matters: stop and surface to the user if any stage fails.**
+    - Misplaced commit otherwise → stop and surface to the user. With task merges listed, Stage 3's rewind to `$PRE_TASK_SHA` would strip them off the parent; with count ≥ 1, the work is split across both branches and Stage 1 can't fast-forward.
 
     Each stage is its own Bash call and shell variables don't carry across, so substitute the printed `$PRE_TASK_SHA`, `$WRONG_HEAD`, and `$PARENT_BRANCH` values into later stages as literals — `$PRE_TASK_SHA` can't be re-derived once Stage 1 moves the task branch.
 
-    **Stage 1 — capture the rogue commit on the task branch.** FF-only fails loudly if `WRONG_HEAD` isn't a descendant of the task branch's tip (a more confused state than a single misplaced commit):
+    **Stage 1 — capture the misplaced commit on the task branch.** The count of 0 above means the task tip is an ancestor of parent HEAD, so FF-only should succeed; if it fails, a branch moved after that check:
 
     ```bash
     WRONG_HEAD=$(git -C "$PARENT_WORKTREE" rev-parse HEAD)
