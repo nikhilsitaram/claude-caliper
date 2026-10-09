@@ -30,8 +30,6 @@ if [ -z "$DEFAULT_BRANCH" ]; then
   DEFAULT_BRANCH=$(git branch -r | grep -oP 'origin/\K(main|master)' | head -1)
 fi
 MAIN_REPO=$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/.git$||')
-IS_WORKTREE=false
-if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then IS_WORKTREE=true; fi
 ```
 
 Use `$DEFAULT_BRANCH` (never hardcode `main`) for all subsequent steps.
@@ -130,7 +128,6 @@ Report: branch name, test results, files changed, commit hash, PR URL.
 | Mistake | Why It Matters |
 |---------|----------------|
 | Hardcoding `main` instead of `$DEFAULT_BRANCH` | Some repos use `master` |
-| Using `pwd` for worktree detection | Fails in subdirectories — compare `--git-dir` vs `--git-common-dir` |
 | Pushing unknown commits on local main | May push unintended WIP/experimental work |
 | Using `--force` instead of `--force-with-lease` | Can overwrite others' work |
 | Merging in /pr-create | Always stop at PR creation for external review |

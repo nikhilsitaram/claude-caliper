@@ -41,6 +41,14 @@ jobs:
             bash "$t"
           done
 
+      - name: Skill lint tests
+        # Glob so new tests/skills/caliper-test_*.sh auto-enroll.
+        run: |
+          for t in tests/skills/caliper-test_*.sh; do
+            echo "== $t =="
+            bash "$t"
+          done
+
       - name: Handoff tests
         run: bash tests/handoff/caliper-test_spawn_pane.sh
 
