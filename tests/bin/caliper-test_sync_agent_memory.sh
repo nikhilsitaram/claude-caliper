@@ -111,7 +111,11 @@ fix="$(new_fixture t2f)"
 mkdir -p "$fix/.claude/agent-memory" "$fix/wt/.claude/agent-memory/agent-x"
 echo "unmerged" > "$fix/wt/.claude/agent-memory/agent-x/held.md"
 mkdir "$fix/.claude/agent-memory/.sync.lock.d"   # simulate a live holder
-AGENT_MEMORY_LOCK_TRIES=2 "$SCRIPT" "$fix/wt" 2>/dev/null || true
+if AGENT_MEMORY_LOCK_TRIES=2 "$SCRIPT" "$fix/wt" 2>/dev/null; then
+  echo "FAIL: t2f: skip exits non-zero (nothing persisted)"; fail=$((fail + 1))
+else
+  echo "PASS: t2f: skip exits non-zero (nothing persisted)"; pass=$((pass + 1))
+fi
 check "t2f: fail-closed — did not merge while lock held" test ! -f "$fix/.claude/agent-memory/agent-x/held.md"
 rmdir "$fix/.claude/agent-memory/.sync.lock.d" 2>/dev/null || true
 
