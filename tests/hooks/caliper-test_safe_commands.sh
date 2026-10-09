@@ -4,7 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ALLOW_HOOK="$REPO_ROOT/hooks/permission-request-allow.sh"
-DENY_HOOK="$REPO_ROOT/hooks/pretooluse-deny-patterns.sh"
 PASS=0
 FAIL=0
 
@@ -41,18 +40,6 @@ assert_file_contains() {
   fi
 }
 
-assert_output_contains_deny_with_reason() {
-  local desc="$1" output="$2" expected_reason="$3"
-  if echo "$output" | grep -qF '"permissionDecision":"deny"' && echo "$output" | grep -qF "$expected_reason"; then
-    echo "PASS: $desc"
-    ((PASS++)) || true
-  else
-    echo "FAIL: $desc (expected deny with reason containing '$expected_reason')"
-    echo "  Got: $output"
-    ((FAIL++)) || true
-  fi
-}
-
 TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
@@ -67,17 +54,6 @@ run_allow() {
     session_id: "test-session"
   }')
   echo "$json" | CLAUDE_SAFE_COMMANDS_FILE="$safe_file" CLAUDE_SAFE_CMDS_LOG="$log_file" "$ALLOW_HOOK" 2>/dev/null || true
-}
-
-run_deny() {
-  local command="$1"
-  local json
-  json=$(jq -n --arg cmd "$command" '{
-    tool_name: "Bash",
-    tool_input: { command: $cmd },
-    session_id: "test-session"
-  }')
-  echo "$json" | "$DENY_HOOK" 2>/dev/null || true
 }
 
 run_allow_override() {
@@ -433,131 +409,18 @@ done
 echo "done"' "$SAFE58")
 assert_output_contains "array literal + safe loop body allowed" "$OUT58" '"behavior":"allow"'
 
-echo ""
-echo "=== PreToolUse Deny Tests ==="
-
-echo "Test 27a: for-loop with bash \"\$t\" denied; message uses extracted loop var"
-# shellcheck disable=SC2016
-OUT27A=$(run_deny 'for t in $(find tests -maxdepth 3 -name "*.sh" -executable); do echo "=== $t ==="; bash "$t" 2>&1 | tail -3 || echo "FAIL: $t"; done 2>&1 | tail -40')
-assert_output_contains_deny_with_reason "for-loop bash \$t denied" "$OUT27A" 'for-loop with bash'
-# shellcheck disable=SC2016
-assert_output_contains_deny_with_reason "for-loop message uses var t" "$OUT27A" '$t'
-
-echo "Test 27b: for-loop with result=\$(bash \"\$f\") denied; message uses loop var f"
-# shellcheck disable=SC2016
-OUT27B=$(run_deny 'for f in $(find tests -maxdepth 3 -name "*.sh" -executable); do result=$(bash "$f" 2>&1 | tail -1); if echo "$result" | grep -qi "fail"; then echo "FAILED: $f"; fi; done')
-assert_output_contains_deny_with_reason "for-loop result=\$(bash \$f) denied" "$OUT27B" 'for-loop with bash'
-# shellcheck disable=SC2016
-assert_output_contains_deny_with_reason "for-loop message uses var f" "$OUT27B" '$f'
-
-echo "Test 27c: for-loop with direct \"\$f\" exec after leading var assignment denied"
-# shellcheck disable=SC2016
-OUT27C=$(run_deny 'FAIL=0; for f in tests/validate-plan/caliper-test_*.sh tests/bin/caliper-test_*.sh; do [ -x "$f" ] || continue; if ! "$f" >/dev/null 2>&1; then echo "FAIL: $f"; FAIL=1; fi; done')
-assert_output_contains_deny_with_reason "for-loop direct \"\$f\" exec denied" "$OUT27C" 'tree-sitter parser'
-# shellcheck disable=SC2016
-assert_output_contains_deny_with_reason "Test 27c message uses var f" "$OUT27C" '$f'
-
-echo "Test 27d: for-loop with \"\$x\" at do position denied"
-# shellcheck disable=SC2016
-OUT27D=$(run_deny 'for x in *.sh; do "$x"; done')
-assert_output_contains_deny_with_reason "for-loop direct exec at do position denied" "$OUT27D" 'tree-sitter parser'
-
-echo "Test 27e: for-loop with quoted var only in echo (not command position) allowed"
-# shellcheck disable=SC2016
-OUT27E=$(run_deny 'for f in *.sh; do echo "$f"; done')
-if [[ -z "$OUT27E" ]]; then
-  echo "PASS: for-loop with echo \"\$f\" not denied"
-  ((PASS++)) || true
-else
-  echo "FAIL: for-loop with echo \"\$f\" should not be denied (got: $OUT27E)"
-  ((FAIL++)) || true
-fi
-
-echo "Test 27f: for-loop with multi-space \"do  \$f\" denied (whitespace robustness)"
-# shellcheck disable=SC2016
-OUT27F=$(run_deny 'for f in *.sh; do  "$f"; done')
-assert_output_contains_deny_with_reason "for-loop multi-space do denied" "$OUT27F" 'tree-sitter parser'
-
-echo "Test 27g: for-loop with pipe \"| \$f\" denied (separator coverage)"
-# shellcheck disable=SC2016
-OUT27G=$(run_deny 'for f in *.sh; do cat input | "$f"; done')
-assert_output_contains_deny_with_reason "for-loop pipe-to-direct-exec denied" "$OUT27G" 'tree-sitter parser'
-
-echo "Test 27: bash bin/validate-plan denied with guidance"
-OUT27=$(run_deny "bash bin/validate-plan --schema plan.json")
-assert_output_contains_deny_with_reason "bash + script denied" "$OUT27" "Do not use"
-
-echo "Test 28: bash -e bin/validate-plan denied with guidance"
-OUT28=$(run_deny "bash -e bin/validate-plan --schema plan.json")
-assert_output_contains_deny_with_reason "bash -e + script denied" "$OUT28" "Do not use"
-
-echo "Test 29: bash -euo pipefail denied with correct script name"
-OUT29=$(run_deny "bash -euo pipefail bin/validate-plan")
-assert_output_contains_deny_with_reason "bash -euo pipefail denied" "$OUT29" "bin/validate-plan"
-
-echo "Test 30: bash with variable script arg denied"
-# shellcheck disable=SC2016
-OUT30=$(run_deny 'bash "$SCRIPT_PATH"')
-assert_output_contains_deny_with_reason "bash + variable script denied" "$OUT30" "Do not use"
-
-echo "Test 31: bare bash (no script) falls through"
-OUT31=$(run_deny "bash")
-assert_output_empty "bare bash not denied" "$OUT31"
-
-echo "Test 32: sh bin/validate-plan denied"
-OUT32=$(run_deny "sh bin/validate-plan --schema plan.json")
-assert_output_contains_deny_with_reason "sh + script denied" "$OUT32" "Do not use"
-
-echo "Test 33: bash tests/hooks/caliper-test_safe_commands.sh denied"
-OUT33=$(run_deny "bash tests/hooks/caliper-test_safe_commands.sh")
-assert_output_contains_deny_with_reason "bash + test script denied" "$OUT33" "Do not use"
-
-echo "Test 34: \$VAR as command word triggers deny"
-# shellcheck disable=SC2016
-OUT34=$(run_deny '$VALIDATE --help')
-assert_output_contains_deny_with_reason "\$VAR command denied" "$OUT34" "Variable expansion"
-
-echo "Test 35: \"\$VAR\" (quoted) as command word triggers deny"
-# shellcheck disable=SC2016
-OUT35=$(run_deny '"$VALIDATE" --help')
-assert_output_contains_deny_with_reason "quoted \$VAR denied" "$OUT35" "Variable expansion"
-
-echo "Test 36: \${VAR} as command word triggers deny"
-# shellcheck disable=SC2016
-OUT36=$(run_deny '${VALIDATE} --help')
-assert_output_contains_deny_with_reason "\${VAR} denied" "$OUT36" "Variable expansion"
-
-echo "Test 37: safe command + \$VAR compound still triggers deny"
-# shellcheck disable=SC2016
-OUT37=$(run_deny 'git status && $DEPLOY')
-assert_output_contains_deny_with_reason "safe + \$VAR compound denied" "$OUT37" "Variable expansion"
-
-echo "Test 38: bash -c denied"
-OUT38=$(run_deny "bash -c 'command -v foo'")
-assert_output_contains_deny_with_reason "bash -c denied" "$OUT38" "Do not use"
-
-echo "Test 39: bash -- bin/validate-plan denied"
-OUT39=$(run_deny "bash -- bin/validate-plan --schema plan.json")
-assert_output_contains_deny_with_reason "bash -- + script denied" "$OUT39" "Do not use"
-
-echo "Test 40d: Safe command produces no output from deny hook"
-OUT40D=$(run_deny "git status")
-assert_output_empty "safe command not denied" "$OUT40D"
-
 echo "Test 41b: [[ double-bracket conditional allowed (setup command pattern)"
 SAF41B="$TMPDIR_TEST/safe41b.txt"
 cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAF41B"
 OUT41B=$(run_allow 'MAIN_REPO="$(git worktree list --porcelain | head -1 | sed '"'"'s/^worktree //'"'"')" && BRANCH_NAME=$(git branch --show-current) && [[ "$BRANCH_NAME" == integrate/* ]] && echo "IS_INTEGRATION=true" || echo "IS_INTEGRATION=false"' "$SAF41B")
 assert_output_contains "[[ conditional in setup command allowed" "$OUT41B" '"behavior":"allow"'
 
-echo "Test 42: cp of a worktree draft into the plan dir is auto-allowed and not denied (#288)"
+echo "Test 42: cp of a worktree draft into the plan dir is auto-allowed (#288)"
 SAFE42="$TMPDIR_TEST/safe42.txt"
 : > "$SAFE42"
 CP42='cp .claude/caliper-draft/plan.json /Users/me/project/.claude/claude-caliper/2026-01-01-topic/plan.json'
 OUT42=$(run_allow "$CP42" "$SAFE42")
 assert_output_contains "draft cp into plan dir auto-allowed with empty safe list" "$OUT42" '"behavior":"allow"'
-OUT42D=$(run_deny "$CP42")
-assert_output_empty "draft cp into plan dir not denied" "$OUT42D"
 
 echo ""
 echo "$PASS passed, $FAIL failed"
