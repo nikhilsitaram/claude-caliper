@@ -42,6 +42,13 @@ The agent runs in background automatically (defined in agent frontmatter). Track
 
 When a background agent completes (push notification — do not poll):
 
+Shell variables don't persist between Bash calls, and with parallel tasks a leftover `$TASK_WORKTREE` names whichever task was dispatched last — checks and criteria would silently run against the wrong worktree. Re-derive both paths from the completing task's ID at the start of each command below and in After Completion that uses them:
+
+```bash
+PARENT_WORKTREE="$(git rev-parse --show-toplevel)"
+TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
+```
+
 1. Read the agent's return message for completion notes and task summary
 2. Verify the commit landed on the task branch — not the parent worktree's branch. The real check is whether the parent HEAD is still at `PRE_TASK_SHA`:
     ```bash
@@ -83,14 +90,15 @@ When a background agent completes (push notification — do not poll):
 
 ## After Completion
 
-1. Validate criteria: `validate-plan --criteria plan.json --task {TASK_ID}` — a failed criterion means the task is not done; send it back to the implementer instead of advancing status
-2. Mark task complete: `validate-plan --update-status plan.json --task {TASK_ID} --status complete`
+Never `cd` into a task worktree — not for inspection, not for criteria. Step 3 removes it, and once the session's own CWD is deleted every later tool call is refused (Bash, Edit, even `EnterWorktree`) until the user restarts the session — the post-removal CWD reset never gets to run. Use `git -C "$TASK_WORKTREE"` for inspection and `--cwd` for criteria.
+
+1. Validate criteria: `validate-plan --criteria "$PLAN_JSON" --task {TASK_ID} --cwd "$TASK_WORKTREE"` — criteria `run` commands are repo-relative and the task branch isn't merged yet, so they must run against the task worktree; `--cwd` runs them there without moving your shell. A failed criterion means the task is not done; send it back to the implementer instead of advancing status
+2. Mark task complete: `validate-plan --update-status "$PLAN_JSON" --task {TASK_ID} --status complete`
 3. Merge and clean up the agent's worktree:
-   - Never `cd` into an agent worktree — always use `git -C <agent-worktree-path>` for inspection commands (`git log`, `git status`, `git diff`). This prevents CWD from pointing at a path that gets deleted during cleanup.
    - Guard before merge: `PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)` — then `[[ "$PARENT_BRANCH" == integrate/* ]] && { echo "ERROR: PARENT_WORKTREE is on the integration branch. Task branches must merge into the phase branch; integration happens only in Phase Wrap-Up step 7." >&2; exit 1; }`. This catches state drift from the wrong-worktree recovery path where the phase branch was reset to integration HEAD.
    - Merge: `git -C "$PARENT_WORKTREE" merge {TASK_ID_LOWER}` (task branch into the phase branch, never directly into integration)
-   - Clean up: `sync-agent-memory <agent-worktree-path>` (persist the task-implementer's `memory: project` writes to `$MAIN_ROOT` before removal — belt-and-suspenders with the `SubagentStop` hook), then `git worktree remove <agent-worktree-path>` then `git branch -d <agent-branch>`
-   - Reset CWD after removal: `cd <feature-worktree-path> && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted
+   - Clean up: `sync-agent-memory "$TASK_WORKTREE"` (persist the task-implementer's `memory: project` writes to `$MAIN_ROOT` before removal — belt-and-suspenders with the `SubagentStop` hook), then `git worktree remove "$TASK_WORKTREE"` then `git branch -d {TASK_ID_LOWER}`
+   - Reset CWD after removal: `cd "$PARENT_WORKTREE" && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted. Return to the parent (phase) worktree, not the multi-phase feature/integration worktree: the next dispatch and completion derive `PARENT_WORKTREE` from CWD
 4. Check if dependent tasks are now unblocked (`validate-plan --check-deps`)
 5. Dispatch newly unblocked tasks (same pattern as above)
 

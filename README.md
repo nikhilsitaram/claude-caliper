@@ -360,7 +360,7 @@ Before an LLM reviewer ever sees the plan, `validate-plan --schema` runs structu
 Additional runtime gates:
 - `--check-deps` verifies all `depends_on` tasks are complete before spawning a dependent task subagent
 - `--check-handoffs` / `--add-handoff` record and verify cross-phase handoff notes directly in `plan.json`
-- `--criteria` runs machine-executable success criteria at task, phase, and plan levels
+- `--criteria` runs machine-executable success criteria at task, phase, and plan levels (`--cwd <dir>` runs them in another worktree without moving the caller's shell)
 
 This catches structural errors deterministically — no tokens spent on an LLM noticing a missing field.
 

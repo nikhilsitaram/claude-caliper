@@ -14,9 +14,9 @@ Usage:
   validate-plan --update-status <plan.json> --task <ID> --status <STATUS>
   validate-plan --update-status <plan.json> --phase <LETTER> --status <STATUS>
   validate-plan --update-status <plan.json> --plan --status <STATUS>
-  validate-plan --criteria <plan.json> --task <ID>
-  validate-plan --criteria <plan.json> --phase <LETTER>
-  validate-plan --criteria <plan.json> --plan
+  validate-plan --criteria <plan.json> --task <ID> [--cwd <DIR>]
+  validate-plan --criteria <plan.json> --phase <LETTER> [--cwd <DIR>]
+  validate-plan --criteria <plan.json> --plan [--cwd <DIR>]
   validate-plan --check-review <plan.json> --type <TYPE> --scope <SCOPE>
   validate-plan --consistency <plan.json>
   validate-plan --check-entry <plan.json> --stage <STAGE>
@@ -965,7 +965,7 @@ do_update_status_plan() {
 }
 
 do_criteria() {
-  local plan_json="$1" target="$2" target_id="${3:-}"
+  local plan_json="$1" target="$2" target_id="${3:-}" run_dir="${4:-}"
 
   local json
   json=$(cat "$plan_json")
@@ -1015,7 +1015,14 @@ do_criteria() {
   local count
   count=$(echo "$criteria_json" | jq 'length')
   if [[ "$count" -eq 0 ]]; then
+    echo "$scope_label: no criteria defined"
     exit 0
+  fi
+
+  # Criteria `run` commands are repo-relative. --cwd moves only this process,
+  # so the caller never has to cd into a worktree it is about to remove.
+  if [[ -n "$run_dir" ]]; then
+    cd "$run_dir"
   fi
 
   local timeout_cmd
@@ -1024,7 +1031,7 @@ do_criteria() {
     echo "WARNING: neither timeout nor gtimeout found; commands will run without timeout enforcement" >&2
   fi
 
-  local has_blocking_failure=0
+  local has_blocking_failure=0 passed=0
 
   for ((i=0; i<count; i++)); do
     local run expect_exit expect_output severity timeout_secs
@@ -1071,6 +1078,7 @@ do_criteria() {
       has_blocking_failure=1
     elif [[ "$exit_ok" == "true" && "$output_ok" == "true" ]]; then
       status_label="PASS"
+      passed=$((passed + 1))
       if [[ -n "$expect_exit" ]]; then
         details="exit=$actual_exit (expected $expect_exit)"
       fi
@@ -1101,6 +1109,7 @@ do_criteria() {
     rm -f "$stdout_file"
   done
 
+  echo "$scope_label: $passed/$count criteria passed"
   exit "$has_blocking_failure"
 }
 
@@ -1648,6 +1657,8 @@ ADD_FILE_KIND=""
 ADD_FILE_PATH=""
 HANDOFF_FROM=""
 HANDOFF_NOTE=""
+CRITERIA_CWD=""
+CRITERIA_CWD_SET=""
 # shellcheck disable=SC2034
 CHECK_ENTRY_STAGE=""
 
@@ -1856,6 +1867,14 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
+    --cwd)
+      shift
+      CRITERIA_CWD_SET=1
+      if [[ $# -gt 0 && "$1" != --* ]]; then
+        CRITERIA_CWD="$1"
+        shift
+      fi
+      ;;
     *)
       usage
       ;;
@@ -1864,6 +1883,21 @@ done
 
 [[ -z "$MODE" ]] && usage
 [[ -z "$PLAN_JSON" ]] && usage
+
+if [[ -n "$CRITERIA_CWD_SET" ]]; then
+  if [[ "$MODE" != "criteria" ]]; then
+    echo "ERROR: --cwd only applies to --criteria" >&2
+    exit 2
+  fi
+  if [[ -z "$CRITERIA_CWD" ]]; then
+    echo "ERROR: --cwd requires a directory" >&2
+    exit 2
+  fi
+  if [[ ! -d "$CRITERIA_CWD" ]]; then
+    echo "ERROR: --cwd directory not found: $CRITERIA_CWD" >&2
+    exit 2
+  fi
+fi
 
 case "$MODE" in
   schema) do_schema "$PLAN_JSON" ;;
@@ -1878,9 +1912,9 @@ case "$MODE" in
     ;;
   criteria)
     case "$UPDATE_TARGET" in
-      task) do_criteria "$PLAN_JSON" "task" "$UPDATE_ID" ;;
-      phase) do_criteria "$PLAN_JSON" "phase" "$UPDATE_ID" ;;
-      plan) do_criteria "$PLAN_JSON" "plan" ;;
+      task) do_criteria "$PLAN_JSON" "task" "$UPDATE_ID" "$CRITERIA_CWD" ;;
+      phase) do_criteria "$PLAN_JSON" "phase" "$UPDATE_ID" "$CRITERIA_CWD" ;;
+      plan) do_criteria "$PLAN_JSON" "plan" "" "$CRITERIA_CWD" ;;
       *) echo "ERROR: --criteria requires --task <ID>, --phase <LETTER>, or --plan" >&2; exit 2 ;;
     esac
     ;;
