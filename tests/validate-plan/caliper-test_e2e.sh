@@ -52,8 +52,8 @@ assert_eq "plan status" "In Development" "$(jq -r '.status' "$TMPDIR/plan.json")
 
 # Task completion no longer requires a per-task review record (per-task review is retired) —
 # reviews.json only needs to carry the phase-level impl-review record for phase completion below.
-# Drive tasks the way orchestrate's dispatch loop does: dispatch what --ready
-# lists, mark it in_progress, then done (stored as complete).
+# Drive tasks the way orchestrate's dispatch loop does: the lead marks what
+# --ready lists in_progress as it dispatches, then done (stored as complete).
 assert_eq "ready before any work" "A1" "$("$VALIDATE" --ready "$TMPDIR/plan.json" --phase A)"
 "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status in_progress
 assert_eq "in-flight A1 not re-listed; A2 still blocked" "" "$("$VALIDATE" --ready "$TMPDIR/plan.json" --phase A)"
