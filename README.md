@@ -472,7 +472,7 @@ Skills degrade silently. A prompt tweak that looks better might fail on edge cas
 
 ## Design Principles
 
-**Lean skills.** Each skill is under 1,000 words. Skills teach Claude what it doesn't already know — workflow gates, project conventions, quality thresholds. Every excess word displaces working memory from the actual task.
+**Lean skills.** Each skill targets 1,500 words (hard cap 2,500). Skills teach Claude what it doesn't already know — workflow gates, project conventions, quality thresholds. Every excess word displaces working memory from the actual task.
 
 **Eval-driven.** Dedicated skill refactors and new skills run through `skill-eval` — pass rate + blind comparison + variance. Routine edits use manual review.
 
