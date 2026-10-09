@@ -115,9 +115,9 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
 
 A task's `gated_on` names outside inputs (another team's PR, reviewer-supplied data, an access grant) that you can't verify yourself — so the user decides, not the lead. Dispatch everything else first; ask only once the phase is otherwise stuck.
 
-1. Ask via AskUserQuestion — one question per `GATED:` task from `--ready`'s stderr, naming its input — whether that input now exists.
-2. Yes → `validate-plan --clear-gate "$PLAN_JSON" --task {TASK_ID}`, then re-run `--ready` and dispatch.
-3. No → stop the loop and report the gated tasks with the worktree path. The phase stays `In Progress`; resuming orchestrate re-enters this loop. (If the user wants to drop the task instead, `--update-status --status skipped` is allowed while gated.)
+1. Ask one AskUserQuestion with `multiSelect: true` — "Which of these inputs now exist?" — one option per `GATED:` task from `--ready`'s stderr, labeled with its task ID and input, plus a "None yet" option (questions take 2–4 options and a call up to 4 questions — spread larger sets across questions).
+2. For each selected task → `validate-plan --clear-gate "$PLAN_JSON" --task {TASK_ID}`, then re-run `--ready` and dispatch.
+3. Only "None yet" selected → stop the loop and report the gated tasks with the worktree path. The phase stays `In Progress`; resuming orchestrate re-enters this loop. (If the user wants to drop the task instead, `--update-status --status skipped` is allowed while gated.)
 
 ## Worktree Placement
 
