@@ -110,6 +110,14 @@ reset_fixture
 run_ready --task A1
 assert_eq "--ready rejects --task with a usage error" "2" "$RC"
 
+# An empty, exit-0 listing means "nothing to dispatch"; a plan --ready can't
+# evaluate must not masquerade as one.
+reset_fixture
+mutate '.phases[0].tasks[1].depends_on = "A1"'
+run_ready
+assert_eq "malformed plan exits non-zero" "1" "$RC"
+assert_eq "malformed plan prints no partial listing" "" "$OUT"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

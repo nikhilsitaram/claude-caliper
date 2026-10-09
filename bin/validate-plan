@@ -408,7 +408,15 @@ do_schema() {
         (if .gated_on != null and ((.gated_on | type) != "array"
               or any(.gated_on[]; type != "string" or . == "")) then
           "ERROR: invalid_gated_on: task \($id) gated_on must be an array of non-empty strings"
-        else empty end)
+        else empty end),
+        # depends_on and file lists drive the overlap and readiness checks; a
+        # non-array would otherwise be skipped by the []? reads below
+        (if (.depends_on | type) != "array" or any(.depends_on[]; type != "string") then
+          "ERROR: invalid_dependency: task \($id) depends_on must be an array of task ID strings"
+        else empty end),
+        (["create", .create], ["modify", .modify], ["test", .test_files]
+          | select((.[1] | type) != "array" or any(.[1][]; type != "string"))
+          | "ERROR: invalid_files: task \($id) files.\(.[0]) must be an array of path strings")
       ')
       if [[ -n "$_v2_errors" ]]; then
         while IFS= read -r _v2e; do
@@ -470,12 +478,11 @@ do_schema() {
 
   # Fileset overlap: every pair of same-phase tasks sharing a path must be
   # ordered by depends_on (1 jq call). Pairwise, not first-owner: A2 and A3 both
-  # after A1 are still unordered with each other.
-  local _ov_path _ov_a _ov_b _ov_letter
-  while IFS=$'\t' read -r _ov_path _ov_a _ov_b _ov_letter; do
-    [[ -z "$_ov_path" ]] && continue
-    err "ERROR: fileset_overlap: file '$_ov_path' claimed by tasks $_ov_a and $_ov_b in phase $_ov_letter — no depends_on path orders them, so they may run in parallel"
-  done < <(echo "$json" | jq -r "$JQ_TASK_DEFS"'
+  # after A1 are still unordered with each other. Captured rather than read
+  # from a process substitution so a jq failure fails the check instead of
+  # silently passing the plan.
+  local _overlaps _ov_path _ov_a _ov_b _ov_letter
+  if _overlaps=$(echo "$json" | jq -r "$JQ_TASK_DEFS"'
     dep_graph as $g
     | (.phases // [])[] | (.letter // "") as $letter
     | [(.tasks // [])[] | (.id // "") as $id | task_files | unique | .[] | {path: ., id: $id}]
@@ -483,7 +490,14 @@ do_schema() {
     | .[0].path as $path | [.[].id] as $ids
     | range(0; $ids | length) as $i | range($i + 1; $ids | length) as $j
     | select($ids[$i] != $ids[$j] and (ordered($g; $ids[$i]; $ids[$j]) | not))
-    | [$path, $ids[$i], $ids[$j], $letter] | @tsv')
+    | [$path, $ids[$i], $ids[$j], $letter] | @tsv' 2>/dev/null); then
+    while IFS=$'\t' read -r _ov_path _ov_a _ov_b _ov_letter; do
+      [[ -z "$_ov_path" ]] && continue
+      err "ERROR: fileset_overlap: file '$_ov_path' claimed by tasks $_ov_a and $_ov_b in phase $_ov_letter — no depends_on path orders them, so they may run in parallel"
+    done <<< "$_overlaps"
+  else
+    err "ERROR: fileset_overlap_unchecked: same-phase file overlap could not be evaluated — fix the depends_on/files type errors"
+  fi
 
   # Defense-in-depth: BFS cycle check using pre-extracted dependency graph
   local cd_cycle_detected=0
@@ -1397,20 +1411,27 @@ do_ready() {
     echo "ERROR: phase_not_found: '$phase_letter' not found in plan" >&2
     exit 1
   fi
-  local kind tid gates
-  while IFS=$'\t' read -r kind tid gates; do
-    case "$kind" in
-      READY) echo "$tid" ;;
-      GATED) echo "GATED: $tid — $gates" >&2 ;;
-    esac
-  done < <(jq -r --arg l "$phase_letter" "$JQ_TASK_DEFS"'
+  # Captured (not streamed) so a plan jq can't evaluate fails loudly instead of
+  # printing a partial or empty listing that reads as "nothing to dispatch".
+  local rows
+  if ! rows=$(jq -r --arg l "$phase_letter" "$JQ_TASK_DEFS"'
     status_map as $st
     | .phases[] | select($l == "" or .letter == $l) | .tasks[]
     | select(.status == "pending" and (unmet_deps($st) | length) == 0)
     | if (.gated_on // []) | length > 0
       then ["GATED", .id, (.gated_on | join("; "))]
       else ["READY", .id, ""] end
-    | @tsv' "$plan_json")
+    | @tsv' "$plan_json" 2>/dev/null); then
+    echo "ERROR: ready_unchecked: could not evaluate task readiness — run validate-plan --schema $plan_json" >&2
+    exit 1
+  fi
+  local kind tid gates
+  while IFS=$'\t' read -r kind tid gates; do
+    case "$kind" in
+      READY) echo "$tid" ;;
+      GATED) echo "GATED: $tid — $gates" >&2 ;;
+    esac
+  done <<< "$rows"
 }
 
 do_clear_gate() {

@@ -117,6 +117,20 @@ jq '.phases[0].tasks[1].files.create = ["src/core.ts"]' "$TMPDIR/plan.json" > "$
 assert_fail "ordered create+create still rejected" "duplicate_create_path" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
+# depends_on now decides whether tasks may share a file, so a malformed value
+# must fail loudly rather than abort the overlap check and pass the plan.
+echo "Test 11: string depends_on is rejected, not silently skipped"
+setup_valid_plan "$TMPDIR"
+jq '.phases[0].tasks[1].depends_on = "A1" | .phases[0].tasks[1].files.modify = ["src/core.ts"]' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
+assert_fail "string depends_on rejected" "invalid_dependency: task A2 depends_on must be an array" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 12: string files.test is rejected, not silently skipped"
+setup_valid_plan "$TMPDIR"
+jq '.phases[0].tasks[0].files.test = "tests/core.test.ts"' "$TMPDIR/plan.json" > "$TMPDIR/plan2.json" && mv "$TMPDIR/plan2.json" "$TMPDIR/plan.json"
+assert_fail "string files.test rejected" "invalid_files: task A1 files.test must be an array" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 exit $FAIL
