@@ -251,8 +251,8 @@ printf 'echo\ngit\n' > "$SAFE21"
 OUT21=$(run_allow "$(printf 'echo hello\n# this is a comment\ngit status')" "$SAFE21")
 assert_output_contains "command with # comment returns allow" "$OUT21" '"behavior":"allow"'
 
-echo "Test 22-26: Common safe commands"
-for cmd_pair in "ln -s /a /b:ln" "dirname /path:dirname" "basename /file.sh:basename" '[ -f /path ]:cat' "command -v uv:command"; do
+echo "Test 22-25: Common safe commands"
+for cmd_pair in "ln -s /a /b:ln" "dirname /path:dirname" "basename /file.sh:basename" '[ -f /path ]:cat'; do
   cmd="${cmd_pair%%:*}"
   label="${cmd_pair##*:}"
   SAFE="$TMPDIR_TEST/safe-$label.txt"
@@ -451,6 +451,33 @@ sh bin/validate-plan --schema plan.json
 $VALIDATE --help
 "$VALIDATE" --help
 git status && $DEPLOY
+CMDS
+
+echo "Test 45: the bundled list never auto-approves a command that runs code from its arguments (#302)"
+# Interpreters with inline code, package runners, and exec wrappers run whatever they
+# are handed, so a safe-listed first word would auto-approve arbitrary code.
+# shellcheck disable=SC2016
+while IFS= read -r cmd45; do
+  OUT45=$(run_allow "$cmd45" "$SAFE43")
+  if [[ "$OUT45" != *'"behavior":"allow"'* ]]; then
+    echo "PASS: not auto-approved: $cmd45"
+    ((PASS++)) || true
+  else
+    echo "FAIL: auto-approved: $cmd45"
+    ((FAIL++)) || true
+  fi
+done <<'CMDS'
+python -c 'import os; os.system("rm -rf /tmp/x")'
+python3 -c 'import os; os.system("rm -rf /tmp/x")'
+node -e 'require("child_process").execSync("rm -rf /tmp/x")'
+npx some-package
+uvx some-package
+env bash -c 'rm -rf /tmp/x'
+xargs rm -rf < /tmp/list
+command rm -rf /tmp/x
+command -v uv
+find . -name '*.tmp' -exec rm {} +
+awk 'BEGIN { system("rm -rf /tmp/x") }'
 CMDS
 
 echo "Test 44: invoking a script by path still auto-approves when its name is safe-listed"

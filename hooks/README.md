@@ -11,7 +11,7 @@ Hook scripts and configuration for the claude-caliper plugin.
 | `pretooluse-deny-plan-md.sh` | PreToolUse(Edit/Write/MultiEdit): denies hand-edits to a rendered `plan.md`, pointing Claude at the `validate-plan` command that mutates `plan.json` instead |
 | `permission-request-allow.sh` | PermissionRequest(Read/Glob/.../Bash): auto-allows safe tools/commands with session-scoped caching |
 | `permission-request-accept-edits.sh` | PermissionRequest(Edit/Write): consumes the `.design-approved` sentinel to enable acceptEdits mode for the session; auto-allows writes to `.claude/claude-caliper/` plan dirs. All fallthrough paths emit `{"continue": true}` to avoid [anthropics/claude-code#12070](https://github.com/anthropics/claude-code/issues/12070) (silent fallthrough = deny). |
-| `safe-commands.txt` | Bundled default safe command prefixes (~57 common dev tools) |
+| `safe-commands.txt` | Bundled default safe command prefixes (~60 common dev tools). Deliberately excludes anything that runs code from its arguments — inline interpreters (`python`, `node`), package runners (`npx`, `uvx`), exec wrappers (`env`, `xargs`, `command`), `find` (`-exec`), `awk` (`system()`) — since a safe-listed first word would auto-approve arbitrary code (#302). Kept for usability despite narrower exec paths: `npm`/`uv`/`pytest` (run project-defined scripts, like tests), `git` (`-c alias`), `gh` (shell aliases), `sed` (GNU `e`). |
 
 ## Architecture
 
