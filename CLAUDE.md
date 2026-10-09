@@ -48,11 +48,11 @@ Plan artifacts (design docs, plan.json, task briefs) are created by the design/d
 
 ## Testing
 
-Bash test scripts live in `tests/`. Run with `bash tests/<dir>/<script>.sh`. Skill-eval is available for dedicated skill refactors — see Skill Testing above.
+Bash test scripts live in `tests/`. Run with `./tests/<dir>/<script>.sh`. Skill-eval is available for dedicated skill refactors — see Skill Testing above.
 
 ## Scripts
 
-All shell scripts (`bin/*`, `tests/**/*.sh`) must have a `#!/usr/bin/env bash` shebang and the executable bit set (`chmod +x`). Dispatched subagents can't auto-approve `bash <script>` because `bash` is excluded from safe-commands — but `./script` resolves to the script's own path, which the hook can approve.
+All shell scripts (`bin/*`, `tests/**/*.sh`) must have a `#!/usr/bin/env bash` shebang and the executable bit set (`chmod +x`). Invoke them by path (`./tests/x.sh`), not `bash x.sh` — a path-scoped permission rule can then match the script itself, and `bash <anything>` is an interpreter call no rule should blanket-approve.
 
 In `hooks/hooks.json`, `command`-type hooks always require a `command` string — even in exec form, where `command` is the *executable* and `args` is its argument vector (e.g. `"command": "bash", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/x.sh"]`). Putting the script path in `args` with no `command` fails schema validation (`command: expected string, received undefined`) and silently disables every hook.
 

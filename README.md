@@ -517,6 +517,7 @@ Re-run `/plugin install claude-caliper@claude-caliper`. Claude Code compares you
 
 - [Claude Code](https://claude.ai/code) v2.1.32+ with plugin support
 - Git (for worktree isolation; large-tier plans run task subagents in parallel worktrees)
+- Auto mode recommended for the large tier — background subagents can't answer permission prompts, so in default mode those calls are denied. caliper ships no Bash allow list; see [hooks/README.md](hooks/README.md#bash-permissions-are-not-calipers-job) for native rules
 
 ## License
 

@@ -1,4 +1,4 @@
-# Hooks and Safe Commands
+# Hooks
 
 Hook scripts and configuration for the claude-caliper plugin.
 
@@ -7,27 +7,40 @@ Hook scripts and configuration for the claude-caliper plugin.
 | File | Purpose |
 |------|---------|
 | `hooks.json` | Hook registry — wired automatically by the plugin system |
-| `lib-command-parser.sh` | Shared library: segment extraction, command word parsing, safe-commands loading |
 | `pretooluse-deny-plan-md.sh` | PreToolUse(Edit/Write/MultiEdit): denies hand-edits to a rendered `plan.md`, pointing Claude at the `validate-plan` command that mutates `plan.json` instead |
-| `permission-request-allow.sh` | PermissionRequest(Read/Glob/.../Bash): auto-allows safe tools/commands with session-scoped caching |
 | `permission-request-accept-edits.sh` | PermissionRequest(Edit/Write): consumes the `.design-approved` sentinel to enable acceptEdits mode for the session; auto-allows writes to `.claude/claude-caliper/` plan dirs. All fallthrough paths emit `{"continue": true}` to avoid [anthropics/claude-code#12070](https://github.com/anthropics/claude-code/issues/12070) (silent fallthrough = deny). |
-| `safe-commands.txt` | Bundled default safe command prefixes (~57 common dev tools) |
+| `subagentstop-sync-agent-memory.sh` | SubagentStop: syncs a worktree subagent's `memory: project` writes back to the main repo's `.claude/agent-memory/` |
 
 ## Architecture
 
-Hooks are split by lifecycle event:
+- **PreToolUse** — fires on every tool call. Used only for **deny** decisions (with `permissionDecisionReason` visible to Claude for self-correction). Never returns allow.
+- **PermissionRequest** — fires only when a permission prompt would appear (or a call that can't prompt would be auto-denied), so auto-mode classifier approvals never reach it. Used only for Edit/Write: the design-approval → acceptEdits handoff, and auto-allowing writes under `.claude/claude-caliper/`.
 
-- **PreToolUse** — fires on every tool call. Used only for **deny** decisions (with `permissionDecisionReason` visible to Claude for self-correction). Never returns allow. There is deliberately no Bash deny hook: one that scanned command text for risky shapes fired in every permission mode and false-denied heredoc data lines (#294). In auto mode the classifier covers it; in default and acceptEdits sessions an unlisted command simply prompts, and the allow hook never auto-approves a shell interpreter (`bash`/`sh`/`zsh …`) — run scripts by path (`./script`).
-- **PermissionRequest** — fires when a permission prompt would appear (or a call that can't prompt would be auto-denied), so classifier approvals in auto mode never reach it; it remains the fallback for default-mode sessions, whose background subagents can't answer prompts. Used for **allow** decisions. Returns `updatedPermissions` with session-scoped rules so the hook self-caches (first allow adds a rule, subsequent identical patterns skip the hook entirely).
+## Bash permissions are not caliper's job
 
-## Safe Commands: Override Model
+caliper ships no Bash allow- or deny-list. Both used to exist and both were retired: a deny hook that scanned command text false-denied heredoc data lines (#294), and an allow hook that parsed commands against a safe-command list could be bypassed by trivial wrapping — `if true; then <cmd>; fi`, `X=$HOME <cmd>`, `true & <cmd>`, backticks — so it could auto-approve arbitrary code (#302). A bash parser written in bash can't be made a security boundary.
 
-The hook checks for a **user file first**, falling back to bundled defaults:
+Use Claude Code's own mechanisms instead — they parse commands with a real shell parser:
 
-- If `~/.claude/safe-commands.txt` exists, **only** that file is used (full user control)
-- If it doesn't exist, `hooks/safe-commands.txt` (bundled defaults) is used
+- **Auto mode** (`permissions.defaultMode: "auto"`) — the classifier approves routine commands, including in background subagents. Recommended for the large tier: background subagents (orchestrate's task implementers, the plan drafter) can't answer a prompt, so in default mode any call that would prompt is denied. Rules can't cover all of it — the plan drafter `cp`s its draft into `.claude/claude-caliper/`, and only a blanket `Bash(cp:*)` would match that.
+- **Native allow rules** to cut prompts in default-mode sessions. Rules covering caliper's own tooling:
 
-This means you can remove commands from the defaults by creating your own file.
+  ```json
+  {
+    "permissions": {
+      "allow": [
+        "Bash(validate-plan:*)", "Bash(validate-design:*)", "Bash(caliper-settings:*)",
+        "Bash(seed-agent-memory:*)", "Bash(sync-agent-memory:*)", "Bash(clear-worktree-scratch:*)",
+        "Bash(jq:*)",
+        "Glob", "Grep", "Skill"
+      ]
+    }
+  }
+  ```
+
+  Avoid rules for commands that run code from their arguments (`python -c`, `node -e`, `npx`, `env`, `xargs`, `find -exec`, `awk` `system()`, `git -c core.fsmonitor=…`, `gh alias set --shell`, `gh extension`): in auto mode an allow rule also bypasses the classifier. That rules out blanket `Bash(git:*)` and `Bash(gh:*)`; allow specific subcommands instead (`Bash(git status:*)`).
+
+The retired hook also read `~/.claude/safe-commands.txt` (or `$CLAUDE_SAFE_COMMANDS_FILE`) and allowed Read, Glob, Grep, Skill, WebFetch, WebSearch and ToolSearch for any path or domain. Neither applies any more: move entries you still want into `permissions.allow`, leaving out exec-capable ones and any-path `Read` / any-domain `WebFetch`.
 
 ## Coexistence with Personal Hooks
 
