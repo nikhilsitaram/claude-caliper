@@ -550,6 +550,15 @@ cp "$REPO_ROOT/hooks/safe-commands.txt" "$SAF41B"
 OUT41B=$(run_allow 'MAIN_REPO="$(git worktree list --porcelain | head -1 | sed '"'"'s/^worktree //'"'"')" && BRANCH_NAME=$(git branch --show-current) && [[ "$BRANCH_NAME" == integrate/* ]] && echo "IS_INTEGRATION=true" || echo "IS_INTEGRATION=false"' "$SAF41B")
 assert_output_contains "[[ conditional in setup command allowed" "$OUT41B" '"behavior":"allow"'
 
+echo "Test 42: cp of a worktree draft into the plan dir is auto-allowed and not denied (#288)"
+SAFE42="$TMPDIR_TEST/safe42.txt"
+: > "$SAFE42"
+CP42='cp .claude/caliper-draft/plan.json /Users/me/project/.claude/claude-caliper/2026-01-01-topic/plan.json'
+OUT42=$(run_allow "$CP42" "$SAFE42")
+assert_output_contains "draft cp into plan dir auto-allowed with empty safe list" "$OUT42" '"behavior":"allow"'
+OUT42D=$(run_deny "$CP42")
+assert_output_empty "draft cp into plan dir not denied" "$OUT42D"
+
 echo ""
 echo "$PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
