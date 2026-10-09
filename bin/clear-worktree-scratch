@@ -5,12 +5,14 @@ set -euo pipefail
 #
 # Prepare a caliper worktree for a bare (no --force) `git worktree remove`:
 # sync its agent memory back to $MAIN_ROOT, then delete caliper's own untracked
-# scratch — the seeded .claude/agent-memory/, .claude/caliper-draft/, and
-# .claude/settings.local.json. In repos that don't gitignore .claude/ that
-# scratch is untracked content, so the remove refuses and the caller's
-# stop-on-failure rule halts cleanup (issue #297). Only untracked, non-ignored
-# files are deleted: tracked memory (repos that commit it) stays, and ignored
-# files never block a remove. Removing the worktree is left to the caller.
+# scratch — the seeded .claude/agent-memory/ and .claude/settings.local.json,
+# plus document drafts in .caliper-draft/ (and the pre-#306 .claude/caliper-draft/).
+# In repos that don't gitignore .claude/ that scratch is untracked content, so
+# the remove refuses and the caller's stop-on-failure rule halts cleanup (issue
+# #297). Only untracked, non-ignored files are deleted: tracked memory (repos
+# that commit it) stays, and ignored files — including a draft dir caliper-draft
+# has made self-ignoring — never block a remove. Removing the worktree is left
+# to the caller.
 #
 # Paths resolve under the worktree, never the caller's cwd — callers run this
 # from the main checkout or the integration worktree, which hold their own
@@ -56,4 +58,4 @@ fi
 while IFS= read -r -d '' rel; do
   rm -f -- "$WORKTREE/$rel"
 done < <(git -C "$WORKTREE" ls-files -z -o --exclude-standard -- \
-  .claude/agent-memory .claude/caliper-draft .claude/settings.local.json)
+  .claude/agent-memory .claude/caliper-draft .caliper-draft .claude/settings.local.json)

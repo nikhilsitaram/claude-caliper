@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# caliper-draft pull|push <plan-dir-file>
+#
+# Move a plan document between $PLAN_DIR (main checkout) and the session's
+# draft at <worktree>/.caliper-draft/<name> (issue #306):
+#
+#   pull  $PLAN_DIR/<name> -> draft    before editing an existing document
+#   push  draft -> $PLAN_DIR/<name>    after every Write/Edit of the draft
+#
+# Under worktree isolation the Write/Edit tools refuse $PLAN_DIR, so documents
+# are edited as drafts. The draft can't live under .claude/: Claude Code treats
+# every .claude/ directory as a protected path — even the worktree's own — so
+# Write prompts there in default and acceptEdits mode, and no allow rule can
+# pre-approve it. A plain `cp` into $PLAN_DIR prompts as well; this tool gives
+# both copies one narrow `Bash(caliper-draft:*)` rule instead.
+#
+# That rule approves any arguments, so the tool confines itself: the plan-dir
+# file must resolve under <main root>/.claude/claude-caliper/ of the repo the
+# cwd belongs to, and be named plan.json or design-*.md — never the files that
+# steer caliper (.design-approved flips the session to acceptEdits;
+# reviews.json holds the review gates). A symlink or directory at either end
+# of the copy is refused rather than followed.
+
+usage() {
+  echo "Usage: caliper-draft pull|push <plan-dir-file>" >&2
+  exit 1
+}
+
+die() {
+  echo "ERROR: $1" >&2
+  exit 1
+}
+
+[[ $# -eq 2 ]] || usage
+MODE="$1"
+TARGET="$2"
+[[ "$MODE" == pull || "$MODE" == push ]] || usage
+
+NAME="$(basename -- "$TARGET")"
+case "$NAME" in
+  plan.json | design-*.md) ;;
+  *) die "caliper-draft only moves plan.json and design-*.md, not: $NAME" ;;
+esac
+
+# Own lines so set -e stops outside a repo.
+TOP="$(git rev-parse --show-toplevel)"
+MAIN_ROOT="$("$(dirname "$0")/caliper-main-root")"
+
+# caliper-main-root is how the design skill derives $MAIN_ROOT, so this accepts
+# exactly the $PLAN_DIR those skills build — and never a plan root inside a
+# worktree, which is deleted with it (#288).
+ROOT_PATH="$MAIN_ROOT/.claude/claude-caliper"
+[[ -d "$ROOT_PATH" ]] || die "no plan root at $ROOT_PATH"
+ROOT="$(cd "$ROOT_PATH" && pwd -P)"
+
+TARGET_DIR="$(dirname -- "$TARGET")"
+[[ -d "$TARGET_DIR" ]] || die "plan dir does not exist: $TARGET_DIR"
+PLAN_DIR="$(cd "$TARGET_DIR" && pwd -P)"
+case "$PLAN_DIR/" in
+  "$ROOT"/*) ;;
+  *) die "refusing $TARGET: it resolves outside $ROOT" ;;
+esac
+PLAN_FILE="$PLAN_DIR/$NAME"
+
+DRAFT_DIR="$TOP/.caliper-draft"
+DRAFT="$DRAFT_DIR/$NAME"
+
+# Refuse rather than follow: a symlink could point anywhere — a source would
+# copy that file in, a destination would be written through — and `mv` onto a
+# directory would land the file inside it.
+refuse_link_or_dir() {
+  if [[ -L "$1" || -d "$1" ]]; then
+    die "refusing $1: it is a symlink or directory"
+  fi
+}
+
+# The draft dir ignores itself, so drafts never show as untracked: a broad
+# `git add` can't commit them and they never block a bare `git worktree remove`.
+prepare_draft_dir() {
+  refuse_link_or_dir "$DRAFT_DIR/.gitignore"
+  mkdir -p "$DRAFT_DIR"
+  [[ -f "$DRAFT_DIR/.gitignore" ]] || printf '*\n' > "$DRAFT_DIR/.gitignore"
+}
+
+# Copy through a temp file in the destination dir, then rename it into place,
+# so a reader never sees a half-written document.
+install_file() {
+  local src="$1" dest="$2" tmp
+  refuse_link_or_dir "$src"
+  refuse_link_or_dir "$dest"
+  tmp="$(mktemp "$(dirname -- "$dest")/.caliper-draft.XXXXXX")"
+  if ! cp -- "$src" "$tmp"; then
+    rm -f -- "$tmp"
+    die "could not copy $src"
+  fi
+  mv -f -- "$tmp" "$dest"
+}
+
+[[ -L "$DRAFT_DIR" ]] && die "refusing $DRAFT_DIR: it is a symlink"
+
+case "$MODE" in
+  pull)
+    [[ -f "$PLAN_FILE" ]] || die "no such plan-dir file: $PLAN_FILE"
+    prepare_draft_dir
+    install_file "$PLAN_FILE" "$DRAFT"
+    echo "$DRAFT"
+    ;;
+  push)
+    [[ -f "$DRAFT" ]] || die "no draft to push: $DRAFT"
+    prepare_draft_dir
+    install_file "$DRAFT" "$PLAN_FILE"
+    echo "$PLAN_FILE"
+    ;;
+esac
