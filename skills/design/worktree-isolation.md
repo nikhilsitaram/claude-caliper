@@ -1,6 +1,6 @@
 # Worktree Session Isolation
 
-After `EnterWorktree`, Claude Code confines the session (and every subagent it spawns) to that worktree. Its Bash guard is static analysis that refuses any call naming git that it can't prove stays inside. The dependable pattern: run git bare and read its printed output, carry values into later calls as literals, and keep non-git setup (`mkdir`, `if [ -z … ]`, `$(date)`) in a separate call. Skill snippets use variables for readability — substitute literals under isolation. Observed in calls that name git, probed in gh issue #288:
+After `EnterWorktree`, Claude Code confines the session (and every subagent it spawns) to that worktree. Its Bash guard is static analysis that refuses any call naming git that it can't prove stays inside — and the word `git` anywhere in the call text counts, even inside an `echo` message. The dependable pattern: run git bare and read its printed output, carry values into later calls as literals, and keep non-git setup (`mkdir`, `if [ -z … ]`, `$(date)`) in a separate call that never mentions git. Skill snippets use variables for readability — substitute literals under isolation. Observed in calls that name git, probed in gh issues #288 and #295:
 
 | Operation | Under isolation |
 |---|---|
@@ -8,7 +8,8 @@ After `EnterWorktree`, Claude Code confines the session (and every subagent it s
 | Bash write, or Read, on a main-checkout path | Allowed |
 | Plain git with literal paths (incl. into a nested worktree); `if git … \| grep -q …; then …; fi` | Allowed |
 | A bare `X=$(git …)` assignment; `$X` reused only inside a longer string (`"refs/heads/$X"`) | Allowed |
-| Any quoted `"$(…)"` — even `"$(pwd)"` — or `$(git …)` inside a test | Refused |
+| A variable assigned a literal, reused anywhere — `P=/abs/wt; git -C "$P" …`, `T="$P/sub"` | Allowed |
+| Any quoted `"$(…)"` — even `"$(pwd)"` — or `$(git …)` inside a test | Refused — except the `"$(cat <<'EOF' … EOF)"` message idiom |
 | A substitution result reused as a standalone word — `echo "$X"`, a git argument, `[ -z "$X" ]` | Refused |
 | `git -C <main checkout>`, or `cd <sibling worktree> && git …` | Refused |
 | `ExitWorktree(remove)` on a worktree entered by `path` | Refused — `ExitWorktree(keep)` lifts isolation, then `git worktree remove <path>` |
