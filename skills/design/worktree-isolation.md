@@ -1,16 +1,16 @@
 # Worktree Session Isolation
 
-After `EnterWorktree`, Claude Code confines the session (and every subagent it spawns) to that worktree. Its Bash guard is static analysis that refuses any git use it can't prove stays inside — so keep git plain: one command per line, literal paths. Skill snippets use variables for readability; under isolation, resolve values in one call and pass the printed literals in the next. Observed behavior, probed in gh issue #288:
+After `EnterWorktree`, Claude Code confines the session (and every subagent it spawns) to that worktree. Its Bash guard is static analysis that refuses any call naming git that it can't prove stays inside. The dependable pattern: run git bare and read its printed output, carry values into later calls as literals, and keep non-git setup (`mkdir`, `if [ -z … ]`, `$(date)`) in a separate call. Skill snippets use variables for readability — substitute literals under isolation. Observed in calls that name git, probed in gh issue #288:
 
 | Operation | Under isolation |
 |---|---|
 | Write/Edit tool on a main-checkout path — including gitignored `$PLAN_DIR` | Refused |
 | Bash write, or Read, on a main-checkout path | Allowed |
-| A bare `X=$(git …)` assignment (pipes OK) | Allowed |
-| `$(git …)` anywhere else — `X="$(git …)"`, `[ $(git …) = … ]` | Refused |
-| A `$(…)` result reused in the same call — as a git `-C`/`worktree add` path, or in a test | Refused |
+| Plain git with literal paths (incl. into a nested worktree); `if git … \| grep -q …; then …; fi` | Allowed |
+| A bare `X=$(git …)` assignment; `$X` reused only inside a longer string (`"refs/heads/$X"`) | Allowed |
+| Any quoted `"$(…)"` — even `"$(pwd)"` — or `$(git …)` inside a test | Refused |
+| A substitution result reused as a standalone word — `echo "$X"`, a git argument, `[ -z "$X" ]` | Refused |
 | `git -C <main checkout>`, or `cd <sibling worktree> && git …` | Refused |
-| `cd`/`git` into a worktree nested under the current one (literal path) | Allowed |
 | `ExitWorktree(remove)` on a worktree entered by `path` | Refused — `ExitWorktree(keep)` lifts isolation, then `git worktree remove <path>` |
 
 What follows from it:

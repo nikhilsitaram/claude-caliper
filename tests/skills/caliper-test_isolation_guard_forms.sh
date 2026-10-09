@@ -6,6 +6,11 @@ set -euo pipefail
 # bare unquoted assignment — quoted "$(git …)" and $(git …) inside a test both
 # fail (skills/design/worktree-isolation.md, gh #288). Pin that no snippet
 # reintroduces those forms.
+#
+# A narrow backstop, not proof: the guard also refuses forms a grep can't see
+# (a substitution result reused as a standalone word, a test on a derived var,
+# any quoted "$(…)" in a call naming git). Probe rewritten snippets verbatim
+# from an isolated session; gh #295 tracks the remaining snippets.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
