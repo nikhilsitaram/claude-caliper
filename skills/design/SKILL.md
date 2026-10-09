@@ -80,7 +80,7 @@ Complete in order:
    - **Medium:** Write the design doc (below), self-review it, then dispatch design-review with the **Review Loop Protocol** (below). No draft-plan, no plan.json, no plan-review. Once design-review passes, invoke the `implement` skill directly, passing `$PLAN_DIR/design-<topic>.md`, `$WORKTREE`, and the mapped workflow value.
    - **Large:** Write the design doc, self-review it, dispatch design-review with the **Review Loop Protocol**, dispatch draft-plan, then dispatch plan-review with the same protocol. Then **Route Workflow** (below).
 
-**Write design doc** (Medium/Large only) — `$PLAN_DIR/design-<topic>.md`: Write/Edit the draft `.claude/caliper-draft/design-<topic>.md`, then `cp` it over after every change (no commit — gitignored, lives in main repo)
+**Write design doc** (Medium/Large only) — `$PLAN_DIR/design-<topic>.md`, written and revised through the draft `$WORKTREE/.claude/caliper-draft/design-<topic>.md` per the isolation file (no commit — gitignored, lives in main repo)
 
 Before dispatching design-review, verify the doc satisfies this quality checklist (catches the most common reviewer findings on first pass):
 - Success criteria are behavioral outcomes, not implementation details ("users can log in" not "tests pass" or "middleware installed")
