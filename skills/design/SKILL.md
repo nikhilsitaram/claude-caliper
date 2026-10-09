@@ -73,7 +73,7 @@ Complete in order:
 
     If "Needs changes" on Q3, return to step 5.
 
-    On approval, create sentinel: `mkdir -p "$PLAN_DIR" && touch "$PLAN_DIR/.design-approved"` (this enables `acceptEdits` for the session regardless of tier; see `hooks/permission-request-accept-edits.sh`).
+    On approval, create the sentinel naming this session: `mkdir -p "$PLAN_DIR" && printf '%s\n' "${CLAUDE_CODE_SESSION_ID:?}" > "$PLAN_DIR/.design-approved"`. Whatever the tier, the hook switches the session to `acceptEdits` at its next plan-dir or ordinary edit. It honors only a sentinel that holds this session's id; see `hooks/permission-request-accept-edits.sh`. If the command fails because `CLAUDE_CODE_SESSION_ID` is unset, tell the user to switch to acceptEdits themselves (shift+tab).
 8. **Route by tier:**
 
    - **Small:** No design doc, no design-review dispatch. Invoke the `implement` skill directly in this session, passing `$WORKTREE` and the mapped workflow value (see Route Workflow below). The design already presented and approved in step 5/7 stands in for `implement`'s own compressed design gate.
