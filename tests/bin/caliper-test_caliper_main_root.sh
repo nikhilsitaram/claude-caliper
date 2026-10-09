@@ -67,6 +67,14 @@ g -C "$BASE/sep" worktree add -q "$BASE/sep-wt" -b w
 check_eq "t3: separate-git-dir main checkout" "$BASE/sep" "$(root_of "$BASE/sep")"
 check_eq "t3: linked worktree falls back to the git dir" "$BASE/sep.gitdir" "$(root_of "$BASE/sep-wt")"
 check_eq "t3: fallback warns" "1" "$(grep -c '^WARN:' "$BASE/err" || true)"
+# Caliper nests its worktrees inside the main checkout, so walking up from one
+# reaches the main checkout's gitfile and resolves exactly — through an
+# intermediate linked worktree too (orchestrate's phase-in-integration layout).
+g -C "$BASE/sep" worktree add -q "$BASE/sep/.claude/worktrees/feat" -b feat
+g -C "$BASE/sep/.claude/worktrees/feat" worktree add -q "$BASE/sep/.claude/worktrees/feat/.claude/worktrees/phase-a" -b phase-a
+check_eq "t3: nested worktree walks up to the main checkout" "$BASE/sep" "$(root_of "$BASE/sep/.claude/worktrees/feat")"
+check_eq "t3: no warning once found" "" "$(cat "$BASE/err")"
+check_eq "t3: doubly nested worktree walks past the intermediate one" "$BASE/sep" "$(root_of "$BASE/sep/.claude/worktrees/feat/.claude/worktrees/phase-a")"
 
 # Test 4: bare repo with worktrees — there is no main checkout by design, so the
 # git dir is the shared home and no warning is due.

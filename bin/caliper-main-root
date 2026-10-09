@@ -15,11 +15,15 @@ set -euo pipefail
 #   2. core.worktree in the common config, resolved against the common dir.
 #      Submodules set it: their git dir is <super>/.git/modules/<name>.
 #   3. A common dir named `.git`: its parent. The normal case.
-#   4. Otherwise the common dir itself. A bare repo has no main checkout, so its
-#      git dir is the shared home. A --separate-git-dir repo records no path
-#      back to its main checkout, so from a linked worktree it can't be found
-#      (`git worktree list` reports the git dir too); warn, since state kept
-#      there is separate from the main checkout's.
+#   4. The nearest enclosing checkout of the same repo whose git dir is the
+#      common dir. A --separate-git-dir repo records no path back to its main
+#      checkout (`git worktree list` reports the git dir), but caliper nests
+#      worktrees under <main>/.claude/worktrees/, so walking up past any
+#      intermediate linked worktrees reaches it.
+#   5. Otherwise the common dir itself. A bare repo has no main checkout, so its
+#      git dir is the shared home. Anything else is a worktree outside its main
+#      checkout in a --separate-git-dir repo: warn, since state kept in the git
+#      dir is separate from the main checkout's.
 
 usage() {
   echo "Usage: caliper-main-root [path]" >&2
@@ -50,6 +54,19 @@ if [[ "$(basename "$COMMON_DIR")" == ".git" ]]; then
   dirname "$COMMON_DIR"
   exit 0
 fi
+
+# Each step moves to a strictly higher toplevel, so the walk ends; it stops at
+# the first directory outside any checkout of this repo.
+TOP="$(git -C "$DIR" rev-parse --show-toplevel)"
+while [[ "$TOP" != "/" ]]; do
+  UP="$(git -C "$(dirname "$TOP")" rev-parse --path-format=absolute --git-dir --git-common-dir --show-toplevel 2>/dev/null)" || break
+  { read -r UP_GIT_DIR; read -r UP_COMMON_DIR; read -r TOP; } <<<"$UP"
+  [[ "$(cd "$UP_COMMON_DIR" && pwd -P)" == "$COMMON_DIR" ]] || break
+  if [[ "$(cd "$UP_GIT_DIR" && pwd -P)" == "$COMMON_DIR" ]]; then
+    cd "$TOP" && pwd -P
+    exit 0
+  fi
+done
 
 if [[ "$(git config --file "$COMMON_DIR/config" --bool --get core.bare || true)" != "true" ]]; then
   echo "WARN: can't locate the main checkout from $DIR (git dir $COMMON_DIR has no path back to it, as with --separate-git-dir); using the git dir" >&2
