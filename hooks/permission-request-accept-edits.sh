@@ -85,14 +85,15 @@ fi
 
 # The sentinel's allow lands on whichever Edit/Write prompts first, and a
 # PermissionRequest allow skips Claude Code's protected-path check (#311). So
-# it waits for a target acceptEdits would pass anyway: a plan-dir file or an
-# ordinary one. Until then it stays put for the next edit.
+# it waits for a target that is already allowed: a plan-dir file this hook
+# allows itself (.claude/ is protected even in acceptEdits), or an ordinary file
+# acceptEdits would pass. Until then it stays put for the next edit.
 #
 # The design skill writes the session id into the sentinel, so only this
 # session's approval counts. A sentinel committed to a repo or left by another
 # session can't name an unguessable id. Code the session runs can read the id
-# from its environment, but all it gains is a mode switch on a target
-# acceptEdits would pass anyway. Only a regular file is read, since a symlink
+# from its environment, but all it gains is a mode switch on a target that is
+# already allowed. Only a regular file is read, since a symlink
 # could lead anywhere. A mismatch isn't ours to delete.
 #
 # LOAD-BEARING ASSUMPTIONS (verified on v2.1.296 with a headless probe):
