@@ -72,6 +72,9 @@ add_scratch() {
   echo "learned in wt" > "$fix/wt/.claude/agent-memory/agent-x/new.md"
   mkdir -p "$fix/wt/.claude/caliper-draft"
   echo "{}" > "$fix/wt/.claude/caliper-draft/plan.json"
+  # A draft written but never pushed has no self-ignoring .gitignore yet.
+  mkdir -p "$fix/wt/.caliper-draft"
+  echo "{}" > "$fix/wt/.caliper-draft/plan.json"
   echo '{"wt":true}' > "$fix/wt/.claude/settings.local.json"
 }
 
@@ -86,6 +89,7 @@ check_eq "t1: main's same-path memory file survives" "MAIN" "$(cat "$fix/.claude
 check "t1: main's settings.local.json survives" test -f "$fix/.claude/settings.local.json"
 check_eq "t1: worktree memory synced to main before deletion" "learned in wt" "$(cat "$fix/.claude/agent-memory/agent-x/new.md" 2>/dev/null || true)"
 check "t1: worktree caliper-draft cleared" test ! -e "$fix/wt/.claude/caliper-draft/plan.json"
+check "t1: worktree .caliper-draft cleared" test ! -e "$fix/wt/.caliper-draft/plan.json"
 check "t1: worktree settings.local.json cleared" test ! -e "$fix/wt/.claude/settings.local.json"
 check_eq "t1: worktree agent-memory files cleared" "" "$(find "$fix/wt/.claude/agent-memory" -type f 2>/dev/null)"
 check "t1: bare git worktree remove succeeds" git -C "$fix" worktree remove "$fix/wt"
@@ -177,6 +181,17 @@ mkdir -p "$TMPDIR_BASE/plain" "$fix/wt/.claude/caliper-draft"
 echo "{}" > "$fix/wt/.claude/caliper-draft/plan.json"
 check_fails "t7: non-repo directory exits non-zero" run_from "$fix/wt" "$SCRIPT" "$TMPDIR_BASE/plain"
 check "t7: caller's worktree scratch untouched" test -f "$fix/wt/.claude/caliper-draft/plan.json"
+
+# Test 8: a pushed draft dir ignores itself (caliper-draft writes a `*`
+# .gitignore), so it never blocks a bare remove and goes with the worktree.
+fix="$(new_fixture t8)"
+mkdir -p "$fix/wt/.caliper-draft"
+printf '*\n' > "$fix/wt/.caliper-draft/.gitignore"
+echo "{}" > "$fix/wt/.caliper-draft/plan.json"
+check_eq "t8: self-ignored draft leaves the worktree clean" "" "$(git -C "$fix/wt" status --porcelain)"
+check "t8: runs cleanly from main's cwd" run_from "$fix" "$SCRIPT" "$fix/wt"
+check "t8: bare git worktree remove succeeds" git -C "$fix" worktree remove "$fix/wt"
+check "t8: draft is gone with the worktree" test ! -e "$fix/wt/.caliper-draft"
 
 echo ""
 echo "Passed: $pass, Failed: $fail"
