@@ -75,7 +75,7 @@ Compute these absolute paths and create the artifact directory:
 ```bash
 MAIN_ROOT=$(caliper-main-root)
 if [ -z "$MAIN_ROOT" ]; then
-  echo "ERROR: codebase-review team mode must be run inside a git repository (MAIN_ROOT could not be resolved)." >&2
+  echo "ERROR: codebase-review team mode must be run inside a repository checkout (caliper-main-root printed nothing)." >&2
   exit 1
 fi
 REVIEW_ID="$(date -u +%Y%m%d-%H%M%S)"

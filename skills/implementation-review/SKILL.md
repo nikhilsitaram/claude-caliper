@@ -38,15 +38,15 @@ The reviewer needs `BASE_SHA..HEAD_SHA` covering **all** the work under review.
 
 **Caliper mode:** `BASE_SHA` is the phase start (`PHASE_BASE_SHA` from orchestrate) for phase-scoped reviews, or `PLAN_BASE_SHA` for the final review — not `git merge-base`. `HEAD_SHA` is `git rev-parse HEAD`.
 
-**Standalone mode:** derive the branch's merge-base with the default branch.
+**Standalone mode:** derive the branch's merge-base with the default branch (`origin/HEAD`). Plain calls whose output you read, since the worktree-isolation guard refuses `$(git …)` results reused as git arguments:
 
 ```bash
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-DEFAULT_BRANCH=${DEFAULT_BRANCH:-main}
 git fetch origin
-BASE_SHA=$(git merge-base "origin/$DEFAULT_BRANCH" HEAD)
-HEAD_SHA=$(git rev-parse HEAD)
+git merge-base origin/HEAD HEAD
+git rev-parse HEAD
 ```
+
+Line 1 is `BASE_SHA`, line 2 `HEAD_SHA`. If `origin/HEAD` is unknown (the clone never recorded it), run `git remote set-head origin --auto` and repeat.
 
 If `git diff HEAD` is non-empty there are uncommitted changes the range won't cover — tell the user to commit (or stash) them first, since the reviewer reads committed history.
 

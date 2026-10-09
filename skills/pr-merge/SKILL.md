@@ -44,10 +44,10 @@ If branch protection requires human approval and the PR lacks it, tell the user 
 
 ```bash
 git fetch origin
-git merge-base --is-ancestor origin/$DEFAULT_BRANCH HEAD
+git merge-base --is-ancestor origin/<DEFAULT_BRANCH> HEAD
 ```
 
-Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/$DEFAULT_BRANCH` actually advances. `git fetch origin $DEFAULT_BRANCH` only updates `FETCH_HEAD` — the `is-ancestor` check then compares against a stale ref and reports up-to-date when the branch is actually behind.
+Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/<DEFAULT_BRANCH>` actually advances. `git fetch origin <DEFAULT_BRANCH>` only updates `FETCH_HEAD` — the `is-ancestor` check then compares against a stale ref and reports up-to-date when the branch is actually behind.
 
 If behind (non-zero exit): rebase onto default branch, resolve conflicts, run tests, push with `git push -u origin HEAD --force-with-lease`. Comment on PR with conflict resolution details. Complex conflicts → stop and ask user.
 
@@ -98,49 +98,24 @@ Never use `--delete-branch` — branch cleanup is handled in Step 3.
 
 ### Step 3: Clean Up
 
-Capture the repo's auto-delete-on-merge setting once for use in branch deletion below:
+Read the repo's auto-delete-on-merge setting (`AUTO_DELETE_REMOTE`, used below) and refresh remote-tracking refs so the containment guard sees the just-merged commit (bare `git fetch` — see Step 2 note):
 
 ```bash
-AUTO_DELETE_REMOTE=$(gh api "repos/{owner}/{repo}" --jq .delete_branch_on_merge 2>/dev/null)
-git fetch origin   # refresh remote-tracking refs so the containment guard below sees the just-merged commit (bare form — see Step 2 note)
+gh api "repos/{owner}/{repo}" --jq .delete_branch_on_merge
+git fetch origin
 ```
 
-**Local + remote branch deletion** uses a gh-verified pattern. `$B` is a placeholder for the call site's branch name (`$BRANCH_NAME`, `phase-a`, etc.); `$PR_REF` is whatever uniquely identifies the PR — prefer `$PR_NUMBER` (the just-merged PR from Step 1) when available, since branch-name resolution returns the most recent PR for that name and could match a stale historical PR for reused names like `phase-a`:
+**Branch deletion** is gh-verified, local first. `<B>` is the call site's branch (`$BRANCH_NAME`, `phase-a`, …); `<PR>` is the PR to verify against — pass `$PR_NUMBER` (the just-merged PR from Step 1) when `<B>` is `$BRANCH_NAME`, since resolving by branch name returns the most recent PR for that name, which for a reused name like `phase-a` may be a stale historical one. Omit it to resolve by branch for the `phase-X` branches in integration cleanup: `$PR_NUMBER` there is the integration PR, which vouches for no phase tip, so every phase branch would SKIP:
 
 ```bash
-info=$(gh pr view "${PR_REF:-$B}" --json state,mergeCommit,headRefOid 2>/dev/null)
-state=$(jq -r '.state // ""' <<<"$info")
-if [ "$state" = "MERGED" ]; then
-  head_oid=$(jq -r '.headRefOid // ""' <<<"$info")
-  merge_oid=$(jq -r '.mergeCommit.oid // ""' <<<"$info")
-  local_oid=$(git rev-parse --verify --quiet "refs/heads/$B")
-  if [ -z "$local_oid" ]; then
-    echo "Note: local $B already deleted"
-  elif [ -z "$head_oid$merge_oid" ]; then
-    echo "SKIP $B: gh MERGED but headRefOid/mergeCommit.oid unavailable (gh lookup failed) — delete refs/heads/$B manually if intended"
-  elif [ "$local_oid" = "$head_oid" ] \
-       || git merge-base --is-ancestor "$local_oid" "$merge_oid" 2>/dev/null \
-       || git diff --quiet "$local_oid" "$merge_oid" 2>/dev/null; then
-    if git update-ref -d "refs/heads/$B" "$local_oid"; then   # local compare-and-swap: refuse if $B moved since the guard read it
-      if [ "$AUTO_DELETE_REMOTE" = "true" ]; then
-        :   # GitHub already deleted the remote branch on merge
-      elif [ "$(git ls-remote origin "refs/heads/$B" | cut -f1)" = "$head_oid" ]; then
-        git push origin --delete "$B" 2>/dev/null || echo "Note: remote $B already gone or protected"
-      else
-        echo "SKIP remote $B: origin tip advanced past the merged head — delete the remote branch manually if intended"
-      fi
-    else
-      echo "ERROR: local delete of $B failed (ref moved or locked) — leaving remote branch intact"
-    fi
-  else
-    echo "SKIP $B: gh MERGED but local tip is neither what GitHub merged nor contained in the merge commit (diverged) — delete refs/heads/$B manually if intended"
-  fi
-else
-  echo "Skipped $B (gh state: ${state:-unknown})"
-fi
+delete-merged-branch <B> <PR>
 ```
 
-GitHub's MERGED state confirms the PR landed, but `update-ref -d` is as unconditional as `git branch -D` — it's used over `branch -d` only because `-d`'s merge check false-negatives on squash. The containment guard supplies the local check gh can't: it deletes only when the local tip is exactly what GitHub merged (`headRefOid`), or is an ancestor of the PR's merge commit (true merge), or is tree-identical to it (squash/rebase). The `headRefOid` leg needs no fetched object and is immune to base movement, so it stays correct on a deferred `/pr-merge` run even after other PRs land on the base or the merged branch was stale at squash time; the merge-commit legs cover a local tip that moved but is still contained. Every comparison is fail-closed — an absent local ref, an unavailable gh lookup, or a genuinely diverged tip all refuse the delete and report distinctly (already-deleted vs. lookup-failed vs. diverged), so local commits added after the merge are never destroyed silently. The local delete passes `$local_oid` as `update-ref`'s expected old value, so it refuses (and leaves the remote branch intact) if `$B` moved between the guard and the delete. The remote delete then fires only after the local delete succeeds, only when auto-delete-on-merge is off (else GitHub already deleted it), and only when the remote tip still equals the merged head (`headRefOid`). Git offers no atomic compare-and-delete for a remote ref, so this `ls-remote` check refuses if another writer advanced `origin/$B` after the merge — narrowing, though not fully closing, a check-to-delete window. `git push origin --delete` tolerates 404 (already-deleted) and 422 (branch protection) gracefully. Capture SKIP lines and errors in the Step 4 Summary so the user knows cleanup left branches behind.
+It deletes the local branch only when GitHub reports the PR merged and the local tip is provably what landed — exactly `headRefOid`, an ancestor of the merge commit, or tree-identical to it (squash/rebase) with no commits on top of `headRefOid` — and no worktree has it checked out. Every leg is fail-closed and the delete is a compare-and-swap, so commits added after the merge are never destroyed silently. Exit 0 prints `DELETED <B> <head>` and, when `<head>` is known, the leased remote delete on a second line. Exit 2 prints a `GONE`/`SKIP` line saying why it kept the branch — a report, not a failure: note it for the Step 4 Summary and carry on.
+
+**Remote branch** — only when the helper printed a push line, and only when `AUTO_DELETE_REMOTE` isn't `true` (else GitHub already deleted it on merge): run that `git push --force-with-lease=refs/heads/<B>:<head> origin --delete refs/heads/<B>` line verbatim rather than filling the template by hand — a lease protects only the ref it names, so a line whose two `<B>`s differ deletes unchecked, and the helper shell-quotes a branch name holding shell syntax.
+
+The lease makes it a compare-and-delete: the push is rejected unless origin's tip is still the merged head, so a branch another writer advanced after the merge survives. `remote ref does not exist` means it's already gone; any rejection (`stale info` = advanced past the merged head, or protected) → report `SKIP remote <B>`. A `DELETED` line without `<head>` (and so no push line) means leave the remote branch and report it. This stays its own visible call so a safety hook guarding remote deletes can see and gate it; the local cleanup above doesn't depend on it.
 
 **Worktree removal** uses bare `git worktree remove <wt>` (no `--force`). Before each one, run `clear-worktree-scratch <wt>`: it syncs agent memory back to main, then deletes caliper's own untracked scratch (what `discard_changes` used to discard) so only user content can block the remove. **This stop-on-failure rule applies to every `git worktree remove` call in this section:** if `clear-worktree-scratch` or the removal exits non-zero (a failed clear means memory may be unsynced, and an ignored `.claude/` wouldn't stop the remove from deleting it), the worktree holds content the user may want — stop the cleanup chain, report the path, and let the user decide rather than force-removing it. **Phase worktrees** are located by branch, not a built path (nested in the integration worktree, siblings in older plans; earlier runs may have removed some):
 
@@ -159,18 +134,18 @@ No output: already gone. Otherwise remove the printed path.
 **Integration branch** (`IS_INTEGRATION=true`):
 1. Remove remaining phase worktrees (the lookup above, per `phase-X`) — nested ones sit inside the integration worktree, so they go first
 2. If `IN_WORKTREE`: leave and remove the current worktree
-3. Delete phase branches (gh-verified): for each `phase-X` from plan.json, apply the pattern above
+3. Delete phase branches (gh-verified): for each `phase-X` from plan.json, apply the pattern above without `<PR>`
 4. Delete `$BRANCH_NAME` (gh-verified)
 5. `git worktree prune && git pull --rebase && git remote prune origin`
 
 **Standard worktree** (`IN_WORKTREE=true`):
-- If `IS_INTEGRATION_CWD=true`: pr-merge is running from the integration worktree for a phase PR (a manual run — orchestrate uses the phase worktree) — do NOT remove the integration worktree. Just delete `$BRANCH_NAME` (gh-verified) and prune remotes (`git remote prune origin`). The orchestrator handles the rest in Phase Wrap-Up 7d/7e.
+- If `IS_INTEGRATION_CWD=true`: pr-merge is running from the integration worktree for a phase PR (a manual run — orchestrate uses the phase worktree) — do NOT remove the integration worktree. Just delete `$BRANCH_NAME` (gh-verified) and prune remotes (`git remote prune origin`). While the phase worktree still exists the delete reports `SKIP … still checked out` — expected; the integration branch's own cleanup deletes the phase branch after removing its worktree. The orchestrator handles the rest in Phase Wrap-Up 7d/7e.
 - If `IS_INTEGRATION_CWD=false` (normal case, CWD branch matches PR branch):
   1. Leave and remove the current worktree
   2. Delete `$BRANCH_NAME` (gh-verified)
   3. `git worktree prune && git pull --rebase && git remote prune origin`
 
-**No worktree:** `git checkout $DEFAULT_BRANCH && git pull --rebase && git remote prune origin`, then delete `$BRANCH_NAME` (gh-verified).
+**No worktree:** `git checkout <DEFAULT_BRANCH> && git pull --rebase && git remote prune origin`, then delete `$BRANCH_NAME` (gh-verified).
 
 ### Step 4: Summary
 
@@ -190,7 +165,7 @@ Report: PR number/URL, merge status, cleanup status.
 | Mistake | Why |
 |---------|-----|
 | Skipping `ExitWorktree` when it's available | `cd` doesn't persist across Bash tool calls — only `ExitWorktree` resets CWD at the session level. Always try `ExitWorktree` first (bar nested phase worktrees); the fallbacks cover its refusal and no-op. |
-| Deleting branch before removing worktree | Git refuses. Remove worktree first. |
+| Deleting branch before removing worktree | `delete-merged-branch` refuses (`SKIP`) a branch still checked out. Remove worktree first. |
 | Using `--delete-branch` on `gh pr merge` | Fails in worktree flows. Delete branch manually after. |
 | Treating `gh pr merge --auto` as blocking | It returns once auto-merge is *enabled*, not merged. Poll `gh pr view --json state` for `MERGED` before cleanup. |
 
