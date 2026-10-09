@@ -101,6 +101,11 @@ echo "=== orchestrate read-then-set flow (skills/orchestrate/SKILL.md Setup) ===
 
 # Fresh run: the read prints nothing, so the lead records HEAD. Resumed run after
 # merges: the read returns the original, so the lead never calls --set-base.
+# The skill must carry the exact read and set commands exercised below.
+SKILL_MD="$REPO_ROOT/skills/orchestrate/SKILL.md"
+for cmd in "jq -r '.base_sha // empty' \"\$PLAN_JSON\"" "validate-plan --set-base \"\$PLAN_JSON\" --plan --sha HEAD"; do
+  if grep -qF -- "$cmd" "$SKILL_MD"; then pass "SKILL.md carries: $cmd"; else fail "SKILL.md is missing: $cmd"; fi
+done
 setup
 read_plan_base() { jq -r '.base_sha // empty' "$PLAN"; }
 assert_eq "fresh plan: base read is empty" "" "$(read_plan_base)"
