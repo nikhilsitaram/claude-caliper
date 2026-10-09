@@ -138,9 +138,9 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 |---|---|---|
 | `--schema plan.json` | Pre-orchestration, plan-review | Validate JSON structure, required fields/types, schema version, task-ID/phase-letter rules, `depends_on` ordering, `intent`/`avoid` presence and shape, disjoint file sets, non-empty criteria `run` strings. Chains to `--consistency`. |
 | `--render plan.json` | Standalone (also called internally by `--update-status`/`--add-handoff`) | Deterministically generate plan.md from plan.json |
-| `--update-status plan.json --task A1 --status complete` | After each task | Update task status + regenerate plan.md (enforces phase/dependency preconditions) |
+| `--update-status plan.json --task A1 --status done` | After each task | Update task status + regenerate plan.md (enforces phase/dependency/gate preconditions). `done` is stored as `complete` — use it, since worktree-isolated sessions refuse a bare `complete` word |
 | `--update-status plan.json --phase A --status "In Progress"` | Phase start/complete | Update phase status + regenerate plan.md (phase-complete requires all tasks done + impl-review gate) |
-| `--update-status plan.json --plan --status "In Development"` | Plan lifecycle | Update plan status + regenerate plan.md |
+| `--update-status plan.json --plan --status "In Development"` | Plan lifecycle | Update plan status + regenerate plan.md (`--status done` is stored as `Complete`) |
 | `--add-handoff plan.json --task B1 --from A2 --note "..."` | Phase wrap-up (cross-phase deps) | Record a handoff as structured data + regenerate plan.md |
 | `--check-handoffs plan.json --phase A` | Phase wrap-up | Verify cross-phase deps into later phases have recorded handoffs |
 | `--criteria plan.json --task A1 \| --phase A \| --plan [--cwd DIR]` | Verification | Run `success_criteria` (in DIR if given) and report pass/fail |

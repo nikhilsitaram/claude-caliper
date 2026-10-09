@@ -11,9 +11,9 @@ usage() {
 Usage:
   validate-plan --schema <plan.json>
   validate-plan --render <plan.json>
-  validate-plan --update-status <plan.json> --task <ID> --status <STATUS>
+  validate-plan --update-status <plan.json> --task <ID> --status <STATUS>   (done = complete)
   validate-plan --update-status <plan.json> --phase <LETTER> --status <STATUS>
-  validate-plan --update-status <plan.json> --plan --status <STATUS>
+  validate-plan --update-status <plan.json> --plan --status <STATUS>        (done = Complete)
   validate-plan --criteria <plan.json> --task <ID> [--cwd <DIR>]
   validate-plan --criteria <plan.json> --phase <LETTER> [--cwd <DIR>]
   validate-plan --criteria <plan.json> --plan [--cwd <DIR>]
@@ -778,6 +778,10 @@ do_render() {
 
 do_update_status_task() {
   local plan_json="$1" task_id="$2" new_status="$3"
+  # `done` aliases the completion status: Claude Code's worktree-isolation
+  # command parser refuses any command carrying a bare `complete`/`Complete`
+  # word (it reads it as the `complete` builtin), so callers spell it `done`.
+  [[ "$new_status" == "done" ]] && new_status="complete"
   local valid_statuses=("pending" "in_progress" "complete" "skipped")
   local valid=false
   for s in "${valid_statuses[@]}"; do
@@ -894,6 +898,7 @@ do_update_status_phase() {
 
 do_update_status_plan() {
   local plan_json="$1" new_status="$2"
+  [[ "$new_status" == "done" ]] && new_status="Complete"  # see do_update_status_task
   local valid_plan_statuses=("Not Yet Started" "In Development" "Complete")
   local valid=false
   for s in "${valid_plan_statuses[@]}"; do
