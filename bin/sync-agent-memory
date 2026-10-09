@@ -74,9 +74,10 @@ cleanup() {
 # Fail closed: without the lock, two concurrent MEMORY.md merges would each read
 # the same base and the last mv would drop the other's appended lines — destroying
 # memory another worktree already persisted. Skipping this sync (exit 0 — never
-# block the caller) only defers *this* worktree's writes, which stay safe in the
-# worktree for a later sync. The 10s acquire + stale-steal makes a genuine timeout
-# near-impossible.
+# block the caller) defers *this* worktree's writes to a later sync — unless the
+# caller removes the worktree next (clear-worktree-scratch, then
+# `git worktree remove`), which loses them. The 10s acquire + stale-steal makes a
+# genuine timeout near-impossible.
 if [[ "$locked" -ne 1 ]]; then
   echo "WARN: could not acquire agent-memory sync lock ($LOCK); skipping this sync" >&2
   exit 0

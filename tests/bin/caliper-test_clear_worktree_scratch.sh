@@ -137,16 +137,26 @@ else
 fi
 chmod u+w "$fix/.claude"
 
-# Test 6: argument errors.
-check_fails "t6: no args exits non-zero" "$SCRIPT"
-check_fails "t6: nonexistent path exits non-zero" "$SCRIPT" "$TMPDIR_BASE/missing"
+# Test 6: a leftover symlink from the retired link-agent-memory is unlinked,
+# never followed — main's memory behind it survives.
+fix="$(new_fixture t6)"
+mkdir -p "$fix/.claude/agent-memory/agent-x" "$fix/wt/.claude"
+echo "MAIN" > "$fix/.claude/agent-memory/agent-x/keep.md"
+ln -s "$fix/.claude/agent-memory" "$fix/wt/.claude/agent-memory"
+check "t6: runs cleanly from main's cwd" run_from "$fix" "$SCRIPT" "$fix/wt"
+check "t6: worktree symlink removed" test ! -L "$fix/wt/.claude/agent-memory"
+check_eq "t6: main's memory behind the link survives" "MAIN" "$(cat "$fix/.claude/agent-memory/agent-x/keep.md" 2>/dev/null || true)"
+
+# Test 7: argument errors.
+check_fails "t7: no args exits non-zero" "$SCRIPT"
+check_fails "t7: nonexistent path exits non-zero" "$SCRIPT" "$TMPDIR_BASE/missing"
 # A non-repo dir must not fall back to the caller's cwd (an empty `cd ""`) and
 # clear the caller's scratch instead.
-fix="$(new_fixture t6)"
+fix="$(new_fixture t7)"
 mkdir -p "$TMPDIR_BASE/plain" "$fix/wt/.claude/caliper-draft"
 echo "{}" > "$fix/wt/.claude/caliper-draft/plan.json"
-check_fails "t6: non-repo directory exits non-zero" run_from "$fix/wt" "$SCRIPT" "$TMPDIR_BASE/plain"
-check "t6: caller's worktree scratch untouched" test -f "$fix/wt/.claude/caliper-draft/plan.json"
+check_fails "t7: non-repo directory exits non-zero" run_from "$fix/wt" "$SCRIPT" "$TMPDIR_BASE/plain"
+check "t7: caller's worktree scratch untouched" test -f "$fix/wt/.claude/caliper-draft/plan.json"
 
 echo ""
 echo "Passed: $pass, Failed: $fail"
