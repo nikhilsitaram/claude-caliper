@@ -51,11 +51,14 @@ fi
 # those plan dirs (#307). A `..` is refused rather than collapsed: the Write
 # tool may resolve it lexically or through a symlink, and the two can land in
 # different places. So is a newline, which command substitution would drop from
-# the path's end.
+# the path's end. The files that steer caliper always prompt: an auto-allowed
+# .design-approved would flip the next prompt to acceptEdits, and reviews.json
+# holds the review gates.
 file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty | select(contains("\n") | not)')
 is_caliper_file=0
 if [[ "$file_path" != */../* && "$file_path" != */.. ]] \
-    && target=$(physical_path "$file_path"); then
+    && target=$(physical_path "$file_path") \
+    && [[ "${target##*/}" != .design-approved && "${target##*/}" != reviews.json ]]; then
   for d in "${find_args[@]}"; do
     if [[ "$target" == "$d"/* ]]; then
       is_caliper_file=1

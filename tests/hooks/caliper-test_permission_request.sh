@@ -140,7 +140,9 @@ for p in \
     "/tmp/evil/.claude/claude-caliper/x.sh" \
     "$T6/.claude/claude-caliper/topic/../plan.json" \
     "$T6/.claude/claude-caliper-x/plan.json" \
-    ".claude/claude-caliper/plan.json"; do
+    ".claude/claude-caliper/plan.json" \
+    "$T6/.claude/claude-caliper/topic/.design-approved" \
+    "$T6/.claude/claude-caliper/topic/reviews.json"; do
   assert_falls_through "falls through: $p" "$(run_hook_for "$T6" "$p")"
 done
 
