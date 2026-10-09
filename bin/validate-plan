@@ -39,6 +39,27 @@ USAGE
 ERRORS=()
 err() { ERRORS+=("$1"); }
 
+# jq defs for task ordering. Two tasks in one phase may share a file only when a
+# depends_on path (direct or transitive) orders them: orchestrate dispatches a
+# dependent only after its prerequisite has merged, so they never run at once.
+# BFS with a seen set so a cyclic plan (--add-file runs on unvalidated plans)
+# can't loop forever.
+# shellcheck disable=SC2016
+JQ_DEP_ORDER='
+  def dep_graph:
+    [(.phases // [])[] | (.tasks // [])[]
+     | {key: (.id // "" | tostring), value: (.depends_on // [])}] | from_entries;
+  def ancestors($g; $id):
+    {seen: [], frontier: (($g[$id] // []) | unique)}
+    | until((.frontier | length) == 0;
+        .seen as $s | (.frontier - $s) as $new
+        | {seen: ($s + $new), frontier: ([$new[] | ($g[tostring] // [])[]] | unique - $s - $new)})
+    | .seen;
+  def ordered($g; $a; $b):
+    (ancestors($g; $a) | any(. == $b)) or (ancestors($g; $b) | any(. == $a));
+  def task_files: (.files.create // []) + (.files.modify // []) + (.files.test // []);
+'
+
 lock_plan() {
   local plan_json="$1"
   local lock_dir="${plan_json}.lock"
@@ -283,8 +304,6 @@ do_schema() {
     fi
 
     # --- Validate tasks for this phase from pre-extracted scalars ---
-    local _phase_file_paths=()
-    local _phase_file_tids=()
     for ((ti=0; ti<_total_tasks; ti++)); do
       local tbase=$((ti * 13))
       local _tp="${_ts[$tbase]}"
@@ -431,30 +450,27 @@ do_schema() {
         done
       fi
 
-      # Fileset overlap — collect files during task validation (no second pass)
-      local _all_files
-      _all_files=$(echo "$_tarr" | jq -r '(.create[]?, .modify[]?, .test_files[]?)')
-      while IFS= read -r fpath; do
-        [[ -z "$fpath" ]] && continue
-        local existing_owner=""
-        for ((fi=0; fi<${#_phase_file_paths[@]}; fi++)); do
-          if [[ "${_phase_file_paths[$fi]}" == "$fpath" ]]; then
-            existing_owner="${_phase_file_tids[$fi]}"
-            break
-          fi
-        done
-        if [[ -n "$existing_owner" && "$existing_owner" != "$id" ]]; then
-          err "ERROR: fileset_overlap: file '$fpath' claimed by tasks $existing_owner and $id in phase $letter"
-        elif [[ -z "$existing_owner" ]]; then
-          _phase_file_paths+=("$fpath")
-          _phase_file_tids+=("$id")
-        fi
-      done <<< "$_all_files"
-
       all_task_ids+=("$id")
     done
 
   done
+
+  # Fileset overlap: every pair of same-phase tasks sharing a path must be
+  # ordered by depends_on (1 jq call). Pairwise, not first-owner: A2 and A3 both
+  # after A1 are still unordered with each other.
+  local _ov_path _ov_a _ov_b _ov_letter
+  while IFS=$'\t' read -r _ov_path _ov_a _ov_b _ov_letter; do
+    [[ -z "$_ov_path" ]] && continue
+    err "ERROR: fileset_overlap: file '$_ov_path' claimed by tasks $_ov_a and $_ov_b in phase $_ov_letter — no depends_on path orders them, so they may run in parallel"
+  done < <(echo "$json" | jq -r "$JQ_DEP_ORDER"'
+    dep_graph as $g
+    | (.phases // [])[] | (.letter // "") as $letter
+    | [(.tasks // [])[] | (.id // "") as $id | task_files | unique | .[] | {path: ., id: $id}]
+    | group_by(.path)[] | select(length > 1)
+    | .[0].path as $path | [.[].id] as $ids
+    | range(0; $ids | length) as $i | range($i + 1; $ids | length) as $j
+    | select($ids[$i] != $ids[$j] and (ordered($g; $ids[$i]; $ids[$j]) | not))
+    | [$path, $ids[$i], $ids[$j], $letter] | @tsv')
 
   # Defense-in-depth: BFS cycle check using pre-extracted dependency graph
   local cd_cycle_detected=0
@@ -1471,15 +1487,17 @@ do_add_file() {
   fi
 
   local phase_owner
-  phase_owner=$(jq -r --arg letter "$task_letter" --arg id "$task_id" --arg p "$path" '
-    .phases[] | select(.letter == $letter) | .tasks[] |
-    select(.id != $id) |
-    select(((.files.create // []) + (.files.modify // []) + (.files.test // [])) | index($p)) |
-    .id
+  phase_owner=$(jq -r --arg letter "$task_letter" --arg id "$task_id" --arg p "$path" "$JQ_DEP_ORDER"'
+    dep_graph as $g
+    | .phases[] | select(.letter == $letter) | .tasks[]
+    | select(.id != $id)
+    | select(task_files | index($p))
+    | select(ordered($g; .id; $id) | not)
+    | .id
   ' "$plan_json" | head -n 1)
   if [[ -n "$phase_owner" ]]; then
     unlock_plan "$plan_json"; trap - EXIT
-    echo "ERROR: fileset_overlap_add: path '$path' already claimed by task '$phase_owner' in phase $task_letter" >&2
+    echo "ERROR: fileset_overlap_add: path '$path' already claimed by task '$phase_owner' in phase $task_letter, with no depends_on path ordering them" >&2
     exit 1
   fi
 

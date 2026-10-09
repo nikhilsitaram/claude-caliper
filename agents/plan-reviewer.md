@@ -117,15 +117,16 @@ This check exists because TDD locks in the boundary: once each task's mocked tes
 Skip this check only when the design doc has no Test Strategy section (legacy plans pre-dating this rule) AND the plan has no cross-task `depends_on` links. If either signal is present (design declares seams, or plan structure implies them), apply the check.
 
 ### Phase & Parallelism Checks
-**Structural validation already verified:** File-set overlap within phases (no two tasks in the
-same phase share create/modify/test paths).
+**Structural validation already verified:** File-set overlap within phases (two tasks in the
+same phase share a create/modify/test path only when a `depends_on` path orders them).
 
 **File-set isolation (single and multi-phase):**
 - Do any tasks in the same phase logically need to modify the same module? (Indicates bad decomposition even if paths are technically different)
 - Are shared utilities or config files properly assigned to one task, with other tasks only consuming them?
 
-- Flag: Two tasks modify different functions in the same file (should be one task or file should be split)
-- Flag: Task A creates a utility that Task B also needs to modify (should consolidate)
+- Flag: Two tasks with no `depends_on` path between them change the same module through different paths (they run in parallel — order them or consolidate)
+- Flag: Task A creates a utility that Task B also modifies, but B doesn't `depends_on` A
+- Don't flag ordered tasks for sharing a file — a `depends_on` chain of reviewable tasks beats one oversized task
 
 **LLM reviewer checks:** If plan has multiple phases:
 - Phase boundaries at meaningful verification points?

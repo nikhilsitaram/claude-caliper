@@ -352,7 +352,7 @@ Before an LLM reviewer ever sees the plan, `validate-plan --schema` runs structu
 - Phase dependency graph is a valid DAG (BFS cycle detection)
 - Task dependencies only reference same or earlier phases
 - No duplicate task IDs or file paths across the entire plan
-- **File-set isolation** — no two tasks in the same phase share any file path across `create`/`modify`/`test`
+- **File-set isolation** — no two tasks in the same phase share any file path across `create`/`modify`/`test`, unless a `depends_on` path orders them
 - **Task ID prefix matches phase** — task A1 must be in Phase A
 - **Phase letters are alphabetically ordered** — A before B before C
 - **Status consistency** — phase can't be "Complete" if any task is still pending
@@ -414,11 +414,11 @@ Tasks with `depends_on` don't dispatch until all prerequisites are complete. The
 
 ### File-Set Isolation
 
-Each task declares its file set in `plan.json` (`files.create`, `files.modify`, `files.test`). No two tasks in the same phase may share any file path. This is enforced at three levels:
+Each task declares its file set in `plan.json` (`files.create`, `files.modify`, `files.test`). No two tasks in the same phase may share any file path unless one `depends_on` the other (directly or transitively) — the dependent dispatches only after its prerequisite merges, so ordered tasks never run concurrently. This is enforced at three levels:
 
-- **draft-plan** decomposes work with disjoint file sets
+- **draft-plan** decomposes work with disjoint file sets, ordering tasks that must share a file
 - **plan-review** flags tasks that logically need to share files (bad decomposition)
-- **validate-plan --schema** deterministically rejects overlapping file sets within a phase
+- **validate-plan --schema** deterministically rejects overlapping file sets within a phase unless `depends_on` orders the tasks
 
 ### Single vs Multi-Phase
 

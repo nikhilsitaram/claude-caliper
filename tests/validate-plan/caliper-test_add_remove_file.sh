@@ -153,13 +153,21 @@ setup_valid_plan "$TMPDIR"
 assert_fail "add to modify when already in create on same task" "cross_kind_conflict" \
   "$VALIDATE" --add-file "$TMPDIR/plan.json" --task A1 --kind modify --path "src/core.ts"
 
+# Tests 14-15 need A1/A2 unordered — the fixture's A2 depends_on A1, which
+# legalizes same-phase overlap (Test 17).
+unorder_a2() {
+  jq '.phases[0].tasks[1].depends_on = []' "$TMPDIR/plan.json" > "$TMPDIR/p.json" && mv "$TMPDIR/p.json" "$TMPDIR/plan.json"
+}
+
 echo "Test 14: per-phase overlap is rejected (same kind, different task)"
 setup_valid_plan "$TMPDIR"
+unorder_a2
 assert_fail "add to A2.create path already in A1.create" "fileset_overlap_add" \
   "$VALIDATE" --add-file "$TMPDIR/plan.json" --task A2 --kind create --path "src/core.ts"
 
 echo "Test 15: per-phase overlap is rejected (different kinds, different tasks)"
 setup_valid_plan "$TMPDIR"
+unorder_a2
 assert_fail "add to A2.modify path already in A1.create" "fileset_overlap_add" \
   "$VALIDATE" --add-file "$TMPDIR/plan.json" --task A2 --kind modify --path "src/core.ts"
 
@@ -167,6 +175,20 @@ echo "Test 16: global create duplication is rejected (cross-phase)"
 setup_valid_plan "$TMPDIR"
 assert_fail "add to B1.create path already in A1.create" "duplicate_create_path_add" \
   "$VALIDATE" --add-file "$TMPDIR/plan.json" --task B1 --kind create --path "src/core.ts"
+
+echo "Test 17: per-phase overlap is allowed when depends_on orders the tasks"
+setup_valid_plan "$TMPDIR"
+assert_pass "add to A2.modify (A2 depends_on A1) a path in A1.create" \
+  "$VALIDATE" --add-file "$TMPDIR/plan.json" --task A2 --kind modify --path "src/core.ts"
+assert_json "A2.modify contains src/core.ts" "$TMPDIR/plan.json" \
+  '.phases[0].tasks[1].files.modify | index("src/core.ts") != null'
+
+echo "Test 18: ordered add still rejected when an unordered sibling owns the path"
+setup_valid_plan "$TMPDIR"
+jq '.phases[0].tasks += [(.phases[0].tasks[1] | .id = "A3" | .depends_on = ["A1"]
+  | .files = {create: [], modify: ["src/shared.ts"], test: []})]' "$TMPDIR/plan.json" > "$TMPDIR/p.json" && mv "$TMPDIR/p.json" "$TMPDIR/plan.json"
+assert_fail "A2 and A3 are both after A1 but unordered with each other" "fileset_overlap_add: path 'src/shared.ts' already claimed by task 'A3'" \
+  "$VALIDATE" --add-file "$TMPDIR/plan.json" --task A2 --kind modify --path "src/shared.ts"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

@@ -111,7 +111,7 @@ There is exactly one `completion.md` per phase — the point where the orchestra
   - `low`: mechanical/rote — rename, config update, import addition, single-line edits
   - `medium`: standard implementation with clear boundaries following existing patterns
   - `high`: multi-system integration, complex logic, novel patterns, or architectural decisions
-- `phases[].tasks[].files` (object, required): `create`, `modify`, `test` — arrays of file paths (each key required, arrays may be empty). File paths must be unique across all tasks in the plan; file *sets* must be disjoint across tasks within a phase (they run in parallel).
+- `phases[].tasks[].files` (object, required): `create`, `modify`, `test` — arrays of file paths (each key required, arrays may be empty). A `create` path may appear in only one task in the plan. Within a phase, two tasks may share a path only when a `depends_on` path (direct or transitive) orders them — unordered tasks run in parallel, while a dependent is dispatched only after its prerequisite merges. Prefer an ordered pair of reviewable tasks over one oversized task.
 - `phases[].tasks[].verification` (string, required): Runnable command, <60s.
 - `phases[].tasks[].done_when` (string, required): Measurable end state.
 - `phases[].tasks[].avoid` (array, required): Array of `{rule, why}` objects. Each object needs a non-empty `rule` (the pitfall to avoid) and a non-empty `why` (the reason). This is where task-specific pitfalls live now that there is no prose section.
@@ -136,7 +136,7 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 
 | Mode | When | What |
 |---|---|---|
-| `--schema plan.json` | Pre-orchestration, plan-review | Validate JSON structure, required fields/types, schema version, task-ID/phase-letter rules, `depends_on` ordering, `intent`/`avoid` presence and shape, disjoint file sets, non-empty criteria `run` strings. Chains to `--consistency`. |
+| `--schema plan.json` | Pre-orchestration, plan-review | Validate JSON structure, required fields/types, schema version, task-ID/phase-letter rules, `depends_on` ordering, `intent`/`avoid` presence and shape, no unordered same-phase file overlap, non-empty criteria `run` strings. Chains to `--consistency`. |
 | `--render plan.json` | Standalone (also called internally by `--update-status`/`--add-handoff`) | Deterministically generate plan.md from plan.json |
 | `--update-status plan.json --task A1 --status done` | After each task | Update task status + regenerate plan.md (enforces phase/dependency/gate preconditions). `done` is stored as `complete` — use it, since worktree-isolated sessions refuse a bare `complete` word |
 | `--update-status plan.json --phase A --status "In Progress"` | Phase start/complete | Update phase status + regenerate plan.md (phase-complete requires all tasks done + impl-review gate) |
@@ -153,7 +153,7 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 - `run` strings in `success_criteria` are non-empty; each criterion has `expect_exit` or `expect_output`.
 - `depends_on` references (task and phase) point to the same or a prior scope; no dependency cycles.
 - Task IDs unique with phase-matching prefixes; phase letters unique and alphabetically ordered.
-- No duplicate `create` paths across tasks; no file-set overlap between tasks in the same phase.
+- No duplicate `create` paths across tasks; no file shared by two same-phase tasks unless a `depends_on` path orders them.
 
 ### Output format
 

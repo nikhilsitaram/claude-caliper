@@ -84,7 +84,7 @@ A plan is `plan.json` — a structured manifest of phases and tasks. Each task c
 
 **Gates:** 8+ tasks single-phase → look for hidden boundary. 7+ tasks per phase → examine cut points.
 
-Phase boundaries = meaningful "run full suite" points. `depends_on` (phase level) declares phase ordering. Tasks within a phase execute in parallel — file sets must be disjoint (`validate-plan --schema` enforces this).
+Phase boundaries = meaningful "run full suite" points. `depends_on` (phase level) declares phase ordering. Tasks within a phase execute in parallel, so file sets must be disjoint — unless one task `depends_on` the other (directly or transitively), which serializes them. Splitting one file's work into ordered tasks beats a single oversized task.
 
 Inherit phases from design doc if approved.
 
