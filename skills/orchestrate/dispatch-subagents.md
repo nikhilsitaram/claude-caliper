@@ -7,11 +7,11 @@ Parallel task execution via Agent tool dispatches with worktree isolation.
 List the dispatchable tasks: `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` prints one task ID per line — `pending`, every dependency `complete`/`skipped`, no open `gated_on` (in-flight `in_progress` tasks are never re-listed). Tasks held only by a gate are reported on stderr as `GATED: <id> — <input>`. For each ready task, create a worktree nested under the parent (feature or phase) worktree and extract metadata (strip `status` — orchestrator state not needed by implementer):
 
 ```bash
-PARENT_WORKTREE="$(git rev-parse --show-toplevel)"
-MAIN_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+PARENT_WORKTREE=$(git rev-parse --show-toplevel)
+MAIN_ROOT=$(git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')
 [[ "$PARENT_WORKTREE" == "$MAIN_ROOT" ]] && { echo "ERROR: orchestrator CWD is the main repo; dispatching from here creates sibling task worktrees that trigger silent permission denials in background subagents. cd into the feature or phase worktree before dispatching." >&2; exit 1; }
-git -C "$PARENT_WORKTREE" worktree add .claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
 TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
+git worktree add "$TASK_WORKTREE" -b {TASK_ID_LOWER} HEAD
 # Claim the task before dispatch: --ready lists only `pending` tasks, so a task
 # still `pending` while its implementer starts up would be re-listed — and
 # dispatched twice — after the next completion.
@@ -45,10 +45,10 @@ The agent runs in background automatically (defined in agent frontmatter). Track
 
 When a background agent completes (push notification — do not poll):
 
-Shell variables don't persist between Bash calls, and with parallel tasks a leftover `$TASK_WORKTREE` names whichever task was dispatched last — checks and criteria would silently run against the wrong worktree. Re-derive both paths from the completing task's ID at the start of each command below and in After Completion that uses them:
+Shell variables don't persist between Bash calls, and with parallel tasks a leftover `$TASK_WORKTREE` names whichever task was dispatched last — checks and criteria would silently run against the wrong worktree. Re-derive both paths from the completing task's ID at the start of each command below and in After Completion that uses them (under worktree isolation, assign `PARENT_WORKTREE` its literal path — the guard refuses git arguments built from `$(…)`):
 
 ```bash
-PARENT_WORKTREE="$(git rev-parse --show-toplevel)"
+PARENT_WORKTREE=$(git rev-parse --show-toplevel)
 TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
 ```
 
@@ -83,8 +83,10 @@ TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
     **Stage 2 — verify preconditions for the rewind.** All three checks must return exit code 0:
 
     ```bash
-    [ "$(git -C "$TASK_WORKTREE" rev-parse HEAD)" = "$WRONG_HEAD" ]
-    [ "$(git -C "$PARENT_WORKTREE" worktree list --porcelain | grep -cFx "branch refs/heads/$PARENT_BRANCH")" -eq 1 ]
+    TASK_HEAD=$(git -C "$TASK_WORKTREE" rev-parse HEAD)
+    CHECKOUTS=$(git -C "$PARENT_WORKTREE" worktree list --porcelain | grep -cFx "branch refs/heads/$PARENT_BRANCH")
+    [ "$TASK_HEAD" = "$WRONG_HEAD" ]
+    [ "$CHECKOUTS" -eq 1 ]
     git -C "$PARENT_WORKTREE" diff --quiet && git -C "$PARENT_WORKTREE" diff --cached --quiet
     ```
 
@@ -126,4 +128,4 @@ A task's `gated_on` names outside inputs (another team's PR, reviewer-supplied d
 ## Worktree Placement
 
 - Worktrees are created by the orchestrator via `git worktree add` from the parent (feature or phase) branch; the implementer works inside the worktree it is handed.
-- Task worktrees must nest **inside** the parent (feature or phase) worktree — anchor `git worktree add` with `git -C "$PARENT_WORKTREE"` so CWD drift never produces siblings under the main repo. Background subagents writing into a sibling worktree get silent permission denials because Claude Code scopes write permission to the parent session's project root, and they cannot answer the cross-directory prompt.
+- Task worktrees must nest **inside** the parent (feature or phase) worktree — anchor `git worktree add` with the absolute `$PARENT_WORKTREE/.claude/worktrees/...` path so CWD drift never produces siblings under the main repo (and no `git -C` on a computed path, which the isolation guard refuses — **See:** `skills/design/worktree-isolation.md`). Background subagents writing into a sibling worktree get silent permission denials because Claude Code scopes write permission to the parent session's project root, and they cannot answer the cross-directory prompt.

@@ -1,13 +1,14 @@
 # Worktree Session Isolation
 
-After `EnterWorktree`, Claude Code confines the session (and every subagent it spawns) to that worktree. Observed behavior, probed in gh issue #288:
+After `EnterWorktree`, Claude Code confines the session (and every subagent it spawns) to that worktree. Its Bash guard is static analysis that refuses any git use it can't prove stays inside — so keep git plain: one command per line, literal paths. Skill snippets use variables for readability; under isolation, resolve values in one call and pass the printed literals in the next. Observed behavior, probed in gh issue #288:
 
 | Operation | Under isolation |
 |---|---|
 | Write/Edit tool on a main-checkout path — including gitignored `$PLAN_DIR` | Refused |
 | Bash write, or Read, on a main-checkout path | Allowed |
-| `X="$(git …)"` | Refused — use unquoted `X=$(git …)` (assignments don't word-split) |
-| `git -C "$P"` where `$P` came from a `$(…)` substitution | Refused — run git from the worktree root instead |
+| A bare `X=$(git …)` assignment (pipes OK) | Allowed |
+| `$(git …)` anywhere else — `X="$(git …)"`, `[ $(git …) = … ]` | Refused |
+| A `$(…)` result reused in the same call — as a git `-C`/`worktree add` path, or in a test | Refused |
 | `git -C <main checkout>`, or `cd <sibling worktree> && git …` | Refused |
 | `cd`/`git` into a worktree nested under the current one (literal path) | Allowed |
 | `ExitWorktree(remove)` on a worktree entered by `path` | Refused — `ExitWorktree(keep)` lifts isolation, then `git worktree remove <path>` |
