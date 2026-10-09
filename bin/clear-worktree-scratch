@@ -26,7 +26,10 @@ usage() {
 
 [[ -d "$1" ]] || { echo "ERROR: worktree path does not exist: $1" >&2; exit 1; }
 
-WORKTREE="$(cd "$(git -C "$1" rev-parse --show-toplevel)" && pwd -P)"
+# Own line so set -e stops on a non-repo path; nested in the cd below, older
+# bash would run `cd ""` as a no-op and clear the caller's cwd instead.
+TOP="$(git -C "$1" rev-parse --show-toplevel)"
+WORKTREE="$(cd "$TOP" && pwd -P)"
 MAIN_ROOT="$(git -C "$WORKTREE" rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
 
 if [[ "$WORKTREE" == "$(cd "$MAIN_ROOT" && pwd -P)" ]]; then

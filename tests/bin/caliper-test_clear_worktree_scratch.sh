@@ -140,6 +140,13 @@ chmod u+w "$fix/.claude"
 # Test 6: argument errors.
 check_fails "t6: no args exits non-zero" "$SCRIPT"
 check_fails "t6: nonexistent path exits non-zero" "$SCRIPT" "$TMPDIR_BASE/missing"
+# A non-repo dir must not fall back to the caller's cwd (an empty `cd ""`) and
+# clear the caller's scratch instead.
+fix="$(new_fixture t6)"
+mkdir -p "$TMPDIR_BASE/plain" "$fix/wt/.claude/caliper-draft"
+echo "{}" > "$fix/wt/.claude/caliper-draft/plan.json"
+check_fails "t6: non-repo directory exits non-zero" run_from "$fix/wt" "$SCRIPT" "$TMPDIR_BASE/plain"
+check "t6: caller's worktree scratch untouched" test -f "$fix/wt/.claude/caliper-draft/plan.json"
 
 echo ""
 echo "Passed: $pass, Failed: $fail"
