@@ -110,6 +110,7 @@ Every task is a single plan.json entry — no split prose file. The two fields t
 | **done_when** | Measurable end state | `login returns JWT, 4/4 tests pass` |
 | **depends_on** | Task IDs this consumes | `["A1"]` (same phase for ordering, prior phase for cross-phase deps) |
 | **complexity** | Enum: low, medium, high | `"medium"` |
+| **gated_on** | Optional. Outside inputs the task can't start without; orchestrate holds it until the user clears the gate — don't encode this in `name`/`intent` | `["Platform PR #812 merged"]` |
 
 The implementer reads the codebase directly, so `intent` states the outcome and seams — not line-by-line code.
 
