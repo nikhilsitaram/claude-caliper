@@ -243,12 +243,12 @@ setup_plan_dir
 mark_all_phases_complete "$TMPDIR/plan.json"
 echo "$(all_phase_reviews "$TMPDIR/plan.json")" > "$TMPDIR/reviews.json"
 assert_fail "plan done blocked by the same review gates as Complete" "cannot mark plan complete" \
-  "$VALIDATE" --update-status "$TMPDIR/plan.json" --plan --status done
+  "$VALIDATE" --update-status "$TMPDIR/plan.json" --plan --status "done"
 local_reviews=$(all_phase_reviews "$TMPDIR/plan.json")
 local_reviews=$(echo "$local_reviews" | jq '. + [{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"final","verdict":"pass","remaining":0}]')
 echo "$local_reviews" > "$TMPDIR/reviews.json"
 assert_pass "plan done succeeds with all reviews" \
-  "$VALIDATE" --update-status "$TMPDIR/plan.json" --plan --status done
+  "$VALIDATE" --update-status "$TMPDIR/plan.json" --plan --status "done"
 if [[ "$(jq -r '.status' "$TMPDIR/plan.json")" == "Complete" ]]; then
   echo "PASS: plan done stored as Complete"
   ((PASS++)) || true

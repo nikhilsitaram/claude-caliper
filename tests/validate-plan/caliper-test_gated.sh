@@ -103,7 +103,7 @@ assert_fail "gated task cannot go in_progress" "cannot advance task A2" \
 
 setup_gated_a2
 assert_fail "gated task cannot be marked done" "gated on: $GATE" \
-  "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A2 --status done
+  "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A2 --status "done"
 
 setup_gated_a2
 assert_pass "gated task can be skipped" \

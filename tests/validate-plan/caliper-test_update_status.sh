@@ -55,7 +55,7 @@ fi
 # worktree-isolation command parser (gh issue #290)
 reset_fixture
 jq '.status = "In Development" | .phases[0].status = "In Progress"' "$TMPDIR/plan.json" > "$TMPDIR/plan_tmp.json" && mv "$TMPDIR/plan_tmp.json" "$TMPDIR/plan.json"
-"$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status done
+"$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status "done"
 actual=$(jq -r '.phases[0].tasks[0].status' "$TMPDIR/plan.json")
 assert_eq "--status done stores task status as complete" "complete" "$actual"
 if grep -q '\[x\] A1' "$TMPDIR/plan.md"; then
@@ -67,7 +67,7 @@ else
 fi
 
 reset_fixture
-if "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status done 2>/dev/null; then
+if "$VALIDATE" --update-status "$TMPDIR/plan.json" --task A1 --status "done" 2>/dev/null; then
   echo "FAIL: --status done should honor the parent-phase gate like complete"
   ((FAIL++)) || true
 else
