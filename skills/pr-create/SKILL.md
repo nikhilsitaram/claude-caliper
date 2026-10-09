@@ -24,13 +24,11 @@ If no changes to commit, stop here.
 ### Step 2: Detect Branch Context
 
 ```bash
-CURRENT_BRANCH=$(git branch --show-current)
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
-if [ -z "$DEFAULT_BRANCH" ]; then
-  DEFAULT_BRANCH=$(git branch -r | grep -oP 'origin/\K(main|master)' | head -1)
-fi
-MAIN_REPO=$(caliper-main-root)
+git branch --show-current
+git symbolic-ref --short refs/remotes/origin/HEAD
 ```
+
+Line 1 is `CURRENT_BRANCH`; line 2 is `origin/<DEFAULT_BRANCH>`. If line 2 errors (the clone has no `origin/HEAD`), run `git remote set-head origin --auto` and repeat it. Plain calls, read and carried forward, because the worktree-isolation guard refuses tests on `$(git …)` results (**See:** `skills/design/worktree-isolation.md`).
 
 Use `$DEFAULT_BRANCH` (never hardcode `main`) for all subsequent steps.
 

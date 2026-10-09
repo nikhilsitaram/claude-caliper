@@ -17,7 +17,7 @@ Dispatch PR review, address feedback, and comment on the PR.
 
 Identify the PR from argument, current branch (`gh pr view`), or `gh pr list --author @me --state open`. If multiple candidates, ask the user. Store PR number, branch, URL.
 
-Detect: `BASE_BRANCH` from `gh pr view --json baseRefName`, `DEFAULT_BRANCH` from `refs/remotes/origin/HEAD` (fallback for BASE_BRANCH), `MAIN_REPO` from `caliper-main-root`, `IS_WORKTREE` (git-dir differs from git-common-dir), `WORKTREE_PATH` from `git worktree list` matching branch.
+Detect: `BASE_BRANCH` from `gh pr view --json baseRefName`, `DEFAULT_BRANCH` from `refs/remotes/origin/HEAD` (fallback for BASE_BRANCH), `WORKTREE_PATH` from `git worktree list` matching branch.
 
 If not on PR branch: use existing worktree if found (`cd` into it), otherwise `gh pr checkout`.
 
