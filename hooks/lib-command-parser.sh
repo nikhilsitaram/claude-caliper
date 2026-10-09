@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Sourced by pretooluse/permission-request hooks — not executed directly.
+# Sourced by permission-request-allow.sh — not executed directly.
 
 extract_segments() {
   local input_cmd="$1"
@@ -191,40 +191,10 @@ extract_command_words_from_segment() {
     done
   else
     local word="${seg%% *}"
+    # An interpreter (bash/sh/zsh) stays the command word: resolving its script or
+    # inline `-c`/`-s` argument to a safe-listed name would auto-approve arbitrary
+    # code (`bash -lc 'git status; …'`). Scripts are approved when run by path.
     outer_cmd="${word##*/}"
-    if [[ "$outer_cmd" == "bash" || "$outer_cmd" == "sh" || "$outer_cmd" == "zsh" ]]; then
-      local rest="${seg#"${seg%% *}" }"
-      rest="${rest#"${rest%%[![:space:]]*}"}"
-      local script_token=""
-      while [[ -n "$rest" ]]; do
-        local token="${rest%% *}"
-        if [[ "$token" == "--" ]]; then
-          rest="${rest#"$token"}"
-          rest="${rest#"${rest%%[![:space:]]*}"}"
-          if [[ -n "$rest" ]]; then
-            script_token="${rest%% *}"
-          fi
-          break
-        elif [[ "$token" == "-c" ]]; then
-          break
-        elif [[ "$token" == -* ]]; then
-          rest="${rest#"$token"}"
-          rest="${rest#"${rest%%[![:space:]]*}"}"
-          continue
-        else
-          script_token="$token"
-          break
-        fi
-      done
-
-      if [[ -n "$script_token" ]]; then
-        script_token="${script_token#\"}"
-        script_token="${script_token%\"}"
-        script_token="${script_token#\'}"
-        script_token="${script_token%\'}"
-        outer_cmd="${script_token##*/}"
-      fi
-    fi
   fi
 
   [[ -n "$outer_cmd" ]] && cmds+=("$outer_cmd")

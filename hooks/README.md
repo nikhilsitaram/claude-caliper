@@ -17,8 +17,8 @@ Hook scripts and configuration for the claude-caliper plugin.
 
 Hooks are split by lifecycle event:
 
-- **PreToolUse** — fires on every tool call. Used only for **deny** decisions (with `permissionDecisionReason` visible to Claude for self-correction). Never returns allow. There is deliberately no Bash deny hook: one that scanned command text for risky shapes fired in every permission mode, false-denied heredoc data lines (#294), and is redundant with auto mode's classifier.
-- **PermissionRequest** — fires only when a permission prompt would appear, so it is inert under auto mode and remains a fallback for default-mode sessions, whose background subagents can't answer prompts. Used for **allow** decisions. Returns `updatedPermissions` with session-scoped rules so the hook self-caches (first allow adds a rule, subsequent identical patterns skip the hook entirely).
+- **PreToolUse** — fires on every tool call. Used only for **deny** decisions (with `permissionDecisionReason` visible to Claude for self-correction). Never returns allow. There is deliberately no Bash deny hook: one that scanned command text for risky shapes fired in every permission mode and false-denied heredoc data lines (#294). In auto mode the classifier covers it; in default and acceptEdits sessions an unlisted command simply prompts, and the allow hook never auto-approves a shell interpreter (`bash`/`sh`/`zsh …`) — run scripts by path (`./script`).
+- **PermissionRequest** — fires when a permission prompt would appear (or a call that can't prompt would be auto-denied), so classifier approvals in auto mode never reach it; it remains the fallback for default-mode sessions, whose background subagents can't answer prompts. Used for **allow** decisions. Returns `updatedPermissions` with session-scoped rules so the hook self-caches (first allow adds a rule, subsequent identical patterns skip the hook entirely).
 
 ## Safe Commands: Override Model
 
