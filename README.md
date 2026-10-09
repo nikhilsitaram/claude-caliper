@@ -356,6 +356,7 @@ Before an LLM reviewer ever sees the plan, `validate-plan --schema` runs structu
 - **Task ID prefix matches phase** — task A1 must be in Phase A
 - **Phase letters are alphabetically ordered** — A before B before C
 - **Status consistency** — phase can't be "Complete" if any task is still pending
+- **Recorded bases are full SHAs** — a plan- or phase-level `base_sha` (written by `--set-base`) must be a full commit SHA, never a branch name or abbreviation
 
 Additional runtime gates:
 - `--ready [--phase X]` lists the dispatchable tasks (all `depends_on` complete, no open `gated_on`); `--check-deps --task <ID>` explains why one task is blocked
