@@ -21,8 +21,10 @@ set -euo pipefail
 # the tip the guard read as update-ref's expected old value, so it refuses if
 # the branch moved in between.
 #
-# Exit 0 prints `DELETED <branch> <headRefOid>` (no oid if gh omitted it): the
-# caller's cue for the remote delete, leased on that oid. Exit 2 prints one
+# Exit 0 prints `DELETED <branch> <headRefOid>` (no oid if gh omitted it) and,
+# when the oid is known, the exact remote delete leased on it for the caller to
+# run verbatim — a lease protects only the ref it names, so a hand-filled line
+# naming two different branches would delete unchecked. Exit 2 prints one
 # GONE/SKIP line saying why the branch was left in place. Exit 1 is a usage
 # error. The remote branch stays with the caller so a safety hook can see the
 # push. This is a script, not skill markdown, because the worktree-isolation
@@ -79,3 +81,4 @@ if ! git update-ref -d "refs/heads/$B" "$local_oid" 2>/dev/null; then
   exit 2
 fi
 echo "DELETED $B${head_oid:+ $head_oid}"
+[[ -z "$head_oid" ]] || echo "git push --force-with-lease=refs/heads/$B:$head_oid origin --delete $B"

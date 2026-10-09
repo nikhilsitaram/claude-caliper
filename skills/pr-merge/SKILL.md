@@ -105,21 +105,17 @@ gh api "repos/{owner}/{repo}" --jq .delete_branch_on_merge
 git fetch origin
 ```
 
-**Branch deletion** is gh-verified, local first. `<B>` is the call site's branch (`$BRANCH_NAME`, `phase-a`, …); `<PR>` is the PR to verify against — pass `$PR_NUMBER` (the just-merged PR from Step 1) when available, since resolving by branch name returns the most recent PR for that name, which for a reused name like `phase-a` may be a stale historical one; omit it to resolve by branch:
+**Branch deletion** is gh-verified, local first. `<B>` is the call site's branch (`$BRANCH_NAME`, `phase-a`, …); `<PR>` is the PR to verify against — pass `$PR_NUMBER` (the just-merged PR from Step 1) when `<B>` is `$BRANCH_NAME`, since resolving by branch name returns the most recent PR for that name, which for a reused name like `phase-a` may be a stale historical one. Omit it to resolve by branch for the `phase-X` branches in integration cleanup: `$PR_NUMBER` there is the integration PR, which vouches for no phase tip, so every phase branch would SKIP:
 
 ```bash
 delete-merged-branch <B> <PR>
 ```
 
-It deletes the local branch only when GitHub reports the PR merged and the local tip is provably what landed — exactly `headRefOid`, an ancestor of the merge commit, or tree-identical to it (squash/rebase) — and no worktree has it checked out. Every leg is fail-closed and the delete is a compare-and-swap, so commits added after the merge are never destroyed silently. Exit 0 prints `DELETED <B> <head>`. Exit 2 prints a `GONE`/`SKIP` line saying why it kept the branch — a report, not a failure: note it for the Step 4 Summary and carry on.
+It deletes the local branch only when GitHub reports the PR merged and the local tip is provably what landed — exactly `headRefOid`, an ancestor of the merge commit, or tree-identical to it (squash/rebase) — and no worktree has it checked out. Every leg is fail-closed and the delete is a compare-and-swap, so commits added after the merge are never destroyed silently. Exit 0 prints `DELETED <B> <head>` and, when `<head>` is known, the leased remote delete on a second line. Exit 2 prints a `GONE`/`SKIP` line saying why it kept the branch — a report, not a failure: note it for the Step 4 Summary and carry on.
 
-**Remote branch** — only after a `DELETED` line that carries `<head>`, and only when `AUTO_DELETE_REMOTE` isn't `true` (else GitHub already deleted it on merge):
+**Remote branch** — only when the helper printed a push line, and only when `AUTO_DELETE_REMOTE` isn't `true` (else GitHub already deleted it on merge): run that `git push --force-with-lease=refs/heads/<B>:<head> origin --delete <B>` line verbatim rather than filling the template by hand — a lease protects only the ref it names, so a line whose two `<B>`s differ deletes unchecked.
 
-```bash
-git push --force-with-lease=refs/heads/<B>:<head> origin --delete <B>
-```
-
-The lease makes it a compare-and-delete: the push is rejected unless origin's tip is still the merged head, so a branch another writer advanced after the merge survives. `remote ref does not exist` means it's already gone; any rejection (`stale info` = advanced past the merged head, or protected) → report `SKIP remote <B>`. A `DELETED` line without `<head>` means leave the remote branch and report it. This stays its own visible call so a safety hook guarding remote deletes can see and gate it; the local cleanup above doesn't depend on it.
+The lease makes it a compare-and-delete: the push is rejected unless origin's tip is still the merged head, so a branch another writer advanced after the merge survives. `remote ref does not exist` means it's already gone; any rejection (`stale info` = advanced past the merged head, or protected) → report `SKIP remote <B>`. A `DELETED` line without `<head>` (and so no push line) means leave the remote branch and report it. This stays its own visible call so a safety hook guarding remote deletes can see and gate it; the local cleanup above doesn't depend on it.
 
 **Worktree removal** uses bare `git worktree remove <wt>` (no `--force`). Before each one, run `clear-worktree-scratch <wt>`: it syncs agent memory back to main, then deletes caliper's own untracked scratch (what `discard_changes` used to discard) so only user content can block the remove. **This stop-on-failure rule applies to every `git worktree remove` call in this section:** if `clear-worktree-scratch` or the removal exits non-zero (a failed clear means memory may be unsynced, and an ignored `.claude/` wouldn't stop the remove from deleting it), the worktree holds content the user may want — stop the cleanup chain, report the path, and let the user decide rather than force-removing it. **Phase worktrees** are located by branch, not a built path (nested in the integration worktree, siblings in older plans; earlier runs may have removed some):
 
@@ -138,7 +134,7 @@ No output: already gone. Otherwise remove the printed path.
 **Integration branch** (`IS_INTEGRATION=true`):
 1. Remove remaining phase worktrees (the lookup above, per `phase-X`) — nested ones sit inside the integration worktree, so they go first
 2. If `IN_WORKTREE`: leave and remove the current worktree
-3. Delete phase branches (gh-verified): for each `phase-X` from plan.json, apply the pattern above
+3. Delete phase branches (gh-verified): for each `phase-X` from plan.json, apply the pattern above without `<PR>`
 4. Delete `$BRANCH_NAME` (gh-verified)
 5. `git worktree prune && git pull --rebase && git remote prune origin`
 
