@@ -98,7 +98,7 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
    - Guard before merge: `PARENT_BRANCH=$(git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD)` — then `[[ "$PARENT_BRANCH" == integrate/* ]] && { echo "ERROR: PARENT_WORKTREE is on the integration branch. Task branches must merge into the phase branch; integration happens only in Phase Wrap-Up step 7." >&2; exit 1; }`. This catches state drift from the wrong-worktree recovery path where the phase branch was reset to integration HEAD.
    - Merge: `git -C "$PARENT_WORKTREE" merge {TASK_ID_LOWER}` (task branch into the phase branch, never directly into integration)
    - Clean up: `sync-agent-memory "$TASK_WORKTREE"` (persist the task-implementer's `memory: project` writes to `$MAIN_ROOT` before removal — belt-and-suspenders with the `SubagentStop` hook), then `git worktree remove "$TASK_WORKTREE"` then `git branch -d {TASK_ID_LOWER}`
-   - Reset CWD after removal: `cd <feature-worktree-path> && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted
+   - Reset CWD after removal: `cd "$PARENT_WORKTREE" && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted. Return to the parent (phase) worktree, not the multi-phase feature/integration worktree: the next dispatch and completion derive `PARENT_WORKTREE` from CWD
 4. Check if dependent tasks are now unblocked (`validate-plan --check-deps`)
 5. Dispatch newly unblocked tasks (same pattern as above)
 
