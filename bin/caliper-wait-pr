@@ -16,14 +16,17 @@ set -euo pipefail
 # By default it returns once every check has concluded. --merged keeps waiting
 # past green checks until GitHub merges or closes the PR (pr-merge's wait after
 # `gh pr merge --auto`). --require-check NAME counts NAME as pending until it
-# registers, for a bot whose check appears late. --min-wait-s holds the
-# proceed outcomes (0 and 4) until that many seconds in, so checks still
-# registering after a fresh push aren't missed. Time is counted in slept
-# intervals: polls run at 0, interval, 2*interval, … up to the timeout.
+# registers, for a bot whose check appears late. --min-wait-s holds 0, 1 and 4
+# until that many seconds in (clamped to the last poll), so checks still
+# registering after a fresh push aren't missed. A failure likewise waits for
+# the pending checks, since pr-review reads bot output once the wait ends.
+# Time is counted in slept intervals: polls run at 0, interval, 2*interval, …
+# up to the timeout.
 #
 # Progress goes to stderr each poll; one reason line goes to stdout. Exit:
 #   0 GREEN      every check concluded, none failed, PR mergeable
-#   1 FAILED     a check failed or was cancelled (names printed)
+#   1 FAILED     a check failed or was cancelled (names printed), once
+#                nothing is pending or at the timeout
 #   2 CONFLICT   the PR conflicts with its base — rebase and push
 #   3 TIMEOUT    still waiting at the timeout (prints on what)
 #   4 NO_CHECKS  no check registered by --grace-s on a mergeable PR (no CI,
@@ -67,6 +70,8 @@ done
 (( INTERVAL >= 1 )) || usage
 
 MAX_POLLS=$(( TIMEOUT_MIN * 60 / INTERVAL + 1 ))
+LAST_T=$(( (MAX_POLLS - 1) * INTERVAL ))
+(( MIN_WAIT <= LAST_T )) || MIN_WAIT=$LAST_T  # else green could never return
 HOLD=$(( GRACE > MIN_WAIT ? GRACE : MIN_WAIT ))  # earliest NO_CHECKS
 ERR_FILE="$(mktemp)"
 trap 'rm -f "$ERR_FILE"' EXIT
@@ -76,7 +81,7 @@ progress() { DETAIL="$1"; echo "poll $poll/$MAX_POLLS (${t}s): $1" >&2; }
 
 # One poll: exits via finish on a terminal state, else reports progress.
 poll_once() {
-  local view state mergeable merge_status checks n failed pending npending
+  local view state mergeable merge_status checks n pending npending
   if ! view="$(gh pr view "$PR" --json state,mergeable,mergeStateStatus 2>"$ERR_FILE")"; then
     if (( poll == 1 )); then
       echo "caliper-wait-pr: cannot read PR $PR: $(head -1 "$ERR_FILE")" >&2
@@ -108,8 +113,7 @@ poll_once() {
     checks='[]'
   fi
   n="$(jq 'length' <<<"$checks")"
-  failed="$(jq -r '[.[] | select(.bucket == "fail" or .bucket == "cancel") | .name] | join(", ")' <<<"$checks")"
-  [[ -z "$failed" ]] || finish 1 "FAILED: $failed"
+  FAILED="$(jq -r '[.[] | select(.bucket == "fail" or .bucket == "cancel") | .name] | join(", ")' <<<"$checks")"
   pending="$(jq -c --argjson req "$REQUIRED" \
     '[(.[] | select(.bucket == "pending") | .name), (($req - map(.name))[] | "\(.) (not registered)")]' <<<"$checks")"
   npending="$(jq 'length' <<<"$pending")"
@@ -120,7 +124,10 @@ poll_once() {
     fi
     progress "no checks registered yet (mergeable=$mergeable)"
   elif (( npending > 0 )); then
-    progress "$npending pending: $(jq -r 'join(", ")' <<<"$pending")"
+    progress "$npending pending: $(jq -r 'join(", ")' <<<"$pending")${FAILED:+; failed: $FAILED}"
+  elif [[ -n "$FAILED" ]]; then
+    (( t < MIN_WAIT )) || finish 1 "FAILED: $FAILED"
+    progress "all $n checks concluded, failed: $FAILED — holding until --min-wait-s ${MIN_WAIT}s"
   elif [[ "$MERGED_MODE" == true ]]; then
     progress "all $n checks concluded, PR still OPEN (mergeStateStatus=$merge_status)"
   elif [[ "$mergeable" != MERGEABLE ]]; then
@@ -132,10 +139,11 @@ poll_once() {
   fi
 }
 
-DETAIL=""
+DETAIL="" FAILED=""
 for (( poll = 1; poll <= MAX_POLLS; poll++ )); do
   (( poll == 1 )) || sleep "$INTERVAL"
   t=$(( (poll - 1) * INTERVAL ))
   poll_once
 done
+[[ -z "$FAILED" ]] || finish 1 "FAILED: $FAILED — and at the ${TIMEOUT_MIN}m timeout: $DETAIL"
 finish 3 "TIMEOUT: still waiting after ${TIMEOUT_MIN}m — $DETAIL"

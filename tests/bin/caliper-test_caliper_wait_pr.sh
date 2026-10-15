@@ -140,10 +140,16 @@ check_eq "exit-8 output is parsed, not treated as an error -> 0" 0 "$RC"
 check_match "  ...poll 1 saw test pending" "*1 pending: test*" "$ERR"
 
 echo "=== failed checks ==="
-scenario "$OPEN_OK" -- "$(chk test:fail deploy:cancel lint:pass review:pending)"
+scenario "$OPEN_OK" -- "$(chk test:fail deploy:cancel lint:pass review:pending)" "$(chk test:fail deploy:cancel lint:pass review:pass)"
 run 7 "${T[@]}"
 check_eq "fail/cancel bucket -> 1" 1 "$RC"
+check_eq "  ...only once nothing is pending (a bot check may still post)" 2 "$POLLS"
 check_match "  ...names the failed checks" "FAILED*test*deploy*" "$OUT"
+check_match "  ...progress shows the failure while waiting" "*1 pending: review*failed: test, deploy*" "$ERR"
+scenario "$OPEN_OK" -- "$(chk test:fail review:pending)"
+run 7 --interval-s 30 --timeout-min 1 --grace-s 60
+check_eq "a failure with checks still pending at the timeout -> 1, not 3" 1 "$RC"
+check_match "  ...reason names the failure and what is pending" "FAILED: test*review*" "$OUT"
 
 echo "=== merge conflict ==="
 scenario "$(pr OPEN CONFLICTING DIRTY)" -- NONE
@@ -244,10 +250,36 @@ check_eq "green at once but held until --min-wait-s -> 0" 0 "$RC"
 check_eq "  ...at the first poll at or past it (0s, 30s, 60s)" 3 "$POLLS"
 scenario "$OPEN_OK" -- "$(chk test:fail)"
 run 7 --min-wait-s 60 "${T[@]}"
-check_eq "a failure inside --min-wait-s still exits at once -> 1" "1 1" "$RC $POLLS"
+check_eq "a failure is held for --min-wait-s like green (bots still posting) -> 1" "1 3" "$RC $POLLS"
 scenario "$OPEN_OK" -- NONE
 run 7 --min-wait-s 90 "${T[@]}"
 check_eq "no checks: holds for the later of --grace-s and --min-wait-s" "4 4" "$RC $POLLS"
+scenario "$OPEN_OK" -- "$(chk test:pass)"
+run 7 --min-wait-s 60 --interval-s 30 --timeout-min 0 --grace-s 60
+check_eq "--min-wait-s past the timeout is clamped to the last poll -> 0" "0 1" "$RC $POLLS"
+scenario "$OPEN_OK" -- "$(chk test:pass)"
+run 7 --min-wait-s 300 --interval-s 45 --timeout-min 5 --grace-s 60
+check_eq "  ...including a last poll short of the timeout (45s interval: 0..270s)" "0 7" "$RC $POLLS"
+
+echo "=== the skills' exit tables match the script ==="
+has() {  # <desc> <grep args...>
+  local desc="$1"; shift
+  if grep -q "$@"; then
+    echo "PASS: $desc"; pass=$((pass + 1))
+  else
+    echo "FAIL: $desc"; fail=$((fail + 1))
+  fi
+}
+# The script's finish calls are the source of truth for code -> tag.
+PAIRS="$(grep -oE 'finish [0-9]+ "[A-Z_]+:' "$SCRIPT" | sed -E 's/finish ([0-9]+) "([A-Z_]+):/\1 \2/' | sort -u)"
+check_eq "seven distinct exit codes, one tag each" "7 7" \
+  "$(wc -l <<<"$PAIRS" | tr -d ' ') $(cut -d' ' -f1 <<<"$PAIRS" | sort -u | wc -l | tr -d ' ')"
+while read -r code tag; do
+  has "script header documents $code $tag" -E "^# +$code $tag( |\$)" "$SCRIPT"
+  for skill in pr-review pr-merge; do
+    has "$skill names exit $code \`$tag\`" -F "$code \`$tag\`" "$REPO_ROOT/skills/$skill/SKILL.md"
+  done
+done <<<"$PAIRS"
 
 echo ""
 echo "Results: $pass passed, $fail failed"

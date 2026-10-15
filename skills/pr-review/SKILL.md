@@ -101,15 +101,15 @@ Empty output = every root thread has a reply. Flatten pages with `--paginate --j
 caliper-wait-pr $PR_NUMBER --timeout-min <review_wait_minutes> --min-wait-s 60
 ```
 
-Minutes from `caliper-settings get review_wait_minutes`; give the Bash call a `timeout` a minute past the wait (default 2 min). `--min-wait-s 60` lets checks register after a fresh push; drop it for an untouched head. Only checks are awaited: `--require-check <name>` covers a bot check that registers late; when a bot with no check (e.g. `gemini-code-assist`) is active on the PR, set `--min-wait-s` to the whole window.
+Minutes from `caliper-settings get review_wait_minutes` (default 5). Give the Bash call a `timeout` a minute past the wait — over 9 min, use `run_in_background: true` instead (the tool caps at 10). `--min-wait-s 60` lets checks register after a fresh push; drop it for an untouched head. Only checks are awaited: `--require-check <name>` covers a bot check that registers late; when a bot with no check (e.g. `gemini-code-assist`) is active on the PR, set `--min-wait-s` to the whole window.
 
 | Exit | Then |
 |---|---|
-| 0 green · 4 no checks (mergeable) | Collect below |
-| 1 check failed | Failed checks are Actionable findings (`gh run view <run-id> --log-failed`); collect below |
-| 2 merge conflict | Step 3's rebase path, then rerun the wait |
-| 3 timed out | Collect what arrived; name the pending checks in Step 9 |
-| 5 merged · 6 closed | Stop and report |
+| 0 `GREEN` · 4 `NO_CHECKS` (mergeable) | Collect below |
+| 1 `FAILED` | Failed checks are Actionable findings (`gh run view <run-id> --log-failed`); collect below |
+| 2 `CONFLICT` | Step 3's rebase path, then rerun the wait |
+| 3 `TIMEOUT` | Collect what arrived; name the pending checks in Step 9 |
+| 5 `MERGED` · 6 `CLOSED` | Stop and report |
 
 **Collect from all three sources, dropping self-authored entries.** The Step 4 reviewer subagent runs under the same gh identity as the parent and posts to sources 2-3, so re-ingesting its own findings would double-count against the Findings table returned in Step 6. Capture the identity once, then filter:
 

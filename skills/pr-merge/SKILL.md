@@ -73,7 +73,7 @@ gh pr merge $PR_NUMBER --auto --$METHOD
 
 This is **non-blocking** — it returns once auto-merge is *enabled*, not once the PR merges. GitHub performs the merge whenever required checks pass (PR already mergeable → merges within seconds; checks pending → deferred until green). A non-zero exit means auto-merge couldn't attach (repo disallows it, or the PR is already in a clean immediately-mergeable state GitHub won't queue) — fall back to the direct merge below.
 
-**Fallback — direct merge.** When `allow_auto_merge` is `false` or `--auto` exits non-zero, gate on the checks first (`gh pr merge` errors while required checks pend): `caliper-wait-pr $PR_NUMBER --timeout-min <merge_wait_minutes>`. On exit 0 or 4, `gh pr merge $PR_NUMBER --$METHOD` (returns with the PR `MERGED`); on 2, the conflict row below; otherwise report the reason line and stop.
+**Fallback — direct merge.** When `allow_auto_merge` is `false` or `--auto` exits non-zero, gate on the checks first (`gh pr merge` errors while required checks pend): `caliper-wait-pr $PR_NUMBER --timeout-min <merge_wait_minutes>`. On exit 0 `GREEN` or 4 `NO_CHECKS`, `gh pr merge $PR_NUMBER --$METHOD` (returns with the PR `MERGED`); on 2, the conflict row below; otherwise report the reason line and stop.
 
 **Wait for the merge to land.** Unless `--no-wait` was passed — a hand-rolled state poll waits out the timeout on a conflict or failed check that blocks auto-merge:
 
@@ -81,15 +81,15 @@ This is **non-blocking** — it returns once auto-merge is *enabled*, not once t
 caliper-wait-pr $PR_NUMBER --merged --timeout-min <merge_wait_minutes>
 ```
 
-Minutes from `caliper-settings get merge_wait_minutes` (default 10) — not `review_wait_minutes`, which orchestrate overloads to `0` ("merge directly"). Near 10 min the wait outlasts the Bash tool's max `timeout`: use `run_in_background: true`.
+Minutes from `caliper-settings get merge_wait_minutes` (default 10) — not `review_wait_minutes`, which orchestrate overloads to `0` ("merge directly"). Give the Bash call a `timeout` a minute past the wait — over 9 min, use `run_in_background: true` instead (the tool caps at 10).
 
 | Exit | Then |
 |---|---|
-| 5 merged | Step 3 (direct merge returns this at once) |
-| 6 closed | Stop and report; no cleanup |
-| 2 merge conflict | Base moved: redo the pre-merge rebase, push, rerun Step 2 |
-| 1 check failed | Report the failed checks and PR URL; **skip Step 3** (a non-required failure may still auto-merge) |
-| 3 timed out · 4 no checks | Report the PR URL and that it merges when checks pass; **skip Step 3** |
+| 5 `MERGED` | Step 3 (direct merge returns this at once) |
+| 6 `CLOSED` | Stop and report; no cleanup |
+| 2 `CONFLICT` | Base moved: redo the pre-merge rebase, push, rerun Step 2 |
+| 1 `FAILED` | Report the failed checks and PR URL; **skip Step 3** (a non-required failure may still auto-merge) |
+| 3 `TIMEOUT` · 4 `NO_CHECKS` | Auto-merge hasn't fired. Report the reason line (what's pending, or that no check registered — a required review or untriggered required check is blocking) and the PR URL; **skip Step 3** |
 
 Skipping Step 3 is safe: a later `/pr-merge` sees `MERGED` and finishes cleanup (Step 3's per-branch gh-state gate makes re-runs safe).
 
