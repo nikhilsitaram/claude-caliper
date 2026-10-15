@@ -73,24 +73,25 @@ gh pr merge $PR_NUMBER --auto --$METHOD
 
 This is **non-blocking** — it returns once auto-merge is *enabled*, not once the PR merges. GitHub performs the merge whenever required checks pass (PR already mergeable → merges within seconds; checks pending → deferred until green). A non-zero exit means auto-merge couldn't attach (repo disallows it, or the PR is already in a clean immediately-mergeable state GitHub won't queue) — fall back to the direct merge below.
 
-**Fallback — direct merge (legacy behavior).** When `allow_auto_merge` is `false` or `--auto` exits non-zero:
+**Fallback — direct merge.** When `allow_auto_merge` is `false` or `--auto` exits non-zero, gate on the checks first (`gh pr merge` errors while required checks pend): `caliper-wait-pr $PR_NUMBER --timeout-min <merge_wait_minutes>`. On exit 0 or 4, `gh pr merge $PR_NUMBER --$METHOD` (returns with the PR `MERGED`); on 2, the conflict row below; otherwise report the reason line and stop.
+
+**Wait for the merge to land.** Unless `--no-wait` was passed — a hand-rolled state poll waits out the timeout on a conflict or failed check that blocks auto-merge:
 
 ```bash
-gh pr merge $PR_NUMBER --$METHOD
+caliper-wait-pr $PR_NUMBER --merged --timeout-min <merge_wait_minutes>
 ```
 
-This errors if required checks are still pending — the caller is responsible for having waited. It returns with the PR already `MERGED`.
+Minutes from `caliper-settings get merge_wait_minutes` (default 10) — not `review_wait_minutes`, which orchestrate overloads to `0` ("merge directly"). Near 10 min the wait outlasts the Bash tool's max `timeout`: use `run_in_background: true`.
 
-**Wait for the merge to land.** Unless `--no-wait` was passed, poll the PR's merge state until it flips — this replaces the old pre-merge `gh pr checks` poll:
+| Exit | Then |
+|---|---|
+| 5 merged | Step 3 (direct merge returns this at once) |
+| 6 closed | Stop and report; no cleanup |
+| 2 merge conflict | Base moved: redo the pre-merge rebase, push, rerun Step 2 |
+| 1 check failed | Report the failed checks and PR URL; **skip Step 3** (a non-required failure may still auto-merge) |
+| 3 timed out · 4 no checks | Report the PR URL and that it merges when checks pass; **skip Step 3** |
 
-```bash
-gh pr view $PR_NUMBER --json state -q .state   # poll until MERGED
-```
-
-Poll on a modest interval, timing out at `caliper-settings get merge_wait_minutes` (default 10) — a dedicated setting, not `review_wait_minutes` (which orchestrate overloads to `0` to mean "merge directly"; a `0` here would defer cleanup on every auto-merge repo):
-- `MERGED` → proceed to Step 3 cleanup. (Direct-merge fallback is already `MERGED`, so it returns immediately.)
-- `CLOSED` without merge → stop and report; do not clean up.
-- Still `OPEN` at timeout → auto-merge is enabled but CI is slow. Report the PR URL and that it will merge when checks pass, then **skip Step 3** — local cleanup needs the PR actually merged. A later `/pr-merge` sees the `MERGED` state and finishes cleanup (Step 3's per-branch gh-state gate makes re-runs safe).
+Skipping Step 3 is safe: a later `/pr-merge` sees `MERGED` and finishes cleanup (Step 3's per-branch gh-state gate makes re-runs safe).
 
 `--no-wait` enables auto-merge and exits after reporting, skipping Step 3.
 
@@ -167,7 +168,8 @@ Report: PR number/URL, merge status, cleanup status.
 | Skipping `ExitWorktree` when it's available | `cd` doesn't persist across Bash tool calls — only `ExitWorktree` resets CWD at the session level. Always try `ExitWorktree` first (bar nested phase worktrees); the fallbacks cover its refusal and no-op. |
 | Deleting branch before removing worktree | `delete-merged-branch` refuses (`SKIP`) a branch still checked out. Remove worktree first. |
 | Using `--delete-branch` on `gh pr merge` | Fails in worktree flows. Delete branch manually after. |
-| Treating `gh pr merge --auto` as blocking | It returns once auto-merge is *enabled*, not merged. Poll `gh pr view --json state` for `MERGED` before cleanup. |
+| Treating `gh pr merge --auto` as blocking | It returns once auto-merge is *enabled*, not merged. Wait with `caliper-wait-pr --merged` before cleanup. |
+| Polling for a bot comment naming HEAD | Bots may post nothing for a no-op push (e.g. rebase-only), so the wait never ends. Wait on check completion (`caliper-wait-pr`) instead. |
 
 ## Integration
 

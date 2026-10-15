@@ -48,7 +48,7 @@ If behind (non-zero exit): `git rebase origin/<BASE_BRANCH>`, then `git push -u 
 
 Use bare `git fetch origin` (no branch arg) so the remote-tracking ref `refs/remotes/origin/<BASE_BRANCH>` actually advances. `git fetch origin <BASE_BRANCH>` only updates `FETCH_HEAD`, leaving `origin/<BASE_BRANCH>` stale — which silently widens the reviewer's diff scope when other PRs merge during the session.
 
-If rebased, log it. If conflicts, stop and ask user. After force-push, only process comments posted *after* the push timestamp (or wait for fresh bot comments).
+If rebased, log it. If conflicts, stop and ask user. After force-push, only process comments posted *after* the push timestamp.
 
 ### Step 4: Dispatch Subagent in Background
 
@@ -95,13 +95,21 @@ Empty output = every root thread has a reply. Flatten pages with `--paginate --j
 
 ### Step 5: External Feedback
 
-**Wait for bots:**
-- `--automated-merge` from orchestrate: wait 90s, then poll every 30s.
-- User-selected automated (fix or merge): wait 60s warm-up, then poll every 60s.
-- Deliberate: no warm-up, poll every 60s.
-- Each poll queries `gh pr checks` AND all three feedback sources below (conversation comments, REST inline comments, reviews). Green checks alone don't mean bots are done: review bots like Gemini (`gemini-code-assist`) register no CI check and post no in-progress marker — their review simply appears as inline comments a few minutes after the PR opens. If the repository is known to use review bots (or any bot activity is detected on the PR), keep polling until the timeout elapses, treating it as ready sooner only once every known review bot has posted (a review, or an explicit skip/paused comment like CodeRabbit's integrate/* skip). If no review bots are used or active, proceed once standard CI checks complete.
-- Bot rate-limit warning = treat as ready.
-- Timeout: `caliper-settings get review_wait_minutes` (default: 5).
+**Wait for CI and bots** with the shared poller — hand-rolled loops are refused under worktree isolation and hang on states they miss (a conflicting PR never starts its checks):
+
+```bash
+caliper-wait-pr <PR_NUMBER> --timeout-min <review_wait_minutes> --min-wait-s 60
+```
+
+Minutes from `caliper-settings get review_wait_minutes`; set the Bash `timeout` above the wait (default 2 min). `--min-wait-s 60` lets checks register after a fresh push; drop it for an untouched head. Only checks are awaited: `--require-check <name>` covers a bot check that registers late; when a bot with no check (e.g. `gemini-code-assist`) is active on the PR, set `--min-wait-s` to the whole window.
+
+| Exit | Then |
+|---|---|
+| 0 green · 4 no checks (mergeable) | Collect below |
+| 1 check failed | Failed checks are Actionable findings (`gh run view <run-id> --log-failed`); collect below |
+| 2 merge conflict | Step 3's rebase path, then rerun the wait |
+| 3 timed out | Collect what arrived; name the pending checks in Step 9 |
+| 5 merged · 6 closed | Stop and report |
 
 **Collect from all three sources, dropping self-authored entries.** The Step 4 reviewer subagent runs under the same gh identity as the parent and posts to sources 2-3, so re-ingesting its own findings would double-count against the Findings table returned in Step 6. Capture the identity once, then filter:
 
@@ -179,6 +187,7 @@ Report PR URL and item counts. Automated-merge mode: invoke pr-merge. Automated-
 | Blindly implementing suggestions | Verify against codebase, push back on incorrect ones |
 | Skipping PR comment | Always post what was addressed |
 | Pushing between wave 1 and 2 | Wave 1 commits locally, wave 2 pushes |
+| Polling for a bot comment naming HEAD | Bots may post nothing for a no-op push (e.g. rebase-only), so the wait never ends. Wait on check completion (`caliper-wait-pr`) instead |
 
 ## Integration
 
