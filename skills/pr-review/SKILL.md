@@ -98,10 +98,10 @@ Empty output = every root thread has a reply. Flatten pages with `--paginate --j
 **Wait for CI and bots** with the shared poller — hand-rolled loops are refused under worktree isolation and hang on states they miss (a conflicting PR never starts its checks):
 
 ```bash
-caliper-wait-pr <PR_NUMBER> --timeout-min <review_wait_minutes> --min-wait-s 60
+caliper-wait-pr $PR_NUMBER --timeout-min <review_wait_minutes> --min-wait-s 60
 ```
 
-Minutes from `caliper-settings get review_wait_minutes`; set the Bash `timeout` above the wait (default 2 min). `--min-wait-s 60` lets checks register after a fresh push; drop it for an untouched head. Only checks are awaited: `--require-check <name>` covers a bot check that registers late; when a bot with no check (e.g. `gemini-code-assist`) is active on the PR, set `--min-wait-s` to the whole window.
+Minutes from `caliper-settings get review_wait_minutes`; give the Bash call a `timeout` a minute past the wait (default 2 min). `--min-wait-s 60` lets checks register after a fresh push; drop it for an untouched head. Only checks are awaited: `--require-check <name>` covers a bot check that registers late; when a bot with no check (e.g. `gemini-code-assist`) is active on the PR, set `--min-wait-s` to the whole window.
 
 | Exit | Then |
 |---|---|
