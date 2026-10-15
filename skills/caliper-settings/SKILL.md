@@ -46,6 +46,7 @@ Removes a user override so the setting falls back to its shipped default. With n
 | `implementation_reviewer_model` | enum | `opus` | orchestrate, implementation-review |
 | `pr_reviewer_model` | enum | `opus` | pr-review |
 | `review_wait_minutes` | int | `5` | orchestrate, pr-review |
+| `merge_wait_minutes` | int | `10` | pr-merge |
 
 ## How Settings Are Used
 
