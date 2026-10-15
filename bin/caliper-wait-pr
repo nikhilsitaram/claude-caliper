@@ -15,13 +15,16 @@ set -euo pipefail
 #
 # By default it returns once every check has concluded. --merged keeps waiting
 # past green checks until GitHub merges or closes the PR (pr-merge's wait after
-# `gh pr merge --auto`). --require-check NAME counts NAME as pending until it
-# registers, for a bot whose check appears late. --min-wait-s holds 0, 1 and 4
-# until that many seconds in (clamped to the last poll), so checks still
-# registering after a fresh push aren't missed. A failure likewise waits for
-# the pending checks, since pr-review reads bot output once the wait ends.
-# Time is counted in slept intervals: polls run at 0, interval, 2*interval, …
-# up to the timeout.
+# `gh pr merge --auto`), and past a failure GitHub reports as UNSTABLE (only
+# non-required checks failed, so auto-merge still fires). --require-check NAME
+# counts NAME as pending until it registers, for a bot whose check appears
+# late. --min-wait-s holds 0, 1 and 4 until that many seconds in (clamped to
+# the last poll), so checks still registering after a fresh push aren't
+# missed. A failure likewise waits for the pending checks, since pr-review
+# reads bot output once the wait ends. --grace-s is not clamped: a timeout
+# shorter than it ends in 3, not 4, since it is too soon to say no check will
+# come — and a 4 lets pr-merge merge without CI. Time is counted in slept
+# intervals: polls run at 0, interval, 2*interval, … up to the timeout.
 #
 # Progress goes to stderr each poll; one reason line goes to stdout. Exit:
 #   0 GREEN      every check concluded, none failed, PR mergeable
@@ -118,13 +121,16 @@ poll_once() {
     '[(.[] | select(.bucket == "pending") | .name), (($req - map(.name))[] | "\(.) (not registered)")]' <<<"$checks")"
   npending="$(jq 'length' <<<"$pending")"
 
-  if (( n == 0 )); then
+  if (( npending > 0 )); then
+    progress "$npending pending: $(jq -r 'join(", ")' <<<"$pending")${FAILED:+; failed: $FAILED}"
+  elif (( n == 0 )); then
     if [[ "$mergeable" == MERGEABLE ]] && (( t >= HOLD )); then
       finish 4 "NO_CHECKS: no checks registered on PR $PR after ${t}s, and it is mergeable — no CI, a paths filter, or a workflow that skips this base branch"
     fi
     progress "no checks registered yet (mergeable=$mergeable)"
-  elif (( npending > 0 )); then
-    progress "$npending pending: $(jq -r 'join(", ")' <<<"$pending")${FAILED:+; failed: $FAILED}"
+  elif [[ -n "$FAILED" && "$MERGED_MODE" == true && ( "$merge_status" == UNSTABLE || "$merge_status" == UNKNOWN ) ]]; then
+    # UNSTABLE: only non-required checks failed, so auto-merge still fires.
+    progress "all $n checks concluded, failed: $FAILED, but mergeStateStatus=$merge_status — waiting for auto-merge"
   elif [[ -n "$FAILED" ]]; then
     (( t < MIN_WAIT )) || finish 1 "FAILED: $FAILED"
     progress "all $n checks concluded, failed: $FAILED — holding until --min-wait-s ${MIN_WAIT}s"

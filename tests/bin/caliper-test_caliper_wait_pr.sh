@@ -231,6 +231,16 @@ check_eq "--merged with a failed check -> 1" 1 "$RC"
 scenario "$(pr OPEN MERGEABLE BLOCKED)" -- "$(chk test:pass)"
 run 7 --merged --interval-s 30 --timeout-min 1 --grace-s 60
 check_eq "--merged, never merges -> 3" 3 "$RC"
+scenario "$(pr OPEN MERGEABLE UNSTABLE)" "$(pr MERGED UNKNOWN UNKNOWN)" -- "$(chk test:pass review:fail)"
+run 7 --merged "${T[@]}"
+check_eq "--merged, only a non-required check failed (UNSTABLE) -> waits for the merge -> 5" "5 2" "$RC $POLLS"
+check_match "  ...progress says auto-merge can still fire" "*failed: review*UNSTABLE*" "$ERR"
+scenario "$(pr OPEN MERGEABLE UNSTABLE)" -- "$(chk test:pass review:fail)"
+run 7 --merged --interval-s 30 --timeout-min 1 --grace-s 60
+check_eq "  ...and never merges -> 1 at the timeout" "1 3" "$RC $POLLS"
+scenario "$(pr OPEN MERGEABLE UNSTABLE)" -- "$(chk test:pass review:fail)"
+run 7 "${T[@]}"
+check_eq "without --merged, UNSTABLE is still a failure -> 1" "1 1" "$RC $POLLS"
 
 echo "=== --require-check ==="
 scenario "$OPEN_OK" -- "$(chk test:pass)" "$(chk test:pass CodeRabbit:pending)" "$(chk test:pass CodeRabbit:pass)"
@@ -242,6 +252,10 @@ scenario "$OPEN_OK" -- "$(chk test:pass)"
 run 7 --require-check CodeRabbit --require-check "Claude Review" --interval-s 30 --timeout-min 1 --grace-s 60
 check_eq "required checks that never register -> 3" 3 "$RC"
 check_match "  ...reason names both" "TIMEOUT*CodeRabbit*Claude Review*" "$OUT"
+scenario "$OPEN_OK" -- NONE NONE NONE NONE "$(chk CodeRabbit:pass)"
+run 7 --require-check CodeRabbit "${T[@]}"
+check_eq "required check is the only one and registers past --grace-s -> 0, not 4" "0 5" "$RC $POLLS"
+check_match "  ...pending while nothing has registered" "*1 pending: CodeRabbit (not registered)*" "$ERR"
 
 echo "=== --min-wait-s ==="
 scenario "$OPEN_OK" -- "$(chk test:pass)"

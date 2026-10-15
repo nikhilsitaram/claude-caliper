@@ -73,7 +73,7 @@ gh pr merge $PR_NUMBER --auto --$METHOD
 
 This is **non-blocking** — it returns once auto-merge is *enabled*, not once the PR merges. GitHub performs the merge whenever required checks pass (PR already mergeable → merges within seconds; checks pending → deferred until green). A non-zero exit means auto-merge couldn't attach (repo disallows it, or the PR is already in a clean immediately-mergeable state GitHub won't queue) — fall back to the direct merge below.
 
-**Fallback — direct merge.** When `allow_auto_merge` is `false` or `--auto` exits non-zero, gate on the checks first (`gh pr merge` errors while required checks pend): `caliper-wait-pr $PR_NUMBER --timeout-min <merge_wait_minutes>`. On exit 0 `GREEN` or 4 `NO_CHECKS`, `gh pr merge $PR_NUMBER --$METHOD` (returns with the PR `MERGED`); on 2, the conflict row below; otherwise report the reason line and stop.
+**Fallback — direct merge.** When `allow_auto_merge` is `false` or `--auto` exits non-zero, gate on the checks first (`gh pr merge` errors while required checks pend): `caliper-wait-pr $PR_NUMBER --timeout-min <merge_wait_minutes>` — `--timeout-min 0` (one poll) under `--no-wait`. On exit 0 `GREEN` or 4 `NO_CHECKS`, `gh pr merge $PR_NUMBER --$METHOD` (returns with the PR `MERGED`); on 2, 5 or 6, the matching row below; otherwise report the reason line and stop.
 
 **Wait for the merge to land.** Unless `--no-wait` was passed — a hand-rolled state poll waits out the timeout on a conflict or failed check that blocks auto-merge:
 
@@ -81,7 +81,7 @@ This is **non-blocking** — it returns once auto-merge is *enabled*, not once t
 caliper-wait-pr $PR_NUMBER --merged --timeout-min <merge_wait_minutes>
 ```
 
-Minutes from `caliper-settings get merge_wait_minutes` (default 10) — not `review_wait_minutes`, which orchestrate overloads to `0` ("merge directly"). Give the Bash call a `timeout` a minute past the wait — over 9 min, use `run_in_background: true` instead (the tool caps at 10).
+Minutes from `caliper-settings get merge_wait_minutes` (default 10) — not `review_wait_minutes`, which orchestrate overloads to `0` ("merge directly"). Give either wait's Bash call a `timeout` a minute past the wait — over 9 min, use `run_in_background: true` instead (the tool caps at 10).
 
 | Exit | Then |
 |---|---|
