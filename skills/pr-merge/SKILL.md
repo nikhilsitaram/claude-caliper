@@ -81,7 +81,7 @@ This is **non-blocking** — it returns once auto-merge is *enabled*, not once t
 caliper-wait-pr $PR_NUMBER --merged --timeout-min <merge_wait_minutes>
 ```
 
-Minutes from `caliper-settings get merge_wait_minutes` (default 10) — not `review_wait_minutes`, which orchestrate overloads to `0` ("merge directly"). Give either wait's Bash call a `timeout` a minute past the wait — over 9 min, use `run_in_background: true` instead (the tool caps at 10).
+Minutes from `caliper-settings get merge_wait_minutes` (default 10) — not `review_wait_minutes`, which orchestrate overloads to `0` ("merge directly"). Run either wait with `run_in_background: true`: it's minutes of idle polling that would pin a foreground call (capped at 10 min), and the harness re-invokes you when it exits — don't poll its output. Its last line opens with the state named in the table. The `--timeout-min 0` single poll can stay in the foreground.
 
 | Exit | Then |
 |---|---|

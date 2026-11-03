@@ -101,7 +101,7 @@ Empty output = every root thread has a reply. Flatten pages with `--paginate --j
 caliper-wait-pr $PR_NUMBER --timeout-min <review_wait_minutes> --min-wait-s 60
 ```
 
-Minutes from `caliper-settings get review_wait_minutes` (default 5). Give the Bash call a `timeout` a minute past the wait — over 9 min, use `run_in_background: true` instead (the tool caps at 10). `--min-wait-s 60` lets checks register after a fresh push; drop it for an untouched head. Only checks are awaited: `--require-check <name>` covers a bot check that registers late; when a bot with no check (e.g. `gemini-code-assist`) is active on the PR, set `--min-wait-s` to the whole window.
+Minutes from `caliper-settings get review_wait_minutes` (default 5). Run it with `run_in_background: true`: it's minutes of idle polling that would pin a foreground call (capped at 10 min), and the harness re-invokes you when it exits — don't poll its output. Its last line opens with the state named in the table. If the Step 4 subagent finishes first, hold its result for Step 6 and keep waiting. `--min-wait-s 60` lets checks register after a fresh push; drop it for an untouched head. Only checks are awaited: `--require-check <name>` covers a bot check that registers late; when a bot with no check (e.g. `gemini-code-assist`) is active on the PR, set `--min-wait-s` to the whole window.
 
 | Exit | Then |
 |---|---|
