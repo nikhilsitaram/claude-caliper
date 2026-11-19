@@ -130,7 +130,7 @@ No output: already gone. Otherwise remove the printed path.
 - Nested phase worktree (`…/<feature>/.claude/worktrees/phase-X`): skip `ExitWorktree` (the session belongs to the integration worktree, which orchestrate keeps using): `cd` there, remove `$WORKTREE_PATH`, and skip the `git pull --rebase` below — orchestrate fast-forwards integrate in 7d.
 - Otherwise `ExitWorktree` with `action: "remove"`, `discard_changes: true` (the PR merged, so local commits are safe to discard).
   - Refused as not owner (design/implement enter worktrees by `path`): `ExitWorktree` with `action: "keep"` lifts isolation and returns to the main checkout; then remove `$WORKTREE_PATH`.
-  - No-op (no worktree session): `cd "$MAIN_REPO" && git worktree remove "$WORKTREE_PATH"`, then prefix later commands with `cd "$MAIN_REPO" &&`.
+  - No-op (no worktree session): move the session off the worktree *before* deleting it. Run `cd <MAIN_REPO> && pwd` as its own Bash call (no git in it), with literal paths. A successful `cd` to a directory inside the session's working directories carries over to the next call; with no worktree session the main checkout is one. Continue only if that call succeeded and the next call's cwd is `<MAIN_REPO>`: then run `git worktree remove <WORKTREE_PATH>`. If the `cd` failed or didn't stick, stop the cleanup chain and report both paths. Removing the directory the session is sitting in leaves every later call in a deleted cwd, and safety hooks then refuse all tools until a restart. Don't swap in `git -C <MAIN_REPO> worktree remove …` to avoid the `cd`: that deletes the worktree while the session is still inside it. A separate `cd` call also satisfies setups that forbid `cd … && git …` in one command.
 
 **Integration branch** (`IS_INTEGRATION=true`):
 1. Remove remaining phase worktrees (the lookup above, per `phase-X`) — nested ones sit inside the integration worktree, so they go first
@@ -165,7 +165,7 @@ Report: PR number/URL, merge status, cleanup status.
 
 | Mistake | Why |
 |---------|-----|
-| Skipping `ExitWorktree` when it's available | `cd` doesn't persist across Bash tool calls — only `ExitWorktree` resets CWD at the session level. Always try `ExitWorktree` first (bar nested phase worktrees); the fallbacks cover its refusal and no-op. |
+| Skipping `ExitWorktree` when it's available | Inside an `EnterWorktree` session, `cd` out of the worktree doesn't carry over to later Bash calls — only `ExitWorktree` resets CWD at the session level. Always try `ExitWorktree` first (bar nested phase worktrees); the fallbacks cover its refusal and no-op. |
 | Deleting branch before removing worktree | `delete-merged-branch` refuses (`SKIP`) a branch still checked out. Remove worktree first. |
 | Using `--delete-branch` on `gh pr merge` | Fails in worktree flows. Delete branch manually after. |
 | Treating `gh pr merge --auto` as blocking | It returns once auto-merge is *enabled*, not merged. Wait with `caliper-wait-pr --merged` before cleanup. |
