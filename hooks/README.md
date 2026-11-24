@@ -22,7 +22,7 @@ caliper ships no Bash allow- or deny-list. Both used to exist and both were reti
 
 Use Claude Code's own mechanisms instead — they parse commands with a real shell parser:
 
-- **Auto mode** (`permissions.defaultMode: "auto"`) — the classifier approves routine commands, including in background subagents. Recommended for the large tier: background subagents (orchestrate's task implementers, the plan drafter) can't answer a prompt, so in default mode any call that would prompt is denied. Rules can cover the plan drafter: it moves its draft into `.claude/claude-caliper/` with `caliper-draft` (below), and its Writes to `.caliper-draft/` fall under acceptEdits when the session runs in it (subagents inherit the session's permission mode). They can't cover task implementers, which run whatever commands their task's tests need.
+- **Auto mode** (`permissions.defaultMode: "auto"`) — the classifier approves routine commands, including in background subagents. Recommended for the large tier: background subagents (orchestrate's task implementers, the plan drafter) can't answer a prompt, so in default mode any call that would prompt is denied. A rule can cover the plan drafter's `caliper-draft` call (below), which moves its draft into `.claude/claude-caliper/`, but its Writes to `.caliper-draft/` pass only if the user has put the session in acceptEdits (subagents inherit the session's permission mode). Rules can't cover task implementers, which run whatever commands their task's tests need.
 - **Native allow rules** to cut prompts in default-mode sessions. Rules covering caliper's own tooling:
 
   ```json

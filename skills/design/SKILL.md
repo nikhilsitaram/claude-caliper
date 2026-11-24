@@ -72,6 +72,8 @@ Complete in order:
     - **Needs changes**
 
     If "Needs changes" on Q3, return to step 5.
+
+    Approval leaves the permission mode alone. On the Large tier, background subagents (plan-drafter, task implementers) can't answer a prompt, so in a default-mode session their would-be prompts are denied: suggest the user switch to auto mode, or at least acceptEdits (shift+tab), before routing.
 8. **Route by tier:**
 
    - **Small:** No design doc, no design-review dispatch. Invoke the `implement` skill directly in this session, passing `$WORKTREE` and the mapped workflow value (see Route Workflow below). The design already presented and approved in step 5/7 stands in for `implement`'s own compressed design gate.
