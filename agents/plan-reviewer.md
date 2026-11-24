@@ -39,6 +39,7 @@ dependencies claim? Are there implicit dependencies not declared in depends_on? 
 - Flag: A2 depends_on A1 but `intent` doesn't use any A1 output (over-specified dependency)
 - Flag: A2's `intent` imports X but no depends_on declaration and X not in codebase (under-specified)
 - Flag: B1 consumes output from Phase A but has no handoff note (plan.json `handoffs`)
+- Flag: a phase whose tasks rely on another phase's code (a module, schema or config it builds on) without that phase in its `depends_on`, directly or transitively. Phase `depends_on` decides scheduling: phases that don't depend on each other run in parallel, each from an integration tip lacking the other's work. `--schema` only catches the case where a task-level dependency is declared.
 
 ### 2. Artifact Consistency
 **LLM reviewer checks:** Extract every file path, function name, and variable across all task

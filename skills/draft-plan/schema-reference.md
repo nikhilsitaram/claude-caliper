@@ -97,10 +97,11 @@ There is exactly one `completion.md` per phase — the point where the orchestra
 - `phases[].letter` (string, required): Single uppercase letter (A, B, C). Phases must appear in alphabetical order.
 - `phases[].name` (string, required).
 - `phases[].status` (string, required): `Not Started` | `In Progress` | `Complete (YYYY-MM-DD)`.
-- `phases[].depends_on` (array, required): Phase letters this phase depends on. Each must reference an earlier phase.
+- `phases[].depends_on` (array, required): Phase letters this phase depends on. Each must reference an earlier phase. This drives scheduling: orchestrate starts a phase once every phase listed here has merged, so phases that don't depend on each other run in parallel. List only the phases whose merged code this one needs (transitively).
 - `phases[].rationale` (string, required): Why this phase is a boundary.
 - `phases[].success_criteria` (array, optional): Same shape as plan-level.
 - `phases[].base_sha` (string, managed by CLI): The commit this phase's review range starts from. Same rules as plan-level `base_sha`.
+- `phases[].merged` (boolean, managed by CLI): Set by `--mark-merged` once the phase PR lands in the integration branch. Only valid on a Complete phase; `--ready-phases` keys on it.
 
 ### Task level
 
@@ -108,7 +109,7 @@ There is exactly one `completion.md` per phase — the point where the orchestra
 - `phases[].tasks[].name` (string, required).
 - `phases[].tasks[].status` (string, required): `pending` | `in_progress` | `complete` | `skipped`.
 - `phases[].tasks[].intent` (string, required): 2–4 sentences of *what* the task builds and *why*. This replaces per-task prose entirely. It must let a fresh Claude — reading the codebase directly at full context — execute the task unambiguously: which component, what behavior, how it fits the phase. It carries intent, never pasted implementation code.
-- `phases[].tasks[].depends_on` (array of strings): Task IDs this task consumes output from. Must reference same or prior phase only.
+- `phases[].tasks[].depends_on` (array of strings): Task IDs this task consumes output from. Must reference the same phase, or a phase in this phase's (transitive) `depends_on`.
 - `phases[].tasks[].gated_on` (array of non-empty strings, optional): External inputs the task can't start without — another team's PR, reviewer-supplied data, an access grant — one description each. While any gate is open, `--check-deps` reports the task blocked, `--ready` withholds it, and `--update-status` refuses `in_progress`/`done`. The user clears gates once the input exists (`validate-plan --clear-gate plan.json --task A5`); the orchestrator can't verify outside inputs itself. Use this instead of encoding the gate in `name` or `intent`, which orchestrate can't act on.
 - `phases[].tasks[].complexity` (string, required): `low` | `medium` | `high`.
   - `low`: mechanical/rote — rename, config update, import addition, single-line edits
@@ -147,6 +148,9 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 | `--add-handoff plan.json --task B1 --from A2 --note "..."` | Phase wrap-up (cross-phase deps) | Record a handoff as structured data + regenerate plan.md |
 | `--check-handoffs plan.json --phase A` | Phase wrap-up | Verify cross-phase deps into later phases have recorded handoffs |
 | `--ready plan.json [--phase A]` | Dispatch loop | Print dispatchable task IDs (pending, deps complete/skipped, no open gate), one per line; gated tasks go to stderr. Exit 0 even when empty |
+| `--ready-phases plan.json` | Orchestrate phase loop | Print phases to work on now (not Complete, every `depends_on` phase merged), one per line. Exit 0 even when empty |
+| `--mark-merged plan.json --phase A` | After a phase PR merges | Record `merged: true` on a Complete phase + regenerate plan.md |
+| `--check-merge-order plan.json --phase C` | Before opening a phase PR | Exit 1 naming any earlier phase not yet merged (phase PRs merge in letter order) |
 | `--check-deps plan.json --task A2` | Diagnosing one task | Exit 1 listing every unmet dependency and open gate |
 | `--clear-gate plan.json --task A5` | User confirms a gated input exists | Remove the task's `gated_on` + regenerate plan.md |
 | `--set-base plan.json --plan \| --phase A --sha HEAD [--if-unset]` | Orchestrate setup / phase start | Resolve the rev in the current directory, store it as `base_sha`, and print the stored base. First write wins: an identical repeat is a no-op, and a different SHA is refused (`base_sha_conflict`) — or, with `--if-unset`, the recorded base is kept and printed |
@@ -159,9 +163,11 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 - `intent` present and non-empty for every task; `avoid` present as an array of `{rule, why}` with both non-empty.
 - `run` strings in `success_criteria` are non-empty; each criterion has `expect_exit` or `expect_output`.
 - `depends_on` references (task and phase) point to the same or a prior scope; no dependency cycles.
+- A cross-phase task dependency is covered by its phase's (transitive) `depends_on` (`phase_dependency_missing`). Two phases that may run in parallel sharing a file prints `WARNING: sibling_fileset_overlap` (non-fatal).
 - Task IDs unique with phase-matching prefixes; phase letters unique and alphabetically ordered.
 - No duplicate `create` paths across tasks; no file shared by two same-phase tasks unless a `depends_on` path orders them.
 - Plan- and phase-level `base_sha`, when present, is a full commit SHA.
+- Phase `merged`, when present, is a boolean and sits only on a Complete phase.
 
 ### Output format
 
@@ -171,7 +177,7 @@ This appends `{from: "A2", note: "..."}` to task B1's `handoffs` array and re-re
 ## Status Lifecycle
 
 - **Plan:** `Not Yet Started` → `In Development` → `Complete`. A plan can't be `Complete` while any phase is incomplete or a required review gate is unmet; a phase can't advance while the plan is `Not Yet Started`.
-- **Phase:** `Not Started` → `In Progress` → `Complete (YYYY-MM-DD)`. Marking a phase complete requires all its tasks `complete`/`skipped` and a passing `impl-review` record for `phase-{letter}`.
+- **Phase:** `Not Started` → `In Progress` → `Complete (YYYY-MM-DD)`. Moving to `In Progress` requires every `depends_on` phase to be `merged`. Marking a phase complete requires all its tasks `complete`/`skipped` and a passing `impl-review` record for `phase-{letter}`. Once its PR merges, `--mark-merged` sets `merged: true`, and the phase can't leave `Complete` after that.
 - **Task:** `pending` → `in_progress` → `complete` (or `skipped`). A task can't advance while its parent phase is `Not Started`, any dependency is still `pending`/`in_progress`, or it has an open `gated_on`. A resumed orchestrate run moves an `in_progress` task whose implementer left nothing back to `pending`.
 
 Only `validate-plan` edits `plan.json` — no LLM hand-edits the manifest. Every status change regenerates plan.md, so progress is visible in real time.

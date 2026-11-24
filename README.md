@@ -154,7 +154,7 @@ These skills chain automatically. You trigger the first one by describing what t
 | **Fast path** (small/medium) | [implement](skills/implement/) | Inline RED-GREEN-REFACTOR in the current session — no plan.json, no task files, no orchestration; frequent commits, then hands off to one review |
 | **Planning** (large) | [draft-plan](skills/draft-plan/) | Structured `plan.json` manifest with per-task intent, exact file paths, verification commands, and `avoid` rules — the only per-task artifact (no per-task `.md` files) |
 | **Plan Gate** (large) | [plan-review](skills/plan-review/) | Catches vague intent, missing file paths, design-plan drift, the "Different Claude Test" |
-| **Execution** (large) | [orchestrate](skills/orchestrate/) | Dispatches each task as a parallel subagent with worktree isolation (parallel within a phase, phases sequential) |
+| **Execution** (large) | [orchestrate](skills/orchestrate/) | Dispatches each task as a parallel subagent with worktree isolation (parallel within a phase; a phase starts once the phases it depends on have merged) |
 | **Review Gate** | [implementation-review](skills/implementation-review/) | The single independent fresh-eyes review over the integrated diff — one holistic pass (per phase for large plans) |
 | **Create PR** | [pr-create](skills/pr-create/) | Commits, rebases, tests, pushes, opens PR with structured summary |
 | **Review PR** | [pr-review](skills/pr-review/) | PR review before reading external feedback, addresses comments, posts assessment |
@@ -351,16 +351,19 @@ Before an LLM reviewer ever sees the plan, `validate-plan --schema` runs structu
 - **Schema version gate** — a schema-1 plan is rejected immediately with a message naming the change, rather than drowning in unrelated field errors mid-run
 - All required fields present at every level, including each task's `intent` and `avoid` (an array of `{rule, why}` objects)
 - Phase dependency graph is a valid DAG (BFS cycle detection)
-- Task dependencies only reference same or earlier phases
+- Task dependencies reference the same phase, or a phase in this phase's (transitive) `depends_on`. Phases that don't depend on each other run in parallel, so a cross-phase dependency they don't cover fails as `phase_dependency_missing`
+- **Sibling overlap warning** — two phases that may run in parallel touching the same file print a non-fatal `sibling_fileset_overlap` warning, since that predicts a conflict when the later one merges
 - No duplicate task IDs or `create` paths across the entire plan
 - **File-set isolation** — no two tasks in the same phase share any file path across `create`/`modify`/`test`, unless a `depends_on` path orders them
 - **Task ID prefix matches phase** — task A1 must be in Phase A
 - **Phase letters are alphabetically ordered** — A before B before C
 - **Status consistency** — phase can't be "Complete" if any task is still pending
 - **Recorded bases are full SHAs** — a plan- or phase-level `base_sha` (written by `--set-base`) must be a full commit SHA, never a branch name or abbreviation
+- **Merge markers sit on Complete phases** — a phase's `merged` (written by `--mark-merged`) must be a boolean, and only on a Complete phase
 
 Additional runtime gates:
 - `--ready [--phase X]` lists the dispatchable tasks (all `depends_on` complete, no open `gated_on`); `--check-deps --task <ID>` explains why one task is blocked
+- `--ready-phases` lists the phases to work on now (not Complete, every `depends_on` phase merged). `--mark-merged --phase X` records a phase PR's merge; `--check-merge-order --phase X` holds a phase PR until every earlier phase has merged. Starting a phase whose dependencies haven't merged is refused
 - `gated_on` marks tasks waiting on outside input (another team's PR, an access grant); orchestrate asks the user and `--clear-gate` releases them
 - `--set-base` records each review range's starting commit once (plan and phase level), so a fresh orchestrate run can resume a stopped phase without dropping already-merged work
 - `--check-handoffs` / `--add-handoff` record and verify cross-phase handoff notes directly in `plan.json`
@@ -397,7 +400,7 @@ Lead (orchestrator) ──dispatches──▶ Task Implementer Subagents (1 per 
                     ──dispatches──▶ Implementation Reviewer (1 per phase, over the merged diff)
 ```
 
-- **Phases execute sequentially.** Phase B waits until Phase A is fully merged, so it sees Phase A's code.
+- **Phases start when their dependencies merge.** A phase waits until every phase in its `depends_on` is merged, so it sees their code; phases that don't depend on each other run side by side, and their PRs merge in letter order.
 - **Tasks within a phase execute in parallel.** Each task gets its own subagent with an auto-provisioned git worktree. File-set isolation (no two tasks in the same phase touch the same files unless `depends_on` orders them) eliminates merge conflicts.
 - **One review per phase.** After a phase's tasks merge, a single implementation-review subagent reads the integrated diff — tasks are not reviewed individually.
 
@@ -411,7 +414,7 @@ Dispatch → Implement (TDD) → Merge task branch → [phase complete] → Impl
 2. It implements the task (RED-GREEN-REFACTOR), writes completion notes, marks the task complete
 3. The lead merges the task branch into the phase branch
 4. Once every task in the phase is merged, the lead dispatches one implementation-review over the phase diff; findings are fixed inline (a two-pass review cap keeps this bounded — one discovery pass, at most one delta pass)
-5. Cross-phase handoffs are recorded in `plan.json` via `validate-plan --add-handoff` and surfaced to the next phase
+5. Cross-phase handoffs are recorded in `plan.json` via `validate-plan --add-handoff` and surfaced to the phases that depend on it
 
 ### Dependency Gate
 

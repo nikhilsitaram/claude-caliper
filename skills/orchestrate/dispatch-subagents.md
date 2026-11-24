@@ -10,7 +10,7 @@ List the dispatchable tasks: `validate-plan --ready "$PLAN_JSON" --phase {LETTER
 git rev-parse --path-format=absolute --show-toplevel --git-dir --git-common-dir
 ```
 
-Line 1 is `PARENT_WORKTREE`. If lines 2 and 3 are equal, the CWD is the main repo — stop: dispatching from there creates sibling task worktrees that trigger silent permission denials in background subagents; `cd` into the feature or phase worktree first. Otherwise, with that literal:
+Line 1 is `PARENT_WORKTREE`. If lines 2 and 3 are equal, the CWD is the main repo — stop: dispatching from there creates sibling task worktrees that trigger silent permission denials in background subagents; `cd` into the feature or phase worktree first. In a multi-phase plan, line 1 must end in `phase-{letter_lower}` for the task's own phase; with several phases active, `cd` into the right one first. Otherwise, with that literal:
 
 ```bash
 git worktree add <PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
@@ -120,7 +120,7 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
 1. Validate criteria: `validate-plan --criteria "$PLAN_JSON" --task {TASK_ID} --cwd "$TASK_WORKTREE"` — criteria `run` commands are repo-relative and the task branch isn't merged yet, so they must run against the task worktree; `--cwd` runs them there without moving your shell. A failed criterion means the task is not done; send it back to the implementer instead of advancing status
 2. Mark task complete: `validate-plan --update-status "$PLAN_JSON" --task {TASK_ID} --status done` — `done` is stored as `complete`; spell it `done` because worktree-isolated sessions refuse any command containing a bare `complete` word (read as the shell builtin)
 3. Merge and clean up the agent's worktree:
-   - Guard before merge: `git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD` — if it prints `integrate/*`, stop: task branches must merge into the phase branch; integration happens only in Phase Wrap-Up step 7. This catches state drift from the wrong-worktree recovery path where the phase branch was reset to integration HEAD.
+   - Guard before merge: `git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD` — in a multi-phase plan it must print `phase-{letter_lower}`, the task's own phase. On `integrate/*`, stop: task branches merge into the phase branch, and integration happens only in Phase Wrap-Up step 7 (this catches drift from the wrong-worktree recovery path). On another phase's branch, the CWD belongs to a sibling phase (**See:** `./parallel-phases.md`): `cd` into this task's phase worktree, re-derive the paths, and retry.
    - Merge: `git -C "$PARENT_WORKTREE" merge {TASK_ID_LOWER}` (task branch into the phase branch, never directly into integration)
    - Clean up: `clear-worktree-scratch "$TASK_WORKTREE"` (persists the task-implementer's `memory: project` writes to `$MAIN_ROOT` — belt-and-suspenders with the `SubagentStop` hook — then deletes the seeded memory, which in repos that don't ignore `.claude/` would block the remove), then `git worktree remove "$TASK_WORKTREE"` then `git branch -d {TASK_ID_LOWER}`. If the clear fails, stop and surface the path: its memory may be unsynced, and in repos that ignore `.claude/` the remove would still delete it
    - Reset CWD after removal: `cd "$PARENT_WORKTREE" && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted. Return to the parent (phase) worktree, not the multi-phase feature/integration worktree: the next dispatch derives `PARENT_WORKTREE` from CWD
