@@ -166,6 +166,7 @@ Report: PR number/URL, merge status, cleanup status.
 | Mistake | Why |
 |---------|-----|
 | Skipping `ExitWorktree` when it's available | Inside an `EnterWorktree` session, `cd` out of the worktree doesn't carry over to later Bash calls — only `ExitWorktree` resets CWD at the session level. Always try `ExitWorktree` first (bar nested phase worktrees); the fallbacks cover its refusal and no-op. |
+| Removing the worktree the session stands in | Leave in a standalone call first (`ExitWorktree`, or `cd` alone with nothing chained), then remove. A `cd` chained into the remove moves only the shell, so the session's cwd is deleted and every later tool call is refused until a restart. That includes the merge report, the branch delete, and memory writes. The `pretooluse-guard-worktree-remove` hook denies these removals. |
 | Deleting branch before removing worktree | `delete-merged-branch` refuses (`SKIP`) a branch still checked out. Remove worktree first. |
 | Using `--delete-branch` on `gh pr merge` | Fails in worktree flows. Delete branch manually after. |
 | Treating `gh pr merge --auto` as blocking | It returns once auto-merge is *enabled*, not merged. Wait with `caliper-wait-pr --merged` before cleanup. |

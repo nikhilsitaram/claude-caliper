@@ -65,7 +65,10 @@ everything the sibling needs:
 - **Constraints** — repo conventions, files to touch/avoid, tests to run.
 - **Done-criteria** — how it knows it's finished.
 - **Reply when done** — ask it to message back the session that sent this brief
-  (it has your address from the message's sender).
+  (it has your address from the message's sender). If its work ends in worktree
+  cleanup, ask for the report *before* the cleanup, and for it to leave the
+  worktree in a separate call before removing it. A pane that deletes its own cwd
+  is refused every later tool call, so a report sent after cleanup is lost.
 
 Batch all of that into that single message. Rapid bursts to one inbox get
 refused at the sender, so don't dribble the brief across several sends.
