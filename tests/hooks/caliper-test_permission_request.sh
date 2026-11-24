@@ -43,10 +43,11 @@ assert_falls_through() {
 
 SID="11111111-2222-3333-4444-555555555555"
 
-# Run the hook for an Edit/Write of $2 from session cwd $1, as session $3
-# (default $SID).
+# Run the hook for an Edit/Write of $2 from session cwd $1. The payload carries
+# $SID as session_id, as the harness's does, so Test 1's leftover sentinel
+# names the same session.
 run_hook_for() {
-  jq -n --arg cwd "$1" --arg f "$2" --arg sid "${3-$SID}" \
+  jq -n --arg cwd "$1" --arg f "$2" --arg sid "$SID" \
     '{session_id: $sid, cwd: $cwd, tool_input: {file_path: $f}}' | bash "$HOOK" 2>/dev/null
 }
 
