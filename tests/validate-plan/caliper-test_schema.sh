@@ -222,6 +222,14 @@ jq '. + {"workflow": "orchestrate"} | .phases[0] += {"depends_on": []} | .phases
 assert_pass "valid workflow orchestrate passes" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
+echo "Test 23c: Valid workflow pr-ready passes"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '. + {"workflow": "pr-ready"} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]}' \
+  "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_pass "valid workflow pr-ready passes" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
 echo "Test 24: Missing complexity field fails"
 rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
