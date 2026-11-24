@@ -11,7 +11,7 @@ A Claude Code plugin that turns your goal into a PR with as little friction as p
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.53.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-6E40C9?logo=anthropic&logoColor=white)](https://claude.ai/code)
-[![Skills](https://img.shields.io/badge/17%20skills-included-2ea44f)](skills/)
+[![Skills](https://img.shields.io/badge/18%20skills-included-2ea44f)](skills/)
 
 </div>
 
