@@ -88,6 +88,12 @@ assert_deny "cwd reached through a symlink, target given physically" \
   "$(run_hook "$TMP/wt-link" "git worktree remove $WT")"
 assert_deny "removing the integration worktree from inside a nested phase worktree" \
   "$(run_hook "$PHASE" "git worktree remove $WT")"
+assert_deny "relative target after cd -- (options parsed)" \
+  "$(run_hook "$WT" "cd -- $MAIN && git worktree remove .claude/worktrees/feat")"
+assert_deny "relative target after cd -P (options parsed)" \
+  "$(run_hook "$WT" "cd -P $MAIN && git worktree remove .claude/worktrees/feat")"
+assert_deny "relative target after pushd" \
+  "$(run_hook "$WT" "pushd $MAIN && git worktree remove .claude/worktrees/feat")"
 assert_deny "second removal in one call targets the cwd" \
   "$(run_hook "$WT" "git worktree remove $SIB && git worktree remove $WT")"
 
@@ -103,6 +109,14 @@ assert_allow "heredoc commit message mentioning a placeholder removal" \
   "$(run_hook "$WT" "git commit -F - <<'EOF'
 docs: run git worktree remove <WORKTREE_PATH> from the main checkout
 EOF")"
+assert_allow "'.' after pushd elsewhere" \
+  "$(run_hook "$WT" "pushd $SIB && git worktree remove .")"
+assert_allow "'.' after cd -P elsewhere" \
+  "$(run_hook "$WT" "cd -P $SIB && git worktree remove .")"
+assert_allow "'.' after cd - (unknown base fails open)" \
+  "$(run_hook "$WT" "cd - && git worktree remove .")"
+assert_allow "'.' after popd (unknown base fails open)" \
+  "$(run_hook "$WT" "popd && git worktree remove .")"
 assert_allow "unresolvable variable target" \
   "$(run_hook "$WT" "git worktree remove \"\$WORKTREE_PATH\"")"
 assert_allow "command substitution target" \

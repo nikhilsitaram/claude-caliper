@@ -25,7 +25,10 @@ CWD_P="$(cd "$cwd" 2>/dev/null && pwd -P)" || exit 0
 # One shell word: single-quoted, double-quoted, or bare (not an option).
 TOK="('[^']*'|\"[^\"]*\"|[^-[:space:];&|()<>][^[:space:];&|()<>]*)"
 RM_RE="worktree[[:space:]]+remove(([[:space:]]+-[^[:space:]]*)*)[[:space:]]+$TOK"
-CD_RE="^.*(^|[[:space:];&|(])cd[[:space:]]+$TOK"
+# Last directory change before the removal (greedy .* finds the last one); its
+# word and the text after it. CD_ARG_RE then parses `cd`/`pushd` options + dir.
+DIRCHG_RE="^.*(^|[[:space:];&|(])(cd|pushd|popd)([[:space:]].*)?\$"
+CD_ARG_RE="^([[:space:]]+-[LPe@]+)*([[:space:]]+--)?[[:space:]]+$TOK"
 GITC_RE="-C[[:space:]]+$TOK[[:space:]]+\$"
 
 # resolve_dir <base> <word> — print the physical path of an existing directory
@@ -52,7 +55,7 @@ resolve_dir() {
 
 deny() {
   local target="$1"
-  jq -nc --arg r "Refusing to remove $target: the session's working directory ($CWD_P) is inside the worktree being removed. Deleting it leaves every later tool call in a deleted cwd, and the session stays wedged until a restart. A cd chained into this same call moves only the shell, not the session. Leave first. If this is the worktree the session entered with EnterWorktree, use ExitWorktree. Otherwise run the cd to a directory outside it as its own Bash call with nothing chained after it. That covers a Bash-entered worktree, and a nested phase worktree whose parent session orchestrate still uses. Confirm the cwd with pwd in the next call, then retry the removal." '{
+  jq -nc --arg r "Refusing to remove $target: the session's working directory ($CWD_P) is inside the worktree being removed. Deleting it leaves every later tool call in a deleted cwd, and the session stays wedged until a restart. A cd chained into this same call moves only the shell, not the session. Leave first. If this is the worktree the session entered with EnterWorktree, use ExitWorktree (action keep if it refuses remove as not the owner). Otherwise run the cd to a directory outside it as its own Bash call with nothing chained after it. That covers a Bash-entered worktree, and a nested phase worktree whose parent session orchestrate still uses. Confirm the cwd with pwd in the next call, then retry the removal. If this command only quotes such a removal in text (a commit message or PR body), rephrase that text instead." '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
@@ -71,10 +74,17 @@ while [[ "$rest" =~ $RM_RE ]]; do
   consumed="$before$full"
   rest="${rest#*"$full"}"
 
-  # Base for a relative target: the last chained `cd`, then a `git -C` dir.
+  # Base for a relative target: the last chained cd/pushd, then a `git -C` dir.
+  # A directory change it can't parse (popd, `cd -`, a variable) leaves the
+  # base unknown, so relative targets fail open; absolute ones are still checked.
   base="$CWD_P"
-  if [[ "$before" =~ $CD_RE ]]; then
-    base="$(resolve_dir "$CWD_P" "${BASH_REMATCH[2]}")" || base=""
+  if [[ "$before" =~ $DIRCHG_RE ]]; then
+    dc_word="${BASH_REMATCH[2]}"
+    dc_rest="${BASH_REMATCH[3]}"
+    base=""
+    if [[ "$dc_word" != popd && "$dc_rest" =~ $CD_ARG_RE ]]; then
+      base="$(resolve_dir "$CWD_P" "${BASH_REMATCH[3]}")" || base=""
+    fi
   fi
   if [[ "$before" =~ $GITC_RE ]]; then
     base="$(resolve_dir "$base" "${BASH_REMATCH[1]}")" || base=""
