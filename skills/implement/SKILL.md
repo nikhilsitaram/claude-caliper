@@ -56,11 +56,12 @@ Commit frequently in small, logical, atomic units as work lands rather than batc
 
 **REQUIRED SUB-SKILL:** Use implementation-review — once the change is implemented and tests pass, invoke it in **standalone mode** over the feature branch diff. No `plan.json` exists on this path, so its mode-detection picks standalone automatically.
 
-Map the `workflow` setting to implementation-review's continuation flag (all four schema values, exactly):
+Map the `workflow` setting to implementation-review's continuation flag (all five schema values, exactly):
 
 | `workflow` value | Continuation |
 |---|---|
 | `pr-create` | Chain `--pr-create` |
+| `pr-ready` | Chain `--pr-review --automated-fix` |
 | `pr-merge` | Chain `--pr-merge` |
 | `orchestrate` | Stop after review passes; report the worktree path |
 | `plan-only` | Contradictory on a plan-less path — there is no plan to stop after. Treat it as `orchestrate` (stop after review) and tell the user why: this fast path never produced a plan, so "plan only" has nothing further to do. |

@@ -51,13 +51,14 @@ Complete in order:
     - If `PROMPT_REQUIRED`: options depend on the tier recommended in step 5 (mark the recommended option "(Recommended)"):
       - **Small or Medium tier:** `Plan only` is meaningless on the plan-less fast path — omit it:
         - **Create PR** — Implement → pr-create (Recommended)
+        - **Ready to merge** — Implement → pr-create → pr-review (automated fix), stop before merge
         - **Merge PR** — Implement → pr-create → pr-review → pr-merge
         - **Orchestrate only** — Implement → stop after implementation review (work stays in worktree)
-      - **Large tier:** all four options:
+      - **Large tier:** five workflows, but AskUserQuestion takes at most four options, so the two early stops share one:
         - **Create PR** — Orchestrate → pr-create (Recommended)
+        - **Ready to merge** — Orchestrate → pr-create → pr-review (automated fix), stop before merge
         - **Merge PR** — Orchestrate → pr-create → pr-review → pr-merge
-        - **Orchestrate only** — Orchestrate → stop after implementation review (work stays in worktree)
-        - **Plan only** — Stop after plan is reviewed
+        - **Stop early** — then ask a follow-up: **Orchestrate only** (stop after implementation review, work stays in worktree) or **Plan only** (stop after plan is reviewed)
 
     **Q2 — Tier** (header: "Tier"):
     Mark the tier recommended in step 5 "(Recommended)". Options:
@@ -160,7 +161,7 @@ Agent(
 
 ## Route Workflow
 
-Map the Q1 answer to a schema value: `Create PR` → `pr-create`, `Merge PR` → `pr-merge`, `Orchestrate only` → `orchestrate`, `Plan only` → `plan-only` (large tier only).
+Map the Q1 answer to a schema value: `Create PR` → `pr-create`, `Ready to merge` → `pr-ready`, `Merge PR` → `pr-merge`, `Orchestrate only` → `orchestrate`, `Plan only` → `plan-only` (large tier only).
 
 - **Small/Medium:** No plan.json exists. Invoke the `implement` skill directly, passing the mapped workflow value so it knows how to chain after implementation-review.
 - **Large:** Write `.workflow` into plan.json: `jq --arg w "<workflow>" '.workflow = $w' "$PLAN_DIR/plan.json" > "$PLAN_DIR/plan.json.tmp" && mv "$PLAN_DIR/plan.json.tmp" "$PLAN_DIR/plan.json"`
@@ -168,7 +169,7 @@ Map the Q1 answer to a schema value: `Create PR` → `pr-create`, `Merge PR` →
   For multi-phase plans, also write the integration branch name:
   `jq --arg ib "integrate/<feature>" '.integration_branch = $ib' "$PLAN_DIR/plan.json" > "$PLAN_DIR/plan.json.tmp" && mv "$PLAN_DIR/plan.json.tmp" "$PLAN_DIR/plan.json"`
 
-  For **Create PR**, **Merge PR**, or **Orchestrate only**: invoke orchestrate, passing `$PLAN_DIR/plan.json` as the absolute plan path (orchestrate's CWD is the worktree, where plan.json does not exist).
+  For **Create PR**, **Ready to merge**, **Merge PR**, or **Orchestrate only**: invoke orchestrate, passing `$PLAN_DIR/plan.json` as the absolute plan path (orchestrate's CWD is the worktree, where plan.json does not exist).
   For **Plan only**: run `validate-plan --check-workflow "$PLAN_DIR/plan.json"` to verify design-review and plan-review passed. Report the plan file path and stop.
 
 ## Challenging Assumptions

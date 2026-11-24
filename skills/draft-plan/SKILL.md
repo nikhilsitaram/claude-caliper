@@ -74,7 +74,7 @@ A plan is `plan.json` — a structured manifest of phases and tasks. Each task c
 }
 ```
 
-`workflow` (`pr-create` | `pr-merge` | `orchestrate` | `plan-only`) is set by the design skill, not chosen here. `success_criteria` is optional at plan/phase/task levels.
+`workflow` (`pr-create` | `pr-ready` | `pr-merge` | `orchestrate` | `plan-only`) is set by the design skill, not chosen here. `success_criteria` is optional at plan/phase/task levels.
 
 **See:** `schema-reference.md` for the full field reference, status lifecycle, and `validate-plan` modes.
 
