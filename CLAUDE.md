@@ -70,7 +70,7 @@ This repo uses its own skills. The design skill routes work into one of three ti
 
 Every tier ends with one independent implementation-review over the integrated diff, then the PR chain (pr-create -> pr-review -> pr-merge) per the `workflow` setting.
 
-Orchestrate (large tier only) dispatches each task as a parallel subagent with its own git worktree; file-set isolation keeps tasks in a phase conflict-free, and phases run sequentially so a later phase sees earlier phases' merged work. plan.json holds every task's metadata — there are no separate task `.md` files, and each task is not reviewed on its own; the per-phase implementation-review is the gate.
+Orchestrate (large tier only) dispatches each task as a parallel subagent with its own git worktree; file-set isolation keeps tasks in a phase conflict-free, and a phase starts only once the phases in its `depends_on` have merged, so it sees their work (independent phases run in parallel, merging in letter order). plan.json holds every task's metadata — there are no separate task `.md` files, and each task is not reviewed on its own; the per-phase implementation-review is the gate.
 
 ## Markdown
 

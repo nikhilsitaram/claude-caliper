@@ -154,7 +154,7 @@ These skills chain automatically. You trigger the first one by describing what t
 | **Fast path** (small/medium) | [implement](skills/implement/) | Inline RED-GREEN-REFACTOR in the current session — no plan.json, no task files, no orchestration; frequent commits, then hands off to one review |
 | **Planning** (large) | [draft-plan](skills/draft-plan/) | Structured `plan.json` manifest with per-task intent, exact file paths, verification commands, and `avoid` rules — the only per-task artifact (no per-task `.md` files) |
 | **Plan Gate** (large) | [plan-review](skills/plan-review/) | Catches vague intent, missing file paths, design-plan drift, the "Different Claude Test" |
-| **Execution** (large) | [orchestrate](skills/orchestrate/) | Dispatches each task as a parallel subagent with worktree isolation (parallel within a phase, phases sequential) |
+| **Execution** (large) | [orchestrate](skills/orchestrate/) | Dispatches each task as a parallel subagent with worktree isolation (parallel within a phase; a phase starts once the phases it depends on have merged) |
 | **Review Gate** | [implementation-review](skills/implementation-review/) | The single independent fresh-eyes review over the integrated diff — one holistic pass (per phase for large plans) |
 | **Create PR** | [pr-create](skills/pr-create/) | Commits, rebases, tests, pushes, opens PR with structured summary |
 | **Review PR** | [pr-review](skills/pr-review/) | PR review before reading external feedback, addresses comments, posts assessment |
@@ -397,7 +397,7 @@ Lead (orchestrator) ──dispatches──▶ Task Implementer Subagents (1 per 
                     ──dispatches──▶ Implementation Reviewer (1 per phase, over the merged diff)
 ```
 
-- **Phases execute sequentially.** Phase B waits until Phase A is fully merged, so it sees Phase A's code.
+- **Phases start when their dependencies merge.** A phase waits until every phase in its `depends_on` is merged, so it sees their code; phases that don't depend on each other run side by side, and their PRs merge in letter order.
 - **Tasks within a phase execute in parallel.** Each task gets its own subagent with an auto-provisioned git worktree. File-set isolation (no two tasks in the same phase touch the same files unless `depends_on` orders them) eliminates merge conflicts.
 - **One review per phase.** After a phase's tasks merge, a single implementation-review subagent reads the integrated diff — tasks are not reviewed individually.
 
