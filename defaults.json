@@ -54,8 +54,7 @@
     "used_by": [
       "design",
       "orchestrate",
-      "implement",
-      "conversate"
+      "implement"
     ]
   },
   "planner_model": {

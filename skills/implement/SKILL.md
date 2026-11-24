@@ -24,7 +24,7 @@ The same wrong-assumption failures that unexamined plans cause on a large featur
 3. **Present a mini-design**: 2-5 sentences covering what changes, where, and why this approach — no formal doc, no file written.
 4. **Resolve workflow + approval in one AskUserQuestion** — settle the workflow now, alongside approval, so the choice is made before implementing instead of surfaced after the work is already done. Run `caliper-settings get workflow`:
    - If a value is returned, note it ("Using your configured workflow: <value>") and ask a single **Approval** question (Approve / Needs changes).
-   - If `PROMPT_REQUIRED`, ask two questions in one call — **Workflow** (Create PR / Merge PR / Stop after review) and **Approval** (Approve / Needs changes).
+   - If `PROMPT_REQUIRED`, ask two questions in one call — **Workflow** (Create PR / Ready to merge / Merge PR / Stop after review) and **Approval** (Approve / Needs changes).
 
    Wait for approval before writing any code. "Needs changes" loops back to step 3; the resolved workflow value carries forward to the review hand-off.
 
