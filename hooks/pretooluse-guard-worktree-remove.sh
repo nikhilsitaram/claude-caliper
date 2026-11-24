@@ -13,6 +13,8 @@ set -euo pipefail
 # anything it can't resolve (variables, substitutions, globs) through.
 
 input="$(cat)"
+# Runs on every Bash call: bail before spawning jq unless removal is plausible.
+[[ "$input" == *worktree*remove* ]] || exit 0
 [[ "$(jq -r '.tool_name // empty' <<<"$input")" == "Bash" ]] || exit 0
 cmd="$(jq -r '.tool_input.command // empty' <<<"$input")"
 [[ "$cmd" == *worktree*remove* ]] || exit 0
@@ -50,7 +52,7 @@ resolve_dir() {
 
 deny() {
   local target="$1"
-  jq -nc --arg r "Refusing to remove $target: the session's working directory ($CWD_P) is inside the worktree being removed. Deleting it leaves every later tool call in a deleted cwd, and the session stays wedged until a restart. A cd chained into this same call moves only the shell, not the session. Leave first: ExitWorktree if you entered with EnterWorktree; otherwise run the cd to a directory outside it as its own Bash call with nothing chained after it, confirm the cwd with pwd in the next call, then retry the removal." '{
+  jq -nc --arg r "Refusing to remove $target: the session's working directory ($CWD_P) is inside the worktree being removed. Deleting it leaves every later tool call in a deleted cwd, and the session stays wedged until a restart. A cd chained into this same call moves only the shell, not the session. Leave first. If this is the worktree the session entered with EnterWorktree, use ExitWorktree. Otherwise run the cd to a directory outside it as its own Bash call with nothing chained after it. That covers a Bash-entered worktree, and a nested phase worktree whose parent session orchestrate still uses. Confirm the cwd with pwd in the next call, then retry the removal." '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",

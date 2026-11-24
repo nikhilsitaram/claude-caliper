@@ -19,7 +19,7 @@ Hook scripts and configuration for the claude-caliper plugin.
 
 ## Bash permissions are not caliper's job
 
-caliper ships no Bash allow- or deny-list. Both used to exist and both were retired: a deny hook that scanned command text false-denied heredoc data lines (#294), and an allow hook that parsed commands against a safe-command list could be bypassed by trivial wrapping — `if true; then <cmd>; fi`, `X=$HOME <cmd>`, `true & <cmd>`, backticks — so it could auto-approve arbitrary code (#302). A bash parser written in bash can't be made a security boundary. (`pretooluse-guard-worktree-remove.sh` reads command text too, but only to catch one self-inflicted wedge. Missing a wrapped form costs nothing, and it denies only a target that resolves to the session's own cwd or a parent of it.)
+caliper ships no Bash allow- or deny-list. Both used to exist and both were retired: a deny hook that scanned command text false-denied heredoc data lines (#294), and an allow hook that parsed commands against a safe-command list could be bypassed by trivial wrapping — `if true; then <cmd>; fi`, `X=$HOME <cmd>`, `true & <cmd>`, backticks — so it could auto-approve arbitrary code (#302). A bash parser written in bash can't be made a security boundary. (`pretooluse-guard-worktree-remove.sh` reads command text too, but only to catch one self-inflicted wedge. Missing a wrapped form costs nothing, and it denies only a target that resolves to the session's own cwd or a parent of it. It doesn't skip heredoc bodies, so a commit message quoting a removal of the cwd's real path, or of `.`, is denied too. Placeholders like `<WORKTREE_PATH>` and `$VARS` pass.)
 
 Use Claude Code's own mechanisms instead — they parse commands with a real shell parser:
 
