@@ -8,6 +8,14 @@
           "command": "bash",
           "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-deny-plan-md.sh"]
         }]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [{
+          "type": "command",
+          "command": "bash",
+          "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/pretooluse-guard-worktree-remove.sh"]
+        }]
       }
     ],
     "SubagentStop": [
