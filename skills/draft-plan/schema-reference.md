@@ -75,7 +75,7 @@ There is exactly one `completion.md` per phase — the point where the orchestra
 
 - `schema` (integer, required): Schema version. Must be `2`. A schema-1 plan is rejected up front with a message naming the version change (there is no migration tooling — finish in-flight schema-1 plans on the previous plugin version).
 - `status` (string, required): `Not Yet Started` | `In Development` | `Complete`.
-- `workflow` (string, required): `pr-create` | `pr-merge` | `orchestrate` | `plan-only`. Set by the design skill's routing step; the drafter does not choose it.
+- `workflow` (string, required): `pr-create` | `pr-ready` | `pr-merge` | `orchestrate` | `plan-only`. Set by the design skill's routing step; the drafter does not choose it. `--check-workflow` gates `pr-ready` exactly like `pr-create` (reviews passed, PR exists); what distinguishes it — pr-review ran, merge left to the user — is enforced by the routing, not the gate.
 - `goal` (string, required): One sentence.
 - `architecture` (string, required): 2–3 sentences.
 - `tech_stack` (string, required): Key technologies.

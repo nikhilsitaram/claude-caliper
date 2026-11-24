@@ -11,7 +11,7 @@ A Claude Code plugin that turns your goal into a PR with as little friction as p
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.53.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-6E40C9?logo=anthropic&logoColor=white)](https://claude.ai/code)
-[![Skills](https://img.shields.io/badge/17%20skills-included-2ea44f)](skills/)
+[![Skills](https://img.shields.io/badge/18%20skills-included-2ea44f)](skills/)
 
 </div>
 
@@ -25,7 +25,7 @@ Many claude workflows are either improperly context engineered, overly complicat
 
 Install claude-caliper. Describe what you want to build. Walk away.
 
-The plugin installs 17 skills that fire automatically at the right moment, enforcing a full development workflow: **design before code, test before merge.** The design skill sizes the work first and routes it — small and medium changes take an inline fast path, large ones fan out through a validated plan. You make three decisions — approve the design, review the PR, and confirm the merge — and everything between runs as a chain of fresh subagents with zero manual handoffs.
+The plugin installs 18 skills that fire automatically at the right moment, enforcing a full development workflow: **design before code, test before merge.** The design skill sizes the work first and routes it — small and medium changes take an inline fast path, large ones fan out through a validated plan. You make three decisions — approve the design, review the PR, and confirm the merge — and everything between runs as a chain of fresh subagents with zero manual handoffs.
 
 ---
 
@@ -130,8 +130,8 @@ Install only what you need:
 
 | Package | What you get | Install command |
 |---------|-------------|-----------------|
-| **claude-caliper** | All 17 skills | `/plugin install claude-caliper@claude-caliper` |
-| **claude-caliper-workflow** | Design-to-merge pipeline (11 skills) | `/plugin install claude-caliper-workflow@claude-caliper` |
+| **claude-caliper** | All 18 skills | `/plugin install claude-caliper@claude-caliper` |
+| **claude-caliper-workflow** | Design-to-merge pipeline (12 skills) | `/plugin install claude-caliper-workflow@claude-caliper` |
 | **claude-caliper-tooling** | Codebase review + test audit + skill eval + queue + usage-guard + session handoff (6 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
 
 ### Updating
@@ -149,6 +149,7 @@ These skills chain automatically. You trigger the first one by describing what t
 | Stage | Skill | What happens |
 |-------|-------|-------------|
 | **Design** | [design](skills/design/) | Sizes the work, challenges assumptions, proposes 2-3 approaches, asks you to pick one and confirm the tier (Small/Medium/Large) |
+| **Conversation** (alternative to Design) | [conversate](skills/conversate/) | `/conversate` — open-ended discussion of the agent's recommendations, questions, and your decisions; when you say you're satisfied, it summarizes and builds straight through to a ready-to-merge PR (no separate approval gate) |
 | **Design Gate** | [design-review](skills/design-review/) | 9-point validation: problem clarity, success criteria, architecture fit, scope alignment, test strategy coverage, handoff quality |
 | **Fast path** (small/medium) | [implement](skills/implement/) | Inline RED-GREEN-REFACTOR in the current session — no plan.json, no task files, no orchestration; frequent commits, then hands off to one review |
 | **Planning** (large) | [draft-plan](skills/draft-plan/) | Structured `plan.json` manifest with per-task intent, exact file paths, verification commands, and `avoid` rules — the only per-task artifact (no per-task `.md` files) |
@@ -491,7 +492,7 @@ Skills degrade silently. A prompt tweak that looks better might fail on edge cas
 Yes. Skills are language-agnostic. They auto-detect test runners, respect project conventions, and work with any git repository.
 
 **Can I stop after the plan?**
-Yes. After approving the design, you choose: **Create PR** (execute and open PR for human review), **Merge PR** (execute, open PR, review, and merge), or **Plan only** (stop after planning).
+Yes. After approving the design, you choose: **Create PR** (execute and open PR for human review), **Ready to merge** (execute, open PR, review and fix it, stop before merging), **Merge PR** (execute, open PR, review, and merge), or **Plan only** (stop after planning).
 
 **What if the design is wrong?**
 The design skill waits for explicit approval. Say "needs changes" and iterate. Nothing proceeds until you approve.

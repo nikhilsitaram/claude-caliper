@@ -222,6 +222,28 @@ jq '. + {"workflow": "orchestrate"} | .phases[0] += {"depends_on": []} | .phases
 assert_pass "valid workflow orchestrate passes" \
   "$VALIDATE" --schema "$TMPDIR/plan.json"
 
+echo "Test 23c: Valid workflow pr-ready passes"
+rm -rf "${TMPDIR:?}/"*
+cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+jq '. + {"workflow": "pr-ready"} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]}' \
+  "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+assert_pass "valid workflow pr-ready passes" \
+  "$VALIDATE" --schema "$TMPDIR/plan.json"
+
+echo "Test 23d: validate-plan's workflow enum matches defaults.json"
+DEFAULT_WORKFLOWS=$(jq -r '.workflow.values[]' "$REPO_ROOT/defaults.json" | sort | tr '\n' ' ')
+SCHEMA_WORKFLOWS=$(grep -oE '^ *("[a-z-]+"\|?)+\) ;;' "$VALIDATE" | grep -oE '"[a-z-]+"' | tr -d '"' | sort | tr '\n' ' ')
+assert_pass "workflow enums agree (defaults: $DEFAULT_WORKFLOWS / schema: $SCHEMA_WORKFLOWS)" \
+  test "$DEFAULT_WORKFLOWS" = "$SCHEMA_WORKFLOWS"
+for wf in $DEFAULT_WORKFLOWS; do
+  rm -rf "${TMPDIR:?}/"*
+  cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"
+  jq --arg w "$wf" '. + {"workflow": $w} | .phases[0] += {"depends_on": []} | .phases[1] += {"depends_on": ["A"]}' \
+    "$FIXTURES/valid-plan/plan.json" > "$TMPDIR/plan.json"
+  assert_pass "defaults.json workflow $wf passes --schema" \
+    "$VALIDATE" --schema "$TMPDIR/plan.json"
+done
+
 echo "Test 24: Missing complexity field fails"
 rm -rf "${TMPDIR:?}/"*
 cp -r "$FIXTURES/valid-plan/"* "$TMPDIR/"

@@ -44,6 +44,7 @@
     "type": "enum",
     "values": [
       "pr-create",
+      "pr-ready",
       "pr-merge",
       "orchestrate",
       "plan-only"

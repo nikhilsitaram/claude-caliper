@@ -231,6 +231,30 @@ printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0
 GH_MOCK_PR_COUNT=0 assert_fail "pr-merge with all reviews but no merged PR exits 1" "PR not merged\|no PR found\|gh pr list failed" \
   "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
 
+echo "Test 7a: pr-merge fails when the PR is open but not merged"
+setup_plan_dir
+write_single_phase_plan "pr-merge" "Complete"
+printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+GH_MOCK_PR_COUNT=1 GH_MOCK_MERGED_COUNT=0 assert_fail "pr-merge with open unmerged PR exits 1" "PR not merged" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo ""
+echo "=== pr-ready workflow ==="
+
+echo "Test 7b: pr-ready passes with an open, unmerged PR"
+setup_plan_dir
+write_single_phase_plan "pr-ready" "Complete"
+printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+GH_MOCK_PR_COUNT=1 GH_MOCK_MERGED_COUNT=0 assert_pass "pr-ready with open unmerged PR exits 0" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo "Test 7c: pr-ready fails when no PR exists"
+setup_plan_dir
+write_single_phase_plan "pr-ready" "Complete"
+printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
+GH_MOCK_PR_COUNT=0 assert_fail "pr-ready with no PR exits 1" "no PR found" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
 echo ""
 echo "=== multi-phase specifics ==="
 

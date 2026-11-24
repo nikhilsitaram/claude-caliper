@@ -11,6 +11,8 @@ The fast path for small/medium work: no plan.json, no per-task files, no orchest
 
 If design's tier router already presented a mini-design (or short design doc) and got explicit approval for this exact request earlier in this session, that gate is satisfied — skip straight to Worktree Setup.
 
+The same holds for a conversate hand-off: the user discussed the change with you and explicitly said to build it, and conversate passes the conversation summary, `$WORKTREE`, and workflow `pr-ready`. That go-ahead is the approval — don't re-present a design or re-ask.
+
 Otherwise, this is a direct invocation (the user asked for an implementation without going through design first) and the **Compressed Design Gate** below runs before any code is touched — no exceptions.
 
 ### Compressed Design Gate (direct invocation only)
@@ -22,7 +24,7 @@ The same wrong-assumption failures that unexamined plans cause on a large featur
 3. **Present a mini-design**: 2-5 sentences covering what changes, where, and why this approach — no formal doc, no file written.
 4. **Resolve workflow + approval in one AskUserQuestion** — settle the workflow now, alongside approval, so the choice is made before implementing instead of surfaced after the work is already done. Run `caliper-settings get workflow`:
    - If a value is returned, note it ("Using your configured workflow: <value>") and ask a single **Approval** question (Approve / Needs changes).
-   - If `PROMPT_REQUIRED`, ask two questions in one call — **Workflow** (Create PR / Merge PR / Stop after review) and **Approval** (Approve / Needs changes).
+   - If `PROMPT_REQUIRED`, ask two questions in one call — **Workflow** (Create PR / Ready to merge / Merge PR / Stop after review) and **Approval** (Approve / Needs changes).
 
    Wait for approval before writing any code. "Needs changes" loops back to step 3; the resolved workflow value carries forward to the review hand-off.
 
@@ -56,19 +58,21 @@ Commit frequently in small, logical, atomic units as work lands rather than batc
 
 **REQUIRED SUB-SKILL:** Use implementation-review — once the change is implemented and tests pass, invoke it in **standalone mode** over the feature branch diff. No `plan.json` exists on this path, so its mode-detection picks standalone automatically.
 
-Map the `workflow` setting to implementation-review's continuation flag (all four schema values, exactly):
+Map the `workflow` setting to implementation-review's continuation flag (all five schema values, exactly):
 
 | `workflow` value | Continuation |
 |---|---|
 | `pr-create` | Chain `--pr-create` |
+| `pr-ready` | Chain `--pr-review --automated-fix` |
 | `pr-merge` | Chain `--pr-merge` |
 | `orchestrate` | Stop after review passes; report the worktree path |
 | `plan-only` | Contradictory on a plan-less path — there is no plan to stop after. Treat it as `orchestrate` (stop after review) and tell the user why: this fast path never produced a plan, so "plan only" has nothing further to do. |
 
 Resolve the value:
 - **Downstream of design:** the value is already resolved from design's workflow question earlier in this session — reuse it, don't re-prompt or re-read settings.
+- **Conversate hand-off:** always `pr-ready` — conversate's fixed contract, regardless of the setting.
 - **Direct invocation:** the Compressed Design Gate already resolved it (from settings, or the workflow question asked at approval) — reuse that value, don't re-prompt or re-read settings.
 
 ## Integration
 
-**Workflow:** design (small/medium tier) or direct invocation → **this skill** → implementation-review (standalone) → pr-create/pr-review/pr-merge
+**Workflow:** design (small/medium tier), conversate, or direct invocation → **this skill** → implementation-review (standalone) → pr-create/pr-review/pr-merge
