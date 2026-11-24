@@ -18,10 +18,9 @@ set -euo pipefail
 #
 # That rule approves any arguments, so the tool confines itself: the plan-dir
 # file must resolve under <main root>/.claude/claude-caliper/ of the repo the
-# cwd belongs to, and be named plan.json or design-*.md — never the files that
-# steer caliper (.design-approved flips the session to acceptEdits;
-# reviews.json holds the review gates). A symlink or directory at either end
-# of the copy is refused rather than followed.
+# cwd belongs to, and be named plan.json or design-*.md — never reviews.json,
+# which holds the review gates. A symlink or directory at either end of the
+# copy is refused rather than followed.
 
 usage() {
   echo "Usage: caliper-draft pull|push <plan-dir-file>" >&2
