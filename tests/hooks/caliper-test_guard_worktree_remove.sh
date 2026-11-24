@@ -24,6 +24,15 @@ SPACED="$MAIN/.claude/worktrees/with space"
 mkdir -p "$WT/src" "$PHASE" "$SIB" "$SPACED"
 ln -s "$WT" "$TMP/wt-link"
 
+# Prints the hook's output; a non-zero exit (exit 2 blocks the tool call) or
+# any stderr is appended so both assert_deny and assert_allow fail on it.
+feed_hook() {
+  local out rc=0
+  out="$(HOME="$TMP" "$HOOK" 2>&1)" || rc=$?
+  printf '%s' "$out"
+  [[ $rc -eq 0 ]] || printf ' EXIT:%s' "$rc"
+}
+
 run_hook() {
   local cwd="$1" cmd="$2" tool="${3:-Bash}"
   jq -n --arg t "$tool" --arg c "$cmd" --arg d "$cwd" '{
@@ -31,7 +40,7 @@ run_hook() {
     tool_input: { command: $c },
     cwd: $d,
     session_id: "test-session"
-  }' | HOME="$TMP" "$HOOK" 2>/dev/null || true
+  }' | feed_hook
 }
 
 assert_deny() {
@@ -94,6 +103,12 @@ assert_deny "relative target after cd -P (options parsed)" \
   "$(run_hook "$WT" "cd -P $MAIN && git worktree remove .claude/worktrees/feat")"
 assert_deny "relative target after pushd" \
   "$(run_hook "$WT" "pushd $MAIN && git worktree remove .claude/worktrees/feat")"
+assert_deny "absolute cd after an earlier cd still sets the base" \
+  "$(run_hook "$WT" "cd $SIB && cd $MAIN && git worktree remove .claude/worktrees/feat")"
+assert_deny "git -C not adjacent, absolute target still checked" \
+  "$(run_hook "$WT" "git -C $MAIN -c x=y worktree remove $WT")"
+assert_deny "quoted target followed by a separator" \
+  "$(run_hook "$SPACED" "git worktree remove \"$SPACED\"; echo ok")"
 assert_deny "second removal in one call targets the cwd" \
   "$(run_hook "$WT" "git worktree remove $SIB && git worktree remove $WT")"
 
@@ -117,6 +132,14 @@ assert_allow "'.' after cd - (unknown base fails open)" \
   "$(run_hook "$WT" "cd - && git worktree remove .")"
 assert_allow "'.' after popd (unknown base fails open)" \
   "$(run_hook "$WT" "popd && git worktree remove .")"
+assert_allow "quoted prefix concatenated into a sibling word" \
+  "$(run_hook "$SPACED" "git worktree remove \"$SPACED\"-2")"
+assert_allow "relative cd stacked on an earlier cd (base unknown fails open)" \
+  "$(run_hook "$WT" "cd $MAIN/.claude && cd .. && git worktree remove feat")"
+assert_allow "git -C not adjacent to worktree (base unknown fails open)" \
+  "$(run_hook "$WT" "git -C $SIB -c x=y worktree remove .")"
+assert_allow "relative cd stacked on an absolute cd elsewhere" \
+  "$(run_hook "$WT" "cd $SIB && cd .. && git worktree remove feat-2")"
 assert_allow "unresolvable variable target" \
   "$(run_hook "$WT" "git worktree remove \"\$WORKTREE_PATH\"")"
 assert_allow "command substitution target" \
@@ -128,7 +151,7 @@ assert_allow "other worktree subcommand" \
 assert_allow "non-Bash tool" \
   "$(run_hook "$WT" "git worktree remove $WT" Edit)"
 assert_allow "missing cwd field" \
-  "$(jq -n --arg c "git worktree remove $WT" '{tool_name:"Bash",tool_input:{command:$c}}' | "$HOOK" 2>/dev/null || true)"
+  "$(jq -n --arg c "git worktree remove $WT" '{tool_name:"Bash",tool_input:{command:$c}}' | feed_hook)"
 
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="

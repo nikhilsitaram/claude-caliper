@@ -24,12 +24,16 @@ CWD_P="$(cd "$cwd" 2>/dev/null && pwd -P)" || exit 0
 
 # One shell word: single-quoted, double-quoted, or bare (not an option).
 TOK="('[^']*'|\"[^\"]*\"|[^-[:space:];&|()<>][^[:space:];&|()<>]*)"
-RM_RE="worktree[[:space:]]+remove(([[:space:]]+-[^[:space:]]*)*)[[:space:]]+$TOK"
-# Last directory change before the removal (greedy .* finds the last one); its
-# word and the text after it. CD_ARG_RE then parses `cd`/`pushd` options + dir.
-DIRCHG_RE="^.*(^|[[:space:];&|(])(cd|pushd|popd)([[:space:]].*)?\$"
+# The target must end at a word boundary: `"/a b"-2` names /a b-2, not /a b.
+RM_RE="worktree[[:space:]]+remove(([[:space:]]+-[^[:space:]]*)*)[[:space:]]+$TOK([[:space:];&|()<>]|\$)"
+# Last directory change before the removal (greedy .* finds the last one): the
+# text before it, its word, and the text after it. CD_ARG_RE then parses
+# `cd`/`pushd` options + dir; DIRCHG_ANY spots an earlier change in the prefix.
+DIRCHG_RE="^(.*)(^|[[:space:];&|(])(cd|pushd|popd)([[:space:]].*)?\$"
+DIRCHG_ANY="(^|[[:space:];&|(])(cd|pushd|popd)([[:space:]]|\$)"
 CD_ARG_RE="^([[:space:]]+-[LPe@]+)*([[:space:]]+--)?[[:space:]]+$TOK"
 GITC_RE="-C[[:space:]]+$TOK[[:space:]]+\$"
+GITC_ANY="(^|[[:space:]])-C([[:space:]]|\$)"
 
 # resolve_dir <base> <word> — print the physical path of an existing directory
 # the word names, relative words resolved against <base>; fail if unresolvable.
@@ -39,7 +43,7 @@ resolve_dir() {
     \'*\') p="${w:1:${#w}-2}" ;;
     \"*\") p="${w:1:${#w}-2}"; [[ "$p" != *[\$\`\\]* ]] || return 1 ;;
     *)
-      [[ "$w" != *[\$\`\\\*\?\[\{]* ]] || return 1
+      [[ "$w" != *[\$\`\\\*\?\[\{\'\"]* ]] || return 1
       case "$w" in
         "~") p="$HOME" ;;
         "~/"*) p="$HOME/${w#\~/}" ;;
@@ -75,19 +79,27 @@ while [[ "$rest" =~ $RM_RE ]]; do
   rest="${rest#*"$full"}"
 
   # Base for a relative target: the last chained cd/pushd, then a `git -C` dir.
-  # A directory change it can't parse (popd, `cd -`, a variable) leaves the
-  # base unknown, so relative targets fail open; absolute ones are still checked.
+  # A directory change it can't parse (popd, `cd -`, a variable), or a relative
+  # one stacked on an earlier change, leaves the base unknown: relative targets
+  # fail open; absolute ones are still checked.
   base="$CWD_P"
   if [[ "$before" =~ $DIRCHG_RE ]]; then
-    dc_word="${BASH_REMATCH[2]}"
-    dc_rest="${BASH_REMATCH[3]}"
+    dc_prefix="${BASH_REMATCH[1]}"
+    dc_word="${BASH_REMATCH[3]}"
+    dc_rest="${BASH_REMATCH[4]}"
+    dc_base="$CWD_P"
+    [[ ! "$dc_prefix" =~ $DIRCHG_ANY ]] || dc_base=""
     base=""
     if [[ "$dc_word" != popd && "$dc_rest" =~ $CD_ARG_RE ]]; then
-      base="$(resolve_dir "$CWD_P" "${BASH_REMATCH[3]}")" || base=""
+      base="$(resolve_dir "$dc_base" "${BASH_REMATCH[3]}")" || base=""
     fi
   fi
+  # A -C elsewhere in this command segment (`git -C X -c k=v worktree …`) can't
+  # be anchored, so the base is unknown.
   if [[ "$before" =~ $GITC_RE ]]; then
     base="$(resolve_dir "$base" "${BASH_REMATCH[1]}")" || base=""
+  elif [[ "${before##*[;&|$'\n']}" =~ $GITC_ANY ]]; then
+    base=""
   fi
 
   target="$(resolve_dir "$base" "$word")" || continue
