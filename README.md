@@ -149,6 +149,7 @@ These skills chain automatically. You trigger the first one by describing what t
 | Stage | Skill | What happens |
 |-------|-------|-------------|
 | **Design** | [design](skills/design/) | Sizes the work, challenges assumptions, proposes 2-3 approaches, asks you to pick one and confirm the tier (Small/Medium/Large) |
+| **Conversation** (alternative to Design) | [conversate](skills/conversate/) | `/conversate` — open-ended discussion of the agent's recommendations, questions, and your decisions; when you say you're satisfied, it summarizes and builds straight through to a ready-to-merge PR (no separate approval gate) |
 | **Design Gate** | [design-review](skills/design-review/) | 9-point validation: problem clarity, success criteria, architecture fit, scope alignment, test strategy coverage, handoff quality |
 | **Fast path** (small/medium) | [implement](skills/implement/) | Inline RED-GREEN-REFACTOR in the current session — no plan.json, no task files, no orchestration; frequent commits, then hands off to one review |
 | **Planning** (large) | [draft-plan](skills/draft-plan/) | Structured `plan.json` manifest with per-task intent, exact file paths, verification commands, and `avoid` rules — the only per-task artifact (no per-task `.md` files) |
@@ -491,7 +492,7 @@ Skills degrade silently. A prompt tweak that looks better might fail on edge cas
 Yes. Skills are language-agnostic. They auto-detect test runners, respect project conventions, and work with any git repository.
 
 **Can I stop after the plan?**
-Yes. After approving the design, you choose: **Create PR** (execute and open PR for human review), **Merge PR** (execute, open PR, review, and merge), or **Plan only** (stop after planning).
+Yes. After approving the design, you choose: **Create PR** (execute and open PR for human review), **Ready to merge** (execute, open PR, review and fix it, stop before merging), **Merge PR** (execute, open PR, review, and merge), or **Plan only** (stop after planning).
 
 **What if the design is wrong?**
 The design skill waits for explicit approval. Say "needs changes" and iterate. Nothing proceeds until you approve.
