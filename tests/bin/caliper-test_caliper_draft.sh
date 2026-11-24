@@ -115,10 +115,9 @@ mkdir -p "$OTHER/.claude/claude-caliper/2026-01-01-topic"
 check_fails "t4: another repo's plan root refused" run_from "$WT" "$SCRIPT" push "$OTHER/.claude/claude-caliper/2026-01-01-topic/plan.json"
 check "t4: nothing written into the other repo" test ! -e "$OTHER/.claude/claude-caliper/2026-01-01-topic/plan.json"
 
-# Test 5: only plan.json and design-*.md move — never the files that steer
-# caliper (.design-approved flips the session to acceptEdits; reviews.json
-# holds the review gates) or the rendered plan.md.
-for name in .design-approved reviews.json plan.md notes.txt design-x.txt; do
+# Test 5: only plan.json and design-*.md move — never reviews.json (it holds
+# the review gates), the rendered plan.md, or any other file.
+for name in reviews.json plan.md notes.txt design-x.txt; do
   write_draft "$name" 'x'
   check_fails "t5: push refuses $name" run_from "$WT" "$SCRIPT" push "$PLAN_DIR/$name"
   check "t5: $name not written" test ! -e "$PLAN_DIR/$name"
