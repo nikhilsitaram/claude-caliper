@@ -411,7 +411,7 @@ Dispatch → Implement (TDD) → Merge task branch → [phase complete] → Impl
 2. It implements the task (RED-GREEN-REFACTOR), writes completion notes, marks the task complete
 3. The lead merges the task branch into the phase branch
 4. Once every task in the phase is merged, the lead dispatches one implementation-review over the phase diff; findings are fixed inline (a two-pass review cap keeps this bounded — one discovery pass, at most one delta pass)
-5. Cross-phase handoffs are recorded in `plan.json` via `validate-plan --add-handoff` and surfaced to the next phase
+5. Cross-phase handoffs are recorded in `plan.json` via `validate-plan --add-handoff` and surfaced to the phases that depend on it
 
 ### Dependency Gate
 
