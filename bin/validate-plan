@@ -23,6 +23,9 @@ Usage:
   validate-plan --check-base <plan.json>
   validate-plan --check-deps <plan.json> --task <ID>
   validate-plan --ready <plan.json> [--phase <LETTER>]
+  validate-plan --ready-phases <plan.json>
+  validate-plan --mark-merged <plan.json> --phase <LETTER>
+  validate-plan --check-merge-order <plan.json> --phase <LETTER>
   validate-plan --clear-gate <plan.json> --task <ID>
   validate-plan --set-base <plan.json> (--plan | --phase <LETTER>) --sha <REV> [--if-unset]
   validate-plan --check-workflow <plan.json>
@@ -48,6 +51,10 @@ err() { ERRORS+=("$1"); }
 #   after its prerequisite has merged, so they never run at once. BFS with a
 #   seen set so a cyclic plan (--add-file runs on unvalidated plans) can't hang.
 # - unmet_deps: the dependency half of "ready to dispatch" (--check-deps, --ready).
+# - phase_graph / phase_of: phase letter -> depends_on letters, task id -> letter.
+#   ancestors() works on either graph. Phase depends_on drives scheduling —
+#   orchestrate starts a phase once every phase it depends on has merged — so a
+#   cross-phase task dependency must be covered by one (gh issue #316).
 # shellcheck disable=SC2016
 JQ_TASK_DEFS='
   def dep_graph:
@@ -67,6 +74,11 @@ JQ_TASK_DEFS='
      | {key: (.id // "" | tostring), value: (.status // "")}] | from_entries;
   def unmet_deps($st):
     [(.depends_on // [])[] | select(($st[tostring] // "") as $s | $s != "complete" and $s != "skipped")];
+  def phase_graph:
+    [(.phases // [])[] | {key: (.letter // "" | tostring), value: (.depends_on // [])}] | from_entries;
+  def phase_of:
+    [(.phases // [])[] | (.letter // "" | tostring) as $l | (.tasks // [])[]
+     | {key: (.id // "" | tostring), value: $l}] | from_entries;
 '
 
 lock_plan() {
@@ -193,6 +205,25 @@ do_schema() {
     while IFS= read -r _be; do
       [[ -n "$_be" ]] && err "$_be"
     done <<< "$_base_errors"
+  fi
+
+  # merged (optional, phase level) is written by --mark-merged once the phase PR
+  # lands in the integration branch; --ready-phases keys on it, so it must be a
+  # boolean and only ever sit on a Complete phase.
+  local _merged_errors
+  if ! _merged_errors=$(echo "$json" | jq -r '
+      (.phases // [] | .[]? | select(type == "object" and has("merged"))) as $p
+      | if ($p.merged | type) != "boolean" then
+          "ERROR: invalid_merged: phase \($p.letter // "?") merged must be a boolean"
+        elif $p.merged and ((($p.status // "") | tostring | startswith("Complete")) | not) then
+          "ERROR: invalid_merged: phase \($p.letter // "?") is merged but its status is \($p.status // "" | tostring | @json), not Complete"
+        else empty end'); then
+    err "ERROR: invalid_merged: merged could not be evaluated"
+  fi
+  if [[ -n "$_merged_errors" ]]; then
+    while IFS= read -r _me; do
+      [[ -n "$_me" ]] && err "$_me"
+    done <<< "$_merged_errors"
   fi
 
   # --- Level 2: Bulk extract plan-level success_criteria (1 jq call) ---
@@ -529,6 +560,44 @@ do_schema() {
     err "ERROR: fileset_overlap_unchecked: same-phase file overlap could not be evaluated — fix the depends_on/files type errors"
   fi
 
+  # Cross-phase task deps: orchestrate runs phases in parallel once their phase
+  # depends_on have merged, so a task depending on another phase's task needs
+  # that phase in its own phase's (transitive) depends_on — otherwise it could
+  # start in a phase branch that lacks the code it consumes.
+  local _xdeps _xd_id _xd_dep _xd_dl _xd_l
+  if _xdeps=$(echo "$json" | jq -r "$JQ_TASK_DEFS"'
+    phase_graph as $pg | phase_of as $po
+    | (.phases // [])[] | (.letter // "" | tostring) as $l | ancestors($pg; $l) as $anc
+    | (.tasks // [])[] | (.id // "" | tostring) as $id
+    | (.depends_on // [])[] | tostring as $d | ($po[$d] // "") as $dl
+    | select($dl != "" and $dl != $l and (any($anc[]; . == $dl) | not))
+    | [$id, $d, $dl, $l] | @tsv' 2>/dev/null); then
+    while IFS=$'\t' read -r _xd_id _xd_dep _xd_dl _xd_l; do
+      [[ -z "$_xd_id" ]] && continue
+      err "ERROR: phase_dependency_missing: task $_xd_id depends_on $_xd_dep (phase $_xd_dl), but phase $_xd_l doesn't depend on phase $_xd_dl directly or transitively — add \"$_xd_dl\" to phase $_xd_l's depends_on so it merges before $_xd_l starts"
+    done <<< "$_xdeps"
+  else
+    err "ERROR: phase_dependency_unchecked: cross-phase task dependencies could not be evaluated — fix the depends_on type errors"
+  fi
+
+  # Sibling phases (neither depends on the other, transitively) may run at once;
+  # a file both touch predicts a conflict when the later one merges. Advisory.
+  local _sibs _sb_path _sb_a _sb_b
+  if _sibs=$(echo "$json" | jq -r "$JQ_TASK_DEFS"'
+    phase_graph as $pg
+    | [(.phases // [])[] | (.letter // "" | tostring) as $l
+       | (.tasks // [])[] | task_files[] | {path: ., l: $l}] | unique
+    | group_by(.path)[] | select(length > 1)
+    | .[0].path as $path | [.[].l] as $ls
+    | range(0; $ls | length) as $i | range($i + 1; $ls | length) as $j
+    | select((any(ancestors($pg; $ls[$i])[]; . == $ls[$j]) or any(ancestors($pg; $ls[$j])[]; . == $ls[$i])) | not)
+    | [$path, $ls[$i], $ls[$j]] | @tsv' 2>/dev/null); then
+    while IFS=$'\t' read -r _sb_path _sb_a _sb_b; do
+      [[ -z "$_sb_path" ]] && continue
+      echo "WARNING: sibling_fileset_overlap: file '$_sb_path' is touched by phases $_sb_a and $_sb_b, which may run in parallel — expect to resolve a conflict when the later one merges, or order them with phase depends_on" >&2
+    done <<< "$_sibs"
+  fi
+
   # Defense-in-depth: BFS cycle check using pre-extracted dependency graph
   local cd_cycle_detected=0
   for ((cd_start=0; cd_start<phase_count && cd_cycle_detected==0; cd_start++)); do
@@ -810,6 +879,7 @@ do_render() {
       name=$(jq -r ".phases[$i].name" "$plan_json")
       status=$(jq -r ".phases[$i].status" "$plan_json")
       rationale=$(jq -r ".phases[$i].rationale" "$plan_json")
+      [[ "$(jq -r ".phases[$i].merged // false" "$plan_json")" == "true" ]] && status="$status (merged)"
 
       printf '\n## Phase %s — %s\n' "$letter" "$name"
       printf '**Status:** %s | **Rationale:** %s\n\n' "$status" "$rationale"
@@ -934,6 +1004,12 @@ do_update_status_phase() {
     unlock_plan "$plan_json"
     trap - EXIT
     echo "ERROR: phase_not_found: '$phase_letter' not found in plan" >&2
+    exit 1
+  fi
+  if [[ ! "$new_status" =~ ^Complete ]] && jq -e --arg l "$phase_letter" 'any(.phases[]; .letter == $l and .merged == true)' "$plan_json" >/dev/null; then
+    unlock_plan "$plan_json"
+    trap - EXIT
+    echo "ERROR: cannot move phase $phase_letter to '$new_status' — its PR has merged into the integration branch" >&2
     exit 1
   fi
   if [[ "$new_status" == "In Progress" || "$new_status" =~ ^Complete ]]; then
@@ -1464,6 +1540,65 @@ do_ready() {
   done <<< "$rows"
 }
 
+# Phases orchestrate may work on now: not yet Complete, and every phase in
+# depends_on merged into the integration branch. Complete alone isn't enough —
+# wrap-up marks a phase Complete before its PR merges (gh issue #316). In
+# Progress phases stay listed so a resumed run picks them back up.
+do_ready_phases() {
+  local plan_json="$1" rows
+  if ! rows=$(jq -r '
+    ([(.phases // [])[] | {key: (.letter | tostring), value: (.merged == true)}] | from_entries) as $m
+    | .phases[] | select((.status | startswith("Complete")) | not)
+    | select(all((.depends_on // [])[]; $m[tostring] == true))
+    | .letter' "$plan_json" 2>/dev/null); then
+    echo "ERROR: ready_phases_unchecked: could not evaluate phase readiness — run validate-plan --schema $plan_json" >&2
+    exit 1
+  fi
+  [[ -n "$rows" ]] && printf '%s\n' "$rows"
+  return 0
+}
+
+do_mark_merged() {
+  local plan_json="$1" phase_letter="$2"
+  lock_plan "$plan_json"
+  trap 'unlock_plan "'"$plan_json"'"' EXIT
+  if ! jq -e --arg l "$phase_letter" 'any(.phases[]; .letter == $l)' "$plan_json" >/dev/null; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: phase_not_found: '$phase_letter' not found in plan" >&2
+    exit 1
+  fi
+  local phase_status
+  phase_status=$(jq -r --arg l "$phase_letter" '.phases[] | select(.letter == $l) | .status' "$plan_json")
+  if [[ ! "$phase_status" =~ ^Complete ]]; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: cannot_mark_merged: phase $phase_letter is '$phase_status' — only a Complete phase's PR can have merged" >&2
+    exit 1
+  fi
+  local tmp="${plan_json}.tmp.$$"
+  jq --arg l "$phase_letter" '(.phases[] | select(.letter == $l)).merged = true' "$plan_json" > "$tmp" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: jq update failed" >&2; exit 1; }
+  mv "$tmp" "$plan_json" || { rm -f "$tmp"; unlock_plan "$plan_json"; trap - EXIT; echo "ERROR: failed to write plan.json" >&2; exit 1; }
+  do_render "$plan_json"
+  unlock_plan "$plan_json"
+  trap - EXIT
+}
+
+# Phase PRs merge in letter order, so a phase that finishes before an earlier
+# sibling waits. The lowest unmerged phase depends only on earlier (merged)
+# phases, so the order can never deadlock.
+do_check_merge_order() {
+  local plan_json="$1" phase_letter="$2"
+  if ! jq -e --arg l "$phase_letter" 'any(.phases[]; .letter == $l)' "$plan_json" >/dev/null; then
+    echo "ERROR: phase_not_found: '$phase_letter' not found in plan" >&2
+    exit 1
+  fi
+  local waiting
+  waiting=$(jq -r --arg l "$phase_letter" '[.phases[] | select(.letter < $l and .merged != true) | .letter] | join(", ")' "$plan_json")
+  if [[ -n "$waiting" ]]; then
+    echo "ERROR: merge_order: phase $phase_letter must wait — earlier phase(s) $waiting not merged yet" >&2
+    exit 1
+  fi
+}
+
 do_clear_gate() {
   local plan_json="$1" task_id="$2"
   lock_plan "$plan_json"
@@ -1569,6 +1704,12 @@ do_add_dep() {
   if [[ "$source_letter" > "$downstream_letter" ]]; then
     unlock_plan "$plan_json"; trap - EXIT
     echo "ERROR: invalid_dependency: $downstream_id (phase $downstream_letter) cannot depend on $source_id (phase $source_letter)" >&2
+    exit 1
+  fi
+  if [[ "$source_letter" != "$downstream_letter" ]] && ! jq -e --arg d "$downstream_letter" --arg s "$source_letter" "$JQ_TASK_DEFS"'
+      any(ancestors(phase_graph; $d)[]; . == $s)' "$plan_json" >/dev/null; then
+    unlock_plan "$plan_json"; trap - EXIT
+    echo "ERROR: phase_dependency_missing: phase $downstream_letter doesn't depend on phase $source_letter, so $source_id may not be merged when $downstream_id runs" >&2
     exit 1
   fi
   downstream_status=$(jq -r --arg id "$downstream_id" '.phases[].tasks[] | select(.id == $id) | .status' "$plan_json")
@@ -2001,6 +2142,14 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
+    --ready-phases|--mark-merged|--check-merge-order)
+      MODE="${1#--}"
+      shift
+      if [[ $# -gt 0 ]]; then
+        PLAN_JSON="$1"
+        shift
+      fi
+      ;;
     --clear-gate)
       MODE="clear-gate"
       shift
@@ -2190,6 +2339,24 @@ case "$MODE" in
       exit 2
     fi
     do_ready "$PLAN_JSON" "$UPDATE_ID"
+    ;;
+  ready-phases)
+    if [[ -n "$UPDATE_TARGET" ]]; then
+      echo "ERROR: --ready-phases takes no other arguments" >&2
+      exit 2
+    fi
+    do_ready_phases "$PLAN_JSON"
+    ;;
+  mark-merged|check-merge-order)
+    if [[ "$UPDATE_TARGET" != "phase" || -z "$UPDATE_ID" ]]; then
+      echo "ERROR: --$MODE requires --phase <LETTER>" >&2
+      exit 2
+    fi
+    if [[ "$MODE" == "mark-merged" ]]; then
+      do_mark_merged "$PLAN_JSON" "$UPDATE_ID"
+    else
+      do_check_merge_order "$PLAN_JSON" "$UPDATE_ID"
+    fi
     ;;
   clear-gate)
     if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" ]]; then
