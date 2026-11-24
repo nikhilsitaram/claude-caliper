@@ -351,16 +351,19 @@ Before an LLM reviewer ever sees the plan, `validate-plan --schema` runs structu
 - **Schema version gate** — a schema-1 plan is rejected immediately with a message naming the change, rather than drowning in unrelated field errors mid-run
 - All required fields present at every level, including each task's `intent` and `avoid` (an array of `{rule, why}` objects)
 - Phase dependency graph is a valid DAG (BFS cycle detection)
-- Task dependencies only reference same or earlier phases
+- Task dependencies reference the same phase, or a phase in this phase's (transitive) `depends_on`. Phases that don't depend on each other run in parallel, so a cross-phase dependency they don't cover fails as `phase_dependency_missing`
+- **Sibling overlap warning** — two phases that may run in parallel touching the same file print a non-fatal `sibling_fileset_overlap` warning, since that predicts a conflict when the later one merges
 - No duplicate task IDs or `create` paths across the entire plan
 - **File-set isolation** — no two tasks in the same phase share any file path across `create`/`modify`/`test`, unless a `depends_on` path orders them
 - **Task ID prefix matches phase** — task A1 must be in Phase A
 - **Phase letters are alphabetically ordered** — A before B before C
 - **Status consistency** — phase can't be "Complete" if any task is still pending
 - **Recorded bases are full SHAs** — a plan- or phase-level `base_sha` (written by `--set-base`) must be a full commit SHA, never a branch name or abbreviation
+- **Merge markers sit on Complete phases** — a phase's `merged` (written by `--mark-merged`) must be a boolean, and only on a Complete phase
 
 Additional runtime gates:
 - `--ready [--phase X]` lists the dispatchable tasks (all `depends_on` complete, no open `gated_on`); `--check-deps --task <ID>` explains why one task is blocked
+- `--ready-phases` lists the phases to work on now (not Complete, every `depends_on` phase merged). `--mark-merged --phase X` records a phase PR's merge; `--check-merge-order --phase X` holds a phase PR until every earlier phase has merged. Starting a phase whose dependencies haven't merged is refused
 - `gated_on` marks tasks waiting on outside input (another team's PR, an access grant); orchestrate asks the user and `--clear-gate` releases them
 - `--set-base` records each review range's starting commit once (plan and phase level), so a fresh orchestrate run can resume a stopped phase without dropping already-merged work
 - `--check-handoffs` / `--add-handoff` record and verify cross-phase handoff notes directly in `plan.json`
