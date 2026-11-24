@@ -227,6 +227,71 @@ assert_eq "refused add-dep leaves deps untouched" '["A1"]' "$(jq -c '.phases[2].
 run --add-dep "$PLAN" --task C1 --depends-on A2
 assert_eq "add-dep allows an edge into a phase dependency" "0" "$RC"
 
+# --- error paths and legacy plans --------------------------------------------
+
+reset_fixture
+mutate '.phases = "broken"'
+run --ready-phases "$PLAN"
+assert_eq "--ready-phases fails loudly on a malformed plan" "1" "$RC"
+assert_contains "malformed plan error code" "ready_phases_unchecked" "$ERR"
+
+# A plan begun before #316 has Complete phases with no merged marker: every
+# earlier phase reads as unmerged until orchestrate's reconcile backfills it.
+reset_fixture
+mutate '.status = "In Development" | .phases[0].status = "'"$COMPLETE_STATUS"'" | .phases[0].tasks[].status = "complete"'
+run --check-merge-order "$PLAN" --phase B
+assert_eq "legacy plan: unmarked Complete phase blocks the next merge" "1" "$RC"
+assert_contains "legacy plan: names the unmarked phase" "phase(s) A not merged" "$ERR"
+
+# --- CLI-driven sibling lifecycle (A -> B, C in parallel) ---------------------
+
+reset_fixture
+add_sibling_c
+review() { jq --arg s "$1" '. + [{"type":"impl-review","scope":$s,"pass":1,"verdict":"pass","remaining":0}]' "$TMPDIR/reviews.json" > "$TMPDIR/r.json" && mv "$TMPDIR/r.json" "$TMPDIR/reviews.json"; }
+finish_phase() {
+  local letter="$1" t
+  for t in $(jq -r --arg l "$letter" '.phases[] | select(.letter == $l) | .tasks[].id' "$PLAN"); do
+    "$VALIDATE" --update-status "$PLAN" --task "$t" --status in_progress >/dev/null
+    "$VALIDATE" --update-status "$PLAN" --task "$t" --status done >/dev/null
+  done
+  review "phase-${letter,,}"
+  "$VALIDATE" --update-status "$PLAN" --phase "$letter" --status "$COMPLETE_STATUS" >/dev/null
+}
+echo '[]' > "$TMPDIR/reviews.json"
+"$VALIDATE" --update-status "$PLAN" --plan --status "In Development" >/dev/null
+"$VALIDATE" --update-status "$PLAN" --phase A --status "In Progress" >/dev/null
+finish_phase A
+
+run --update-status "$PLAN" --phase B --status "In Progress"
+assert_eq "a phase can't start while a depends_on phase is unmerged" "1" "$RC"
+assert_contains "start refusal names the unmerged dependency" "A" "$ERR"
+
+"$VALIDATE" --mark-merged "$PLAN" --phase A
+run --ready-phases "$PLAN"
+assert_eq "lifecycle: A merged releases B and C together" "B
+C" "$OUT"
+run --update-status "$PLAN" --phase B --status "In Progress"
+assert_eq "lifecycle: B starts once A merged" "0" "$RC"
+run --update-status "$PLAN" --phase C --status "In Progress"
+assert_eq "lifecycle: C starts alongside B" "0" "$RC"
+"$VALIDATE" --update-status "$PLAN" --task B1 --status in_progress >/dev/null
+finish_phase C
+run --consistency "$PLAN"
+assert_eq "lifecycle: B in flight while C is Complete is consistent" "0" "$RC"
+run --check-merge-order "$PLAN" --phase C
+assert_eq "lifecycle: C waits for B" "1" "$RC"
+"$VALIDATE" --update-status "$PLAN" --task B1 --status done >/dev/null
+review phase-b
+"$VALIDATE" --update-status "$PLAN" --phase B --status "$COMPLETE_STATUS" >/dev/null
+"$VALIDATE" --mark-merged "$PLAN" --phase B
+run --check-merge-order "$PLAN" --phase C
+assert_eq "lifecycle: C may merge once B merged" "0" "$RC"
+"$VALIDATE" --mark-merged "$PLAN" --phase C
+run --ready-phases "$PLAN"
+assert_eq "lifecycle: nothing left once every phase merged" "" "$OUT"
+run --schema "$PLAN"
+assert_eq "lifecycle: final plan passes schema" "0" "$RC"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

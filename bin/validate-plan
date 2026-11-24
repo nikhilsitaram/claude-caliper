@@ -499,7 +499,7 @@ do_schema() {
           done
         fi
         if [[ $found -eq 0 ]]; then
-          err "ERROR: invalid_dependency: task $id depends_on $dep_id which doesn't exist in same or prior phase"
+          err "ERROR: invalid_dependency: task $id depends_on $dep_id which doesn't exist in the same or an earlier phase"
         fi
       done <<< "$_task_deps"
 
@@ -1011,6 +1011,20 @@ do_update_status_phase() {
     trap - EXIT
     echo "ERROR: cannot move phase $phase_letter to '$new_status' — its PR has merged into the integration branch" >&2
     exit 1
+  fi
+  # A phase starts in a branch forked from the integration tip, so every phase it
+  # depends on must already be merged there — Complete alone isn't (gh issue #316).
+  if [[ "$new_status" == "In Progress" ]]; then
+    local unmerged_deps
+    unmerged_deps=$(jq -r --arg l "$phase_letter" '
+      ([.phases[] | {key: .letter, value: (.merged == true)}] | from_entries) as $m
+      | [.phases[] | select(.letter == $l) | (.depends_on // [])[] | select($m[tostring] != true)] | join(", ")' "$plan_json")
+    if [[ -n "$unmerged_deps" ]]; then
+      unlock_plan "$plan_json"
+      trap - EXIT
+      echo "ERROR: cannot start phase $phase_letter — depends_on phase(s) $unmerged_deps not merged into the integration branch yet (record a merge with --mark-merged)" >&2
+      exit 1
+    fi
   fi
   if [[ "$new_status" == "In Progress" || "$new_status" =~ ^Complete ]]; then
     local plan_status
