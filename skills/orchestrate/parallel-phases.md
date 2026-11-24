@@ -1,6 +1,10 @@
 # Parallel Phases
 
-Read this when `validate-plan --ready-phases` lists more than one phase, when a phase is waiting on a sibling's merge, or when step 7a sends a phase to Catch Up. Example: A has `depends_on: []`, while B and C each have `["A"]`. Once A merges, B and C run side by side. Each still gets the full per-phase flow (Prepare Phase, dispatch, Phase Wrap-Up). This file covers only what changes when two of those flows run at once.
+Read this at Setup when the plan has sibling phases, when `validate-plan --ready-phases` lists more than one phase, when a phase is waiting on a sibling's merge, or when step 7a sends a phase to Catch Up. Example: A has `depends_on: []`, while B and C each have `["A"]`. Once A merges, B and C run side by side. Each still gets the full per-phase flow (Prepare Phase, dispatch, Phase Wrap-Up). This file covers only what changes when two of those flows run at once.
+
+## Confirm Siblings
+
+Run this at Setup. Ask only if the plan wasn't drafted and plan-reviewed earlier in this session. A plan drafted before phase `depends_on` drove scheduling never had its completeness checked, and neither has a plan picked up on a resume. Ask one AskUserQuestion that names the sibling groups. The options are: run as declared, or serialize by adding each phase's predecessor letter to its `depends_on` (a `jq` write to `$PLAN_JSON`, then re-run `--schema`).
 
 ## Start Each Ready Phase
 
