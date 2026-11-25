@@ -167,6 +167,16 @@ reset; view OPEN MERGEABLE "$GREEN" "$NOW_ISO" "quoting: > Reviewed-Head: $HEAD_
 run 42
 check_eq "verdict must start its line (a quote doesn't count)" 1 "$RC"
 
+# --- seam: the verdict line pr-review documents is the one this script parses ---
+# Read the template line from pr-review's SKILL.md (not a copy), fill in the
+# head and a zero count, and require it to pass the verdict criterion.
+TEMPLATE="$(grep -m1 '^Reviewed-Head: <sha>' "$REPO_ROOT/skills/pr-review/SKILL.md")"
+check_eq "seam: pr-review documents a Reviewed-Head template line" yes "$([[ -n "$TEMPLATE" ]] && echo yes || echo no)"
+FILLED="${TEMPLATE/<sha>/$HEAD_SHA}"; FILLED="${FILLED/<n>/0}"
+reset; view OPEN MERGEABLE "$GREEN" "$NOW_ISO" "$(printf 'Summary.\n\n%s' "$FILLED")"
+run 42
+check_eq "seam: pr-review's documented verdict line satisfies the bar" true "$(j .verdict.ok)"
+
 # --- threads ---
 reset; threads true:1 false:1 false:3
 run 42
