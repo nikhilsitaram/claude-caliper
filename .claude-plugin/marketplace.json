@@ -64,7 +64,7 @@
     },
     {
       "name": "claude-caliper-tooling",
-      "description": "Standalone tools: codebase audit, test audit, skill evaluation, usage-window scheduling (queue / usage-guard), session handoff, and multi-pane coordination",
+      "description": "Standalone tools: codebase audit, test audit, skill evaluation, usage-window scheduling (queue / usage-guard), and session handoff",
       "version": "1.57.0",
       "source": "./",
       "author": {
@@ -78,8 +78,7 @@
         "./skills/skill-eval",
         "./skills/queue",
         "./skills/usage-guard",
-        "./skills/handoff",
-        "./skills/coordinate"
+        "./skills/handoff"
       ]
     }
   ]

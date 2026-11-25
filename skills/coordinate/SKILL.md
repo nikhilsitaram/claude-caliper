@@ -56,8 +56,11 @@ Run this at start, after every merge, and after every pane report or resume:
 2. Before each spawn, run `./skills/usage-guard/scripts/check-usage.sh 90`:
    - **0:** spawn.
    - **10:** stop starting panes. Running panes carry on.
-   - **1 or 2:** the statusline tap isn't wired (see the queue README). Tell the user once that usage gating is off, then carry on ungated.
-3. Spawn the pane with `./skills/handoff/scripts/spawn-pane.sh <slug> <main checkout>`. Add `--perm-mode <mode>` with your own permission mode when it isn't default, so an auto-mode run doesn't stall on a pane's prompts. Then record it: `caliper-coordinate set <slug> --status running --pane-name <NAME> --pane-id <SESSION_ID>`.
+   - **2:** a transient read failure. It's common right after a window reset, which is exactly when `--resume` fires. Re-run once after about 5s before acting on it.
+   - **1, or 2 twice:** usage can't be read (the statusline tap may not be wired; see the queue README). Tell the user once that usage gating is off, then carry on ungated.
+
+   `STALE=yes` means the reading lags. You sit idle while the panes use up the window, so treat the number as a floor.
+3. Spawn the pane with `./skills/handoff/scripts/spawn-pane.sh <slug> <main checkout>`. Add `--perm-mode <mode>` with your own permission mode (e.g. `auto`, `acceptEdits`) when it isn't the default, so an auto-mode run doesn't stall on a pane's prompts. Then record it: `caliper-coordinate set <slug> --status running --pane-name <NAME> --pane-id <SESSION_ID>`.
 4. Write the brief. Follow `handoff`'s permission-laundering check, then send one `SendMessage` built from the template.
 
 **See:** brief-template.md
