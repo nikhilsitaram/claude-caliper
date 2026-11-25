@@ -91,7 +91,7 @@ When the reviewer returns, **display what it found, then proceed straight to fix
 Address each:
 
 - **Fix** actionable findings — verify against the code first, since the reviewer can be wrong.
-- **Dismiss** false positives with a stated technical reason. Findings marked `non_dismissible: true` (category-7 seam-mock gaps) can't be dismissed — fix them or re-dispatch.
+- **Dismiss** false positives with a stated technical reason. Findings marked `non_dismissible: true` (category-7 seam-mock gaps) can't be dismissed — fix them.
 
 Run the relevant tests after fixing, then apply the two-pass cap below.
 
