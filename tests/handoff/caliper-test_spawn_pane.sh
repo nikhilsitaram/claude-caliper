@@ -125,6 +125,44 @@ run "iTerm.app" --dry-run spaced "$sp"
 assert "spaced cwd exits 0"                 '[[ $RC -eq 0 ]]'
 assert "spaced cwd is escaped in LAUNCH_CMD" '[[ "$(field LAUNCH_CMD)" == *"handoff\\ test"* ]]'
 
+# --- real (non-dry-run) path with fake osascript/ps: SESSION_ID (gh #319) ---
+# The fake osascript records the launch line (item 1 of argv) and returns a fixed
+# new-pane id for the split; the fake ps lists that launch line as a running
+# process, so the success poll finds it. With FAKE_PS_EMPTY set, ps lists nothing
+# and the launch times out.
+fk="$(mktemp -d)"; trap 'rm -rf "$sp" "$fk"' EXIT
+mkdir -p "$fk/bin"
+cat > "$fk/bin/osascript" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+case "${2:-}" in
+  *"claude --name "*) printf '%s\n' "$2" > "$FK/launch"; echo "NEW-PANE-ID-42" ;;
+  *) echo "last pane line" ;;
+esac
+EOF
+cat > "$fk/bin/ps" <<'EOF'
+#!/usr/bin/env bash
+[ -n "${FAKE_PS_EMPTY:-}" ] || cat "$FK/launch" 2>/dev/null
+EOF
+cat > "$fk/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+:
+EOF
+chmod +x "$fk/bin/osascript" "$fk/bin/ps" "$fk/bin/sleep"
+
+FK="$fk" PATH="$fk/bin:$PATH" run "iTerm.app" live /tmp
+assert "real launch exits 0"                      '[[ $RC -eq 0 ]]'
+assert "real launch prints the new pane SESSION_ID" '[[ "$(field SESSION_ID)" == "NEW-PANE-ID-42" ]]'
+assert "real launch reports LAUNCHED=yes"         '[[ "$(field LAUNCHED)" == "yes" ]]'
+
+FK="$fk" FAKE_PS_EMPTY=1 HANDOFF_REGISTER_TIMEOUT=1 PATH="$fk/bin:$PATH" run "iTerm.app" live /tmp
+assert "timed-out launch exits 5"                 '[[ $RC -eq 5 ]]'
+assert "timed-out launch still prints SESSION_ID (so the pane can be closed)" \
+  '[[ "$(field SESSION_ID)" == "NEW-PANE-ID-42" ]]'
+
+run "iTerm.app" --dry-run nopane /tmp
+assert "dry-run prints no SESSION_ID (no pane exists)" '[[ "$STDOUT" != *"SESSION_ID="* ]]'
+
 echo "----"
 echo "PASS=$pass FAIL=$fail"
 [ "$fail" -eq 0 ]

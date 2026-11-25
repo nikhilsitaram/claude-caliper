@@ -50,7 +50,13 @@ jobs:
           done
 
       - name: Handoff tests
-        run: bash tests/handoff/caliper-test_spawn_pane.sh
+        # Glob so new tests/handoff/caliper-test_*.sh auto-enroll. They fake
+        # osascript, so they run on Linux too.
+        run: |
+          for t in tests/handoff/caliper-test_*.sh; do
+            echo "== $t =="
+            bash "$t"
+          done
 
       - name: Validate-plan tests
         # Glob so new tests/validate-plan/caliper-test_*.sh auto-enroll — the

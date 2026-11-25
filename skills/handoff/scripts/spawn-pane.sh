@@ -25,9 +25,11 @@
 #                 exit without touching iTerm2 or polling. Used by tests and to
 #                 preview the launch line.
 #
-# Prints KEY=VALUE lines on success. On real (non-dry-run) success it also polls
-# until the new claude process is up (so the caller needs at most a couple of
-# ListAgents checks, never a poll loop) and prints LAUNCHED=yes, or LAUNCHED=timeout
+# Prints KEY=VALUE lines on success. A real (non-dry-run) launch also prints
+# SESSION_ID= (the new pane's iTerm2 session id, for close-pane.sh) once the
+# split exists, then polls until the new claude process is up (so the caller
+# needs at most a couple of ListAgents checks, never a poll loop) and prints
+# LAUNCHED=yes, or LAUNCHED=timeout
 # with a non-zero exit if the process never appeared.
 set -u
 
@@ -180,6 +182,13 @@ APPLESCRIPT
   echo "LAUNCHED=failed"
   exit 3
 fi
+
+# The new pane's own iTerm2 session id — what close-pane.sh takes. Printed here,
+# after the split and before the wait, so it reaches the caller on the timeout
+# path too: a half-started pane still has to be closable. Closing by id is the
+# only reliable handle; matching pane contents by name fails once the name
+# scrolls out of the buffer (gh #319).
+echo "SESSION_ID=${new_session_id}"
 
 # Wait for the worker process to come up so the caller can message it right away.
 # Match the unique `--name <name> --settings` signature — not a leading `claude`

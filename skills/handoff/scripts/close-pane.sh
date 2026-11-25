@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# close-pane.sh — close an iTerm2 pane opened by spawn-pane.sh, by its session id.
+# macOS + iTerm2 only (osascript against iTerm's AppleScript API).
+#
+# Usage:
+#   close-pane.sh [--dry-run] <session-id>
+#
+#   <session-id>  The SESSION_ID= spawn-pane.sh printed for the pane.
+#   --dry-run     Validate and print what would be closed, without touching iTerm2.
+#
+# Sends Ctrl-C twice (Claude Code exits on the second), waits, then closes the
+# session. It matches by session id only, never by pane contents: a content match
+# by pane name fails once the name scrolls out of the buffer, or after the pane's
+# session is reset (gh #319). It finds the session first and closes after the
+# loop, because closing inside iTerm's session iteration throws "Invalid index".
+#
+# Prints CLOSED=yes|not-found|failed|dry-run. Exit: 0 closed (or dry-run),
+# 3 no session has that id (already closed), 2 osascript failed, 4 usage error.
+set -u
+
+CLOSE_DELAY="${HANDOFF_CLOSE_DELAY:-1}"  # seconds between the Ctrl-Cs and before closing
+
+usage() { echo "ERROR: $1 (usage: close-pane.sh [--dry-run] <session-id>)." >&2; exit 4; }
+
+dry_run="no"
+id=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) dry_run="yes" ;;
+    -*) usage "unknown option '$1'" ;;
+    *) [ -z "$id" ] || usage "too many arguments"; id="$1" ;;
+  esac
+  shift
+done
+[ -n "$id" ] || usage "a <session-id> is required"
+case "$id" in
+  *[!A-Za-z0-9-]*) usage "session id '$id' has unsafe characters — expected an iTerm2 session UUID" ;;
+esac
+[[ "$CLOSE_DELAY" =~ ^[0-9]+(\.[0-9]+)?$ ]] || usage "HANDOFF_CLOSE_DELAY='$CLOSE_DELAY' is not a number of seconds"
+
+# Never close the session running this script: that would kill the caller.
+if [ -n "${ITERM_SESSION_ID:-}" ] && [ "${ITERM_SESSION_ID##*:}" = "$id" ]; then
+  echo "ERROR: refusing to close this script's own iTerm2 session ($id)." >&2
+  exit 4
+fi
+
+echo "SESSION_ID=${id}"
+if [ "$dry_run" = "yes" ]; then
+  echo "CLOSED=dry-run"
+  exit 0
+fi
+
+# QUOTED heredoc: the id and delay arrive via argv, never spliced into the source.
+if ! result="$(osascript - "$id" "$CLOSE_DELAY" <<'APPLESCRIPT'
+on run argv
+  set wantId to item 1 of argv
+  set pause to (item 2 of argv) as number
+  tell application "iTerm"
+    set target to missing value
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with s in sessions of t
+          if (id of s) is wantId then set target to s
+        end repeat
+      end repeat
+    end repeat
+    if target is missing value then return "not-found"
+    tell target
+      write text (character id 3) newline no
+      delay pause
+      write text (character id 3) newline no
+      delay pause
+    end tell
+    close target
+    return "closed"
+  end tell
+end run
+APPLESCRIPT
+)"; then
+  echo "ERROR: osascript could not close session $id (has iTerm2 been granted Automation access? see README)." >&2
+  echo "CLOSED=failed"
+  exit 2
+fi
+
+case "$result" in
+  closed) echo "CLOSED=yes"; exit 0 ;;
+  not-found) echo "CLOSED=not-found"; exit 3 ;;
+  *) echo "ERROR: unexpected osascript result '$result'." >&2; echo "CLOSED=failed"; exit 2 ;;
+esac
