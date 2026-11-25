@@ -47,6 +47,8 @@ Removes a user override so the setting falls back to its shipped default. With n
 | `pr_reviewer_model` | enum | `opus` | pr-review |
 | `review_wait_minutes` | int | `5` | orchestrate, pr-review |
 | `merge_wait_minutes` | int | `10` | pr-merge |
+| `coordinate_max_panes` | int | `10` | coordinate |
+| `coordinate_merge` | enum | `confirm` | coordinate |
 
 ## How Settings Are Used
 

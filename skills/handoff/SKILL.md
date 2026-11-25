@@ -41,9 +41,10 @@ Run the launcher (executable — invoke directly, don't prefix with `bash`):
   hands-off. Default is interactive: the pane is right there to answer prompts.
 
 The launcher opens the split, types the launch line into it, and waits for the
-new `claude` process to come up. Read `NAME=` from its output. If it prints
-`LAUNCHED=timeout` or errors, relay the message and stop — don't message a
-session that isn't up. (First run also triggers a one-time macOS Automation
+new `claude` process to come up. Read `NAME=` and `SESSION_ID=` from its output.
+`SESSION_ID` is the pane's iTerm2 id, the only handle that can close it later.
+If it prints `LAUNCHED=timeout` or errors, relay the message and stop — don't
+message a session that isn't up. (First run also triggers a one-time macOS Automation
 permission prompt — see README.)
 
 The launch line sets `--settings '{"crossSessionInbound":"accept"}'`. That flag
@@ -84,6 +85,13 @@ in a loop or send "are you done?" messages to check on it.
 
 Tell the user the pane is open, the session's name, and that they can steer it
 directly in that pane or ask you to relay follow-ups to it.
+
+## Close the pane
+
+Once the sibling reports it's finished and cleaned up, close its pane by id:
+`./skills/handoff/scripts/close-pane.sh <SESSION_ID>` (Ctrl-C to exit
+claude, then close). Don't match panes by their contents: once the session name scrolls out
+of the buffer, nothing matches. Exit 3 means the pane was already closed.
 
 ## Notes
 

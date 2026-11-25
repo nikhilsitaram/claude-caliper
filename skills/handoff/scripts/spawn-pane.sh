@@ -25,9 +25,11 @@
 #                 exit without touching iTerm2 or polling. Used by tests and to
 #                 preview the launch line.
 #
-# Prints KEY=VALUE lines on success. On real (non-dry-run) success it also polls
-# until the new claude process is up (so the caller needs at most a couple of
-# ListAgents checks, never a poll loop) and prints LAUNCHED=yes, or LAUNCHED=timeout
+# Prints KEY=VALUE lines on success. A real (non-dry-run) launch also prints
+# SESSION_ID= (the new pane's iTerm2 session id, for close-pane.sh) once the
+# split exists, then polls until the new claude process is up (so the caller
+# needs at most a couple of ListAgents checks, never a poll loop) and prints
+# LAUNCHED=yes, or LAUNCHED=timeout
 # with a non-zero exit if the process never appeared.
 set -u
 
@@ -105,7 +107,8 @@ name="${slug}-${suffix}"
 # session's UUID as $ITERM_SESSION_ID ("w0t0p0:<UUID>"); the part after the colon
 # matches an AppleScript session's `id`. Empty (older iTerm2) falls back to the
 # current session in the AppleScript below.
-invoker_id="${ITERM_SESSION_ID##*:}"
+invoker_id="${ITERM_SESSION_ID:-}"   # unset under older iTerm2; `set -u` would abort
+invoker_id="${invoker_id##*:}"
 
 # Build the launch command as ONE shell line to type into the new pane. cwd is
 # %q-quoted so spaces survive; SETTINGS_JSON stays single-quoted so the pane's
@@ -128,13 +131,17 @@ if [ "$dry_run" = "yes" ]; then
 fi
 
 # Split the INVOKING iTerm2 session vertically (the cmd+d equivalent) and type the
-# launch line into the new pane. The AppleScript is a QUOTED heredoc — nothing
+# launch line into the new pane. The AppleScript is a QUOTED heredoc, so nothing
 # from bash is interpolated into it; the command, the invoker's session id, and the
 # settle delay all arrive via `on run argv`. It finds the session whose id matches
 # (so the pane lands in handoff's own tab, not the focused one); an empty id falls
 # back to the current session. On success it returns the NEW pane's id so a launch
 # timeout below can read that pane back for diagnostics.
-if ! new_session_id="$(osascript - "$launch_cmd" "$invoker_id" "$SETTLE_DELAY" <<'APPLESCRIPT'
+# Each AppleScript is read into a variable by a top-level QUOTED heredoc and fed
+# to osascript on stdin with <<<. A heredoc inside $(...) breaks stock macOS
+# bash 3.2 (an apostrophe in its body is parsed as an open quote), and
+# `#!/usr/bin/env bash` runs 3.2 on a Mac without Homebrew bash.
+IFS= read -r -d '' SPLIT_SCRIPT <<'APPLESCRIPT' || true
 on run argv
   set theCmd to item 1 of argv
   set wantId to item 2 of argv
@@ -175,11 +182,18 @@ on run argv
   end tell
 end run
 APPLESCRIPT
-)"; then
+if ! new_session_id="$(osascript - "$launch_cmd" "$invoker_id" "$SETTLE_DELAY" <<<"$SPLIT_SCRIPT")"; then
   echo "ERROR: could not create the iTerm2 pane (is a window open, and has iTerm2 been granted Automation access? see README)." >&2
   echo "LAUNCHED=failed"
   exit 3
 fi
+
+# The new pane's own iTerm2 session id — what close-pane.sh takes. Printed here,
+# after the split and before the wait, so it reaches the caller on the timeout
+# path too: a half-started pane still has to be closable. Closing by id is the
+# only reliable handle; matching pane contents by name fails once the name
+# scrolls out of the buffer (gh #319).
+echo "SESSION_ID=${new_session_id}"
 
 # Wait for the worker process to come up so the caller can message it right away.
 # Match the unique `--name <name> --settings` signature — not a leading `claude`
@@ -203,7 +217,7 @@ echo "WARNING: the new session's claude process didn't appear within ${REGISTER_
 # command was corrupted (e.g. `zsh: command not found: dcd`), that's the tell —
 # without this the timeout is opaque. Best-effort: any readback failure is silent.
 if [ -n "$new_session_id" ]; then
-  pane_tail="$(osascript - "$new_session_id" <<'APPLESCRIPT' 2>/dev/null
+  IFS= read -r -d '' READBACK_SCRIPT <<'APPLESCRIPT' || true
 on run argv
   set wantId to item 1 of argv
   tell application "iTerm"
@@ -218,7 +232,7 @@ on run argv
   return ""
 end run
 APPLESCRIPT
-)"
+  pane_tail="$(osascript - "$new_session_id" <<<"$READBACK_SCRIPT" 2>/dev/null)"
   # Trim to the last few non-blank lines so the hint is compact.
   pane_tail="$(printf '%s\n' "$pane_tail" | grep -v '^[[:space:]]*$' | tail -5)"
   if [ -n "$pane_tail" ]; then

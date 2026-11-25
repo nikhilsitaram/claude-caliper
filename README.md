@@ -25,7 +25,7 @@ Many claude workflows are either improperly context engineered, overly complicat
 
 Install claude-caliper. Describe what you want to build. Walk away.
 
-The plugin installs 18 skills that fire automatically at the right moment, enforcing a full development workflow: **design before code, test before merge.** The design skill sizes the work first and routes it — small and medium changes take an inline fast path, large ones fan out through a validated plan. You make three decisions — approve the design, review the PR, and confirm the merge — and everything between runs as a chain of fresh subagents with zero manual handoffs.
+The plugin installs 19 skills that fire automatically at the right moment, enforcing a full development workflow: **design before code, test before merge.** The design skill sizes the work first and routes it — small and medium changes take an inline fast path, large ones fan out through a validated plan. You make three decisions — approve the design, review the PR, and confirm the merge — and everything between runs as a chain of fresh subagents with zero manual handoffs.
 
 ---
 
@@ -130,7 +130,7 @@ Install only what you need:
 
 | Package | What you get | Install command |
 |---------|-------------|-----------------|
-| **claude-caliper** | All 18 skills | `/plugin install claude-caliper@claude-caliper` |
+| **claude-caliper** | All 19 skills | `/plugin install claude-caliper@claude-caliper` |
 | **claude-caliper-workflow** | Design-to-merge pipeline (12 skills) | `/plugin install claude-caliper-workflow@claude-caliper` |
 | **claude-caliper-tooling** | Codebase review + test audit + skill eval + queue + usage-guard + session handoff (6 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
 
@@ -184,6 +184,7 @@ Delegate scoped work to a fresh, visible Claude session in a new pane. **macOS +
 | Skill | Trigger | What it does |
 |-------|---------|-------------|
 | [handoff](skills/handoff/) | `/handoff <slug>` | Splits the iTerm2 pane it was invoked from, launches a fresh `claude` in the new pane, and relays a self-contained brief to it over cross-session messaging — a peer session you can watch and steer, unlike a background subagent |
+| [coordinate](skills/coordinate/) | `/coordinate [--focused] [--resume] [issues...]` | Works a queue of issues through parallel handoff panes, one PR each. It triages scope with you, starts panes as dependencies merge and usage allows, re-checks every PR with `caliper-pr-at-bar`, then merges per `coordinate_merge` (`confirm` waits for your say-so; `auto-merge` merges unless a hold applies). It also tells open panes when the base moves, and keeps a durable ledger (`caliper-coordinate`). Full `claude-caliper` bundle only — see [coordinate/README](skills/coordinate/README.md) |
 
 ---
 
@@ -495,7 +496,7 @@ Skills degrade silently. A prompt tweak that looks better might fail on edge cas
 Yes. Skills are language-agnostic. They auto-detect test runners, respect project conventions, and work with any git repository.
 
 **Can I stop after the plan?**
-Yes. After approving the design, you choose: **Create PR** (execute and open PR for human review), **Ready to merge** (execute, open PR, review and fix it, stop before merging), **Merge PR** (execute, open PR, review, and merge), or **Plan only** (stop after planning).
+Yes. After approving the design, you choose: **Create PR** (execute and open PR for human review), **Ready to merge** (execute, open PR, review and fix it until every bot comment is addressed and CI is green, stop before merging), **Merge PR** (execute, open PR, review, and merge), or **Plan only** (stop after planning).
 
 **What if the design is wrong?**
 The design skill waits for explicit approval. Say "needs changes" and iterate. Nothing proceeds until you approve.

@@ -154,5 +154,25 @@
     "used_by": [
       "pr-review"
     ]
+  },
+  "coordinate_max_panes": {
+    "type": "int",
+    "default": 10,
+    "description": "Most handoff panes the coordinate skill runs at once",
+    "used_by": [
+      "coordinate"
+    ]
+  },
+  "coordinate_merge": {
+    "type": "enum",
+    "values": [
+      "confirm",
+      "auto-merge"
+    ],
+    "default": "confirm",
+    "description": "How coordinate merges an at-bar PR: confirm waits for the user to say merge; auto-merge merges unless a hold applies",
+    "used_by": [
+      "coordinate"
+    ]
   }
 }

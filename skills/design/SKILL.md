@@ -51,12 +51,12 @@ Complete in order:
     - If `PROMPT_REQUIRED`: options depend on the tier recommended in step 5 (mark the recommended option "(Recommended)"):
       - **Small or Medium tier:** `Plan only` is meaningless on the plan-less fast path — omit it:
         - **Create PR** — Implement → pr-create (Recommended)
-        - **Ready to merge** — Implement → pr-create → pr-review (automated fix), stop before merge
+        - **Ready to merge** — Implement → pr-create → pr-review (automated fix, until bot comments are addressed and CI is green), stop before merge
         - **Merge PR** — Implement → pr-create → pr-review → pr-merge
         - **Orchestrate only** — Implement → stop after implementation review (work stays in worktree)
       - **Large tier:** five workflows, but AskUserQuestion takes at most four options, so the two early stops share one:
         - **Create PR** — Orchestrate → pr-create (Recommended)
-        - **Ready to merge** — Orchestrate → pr-create → pr-review (automated fix), stop before merge
+        - **Ready to merge** — Orchestrate → pr-create → pr-review (automated fix, until bot comments are addressed and CI is green), stop before merge
         - **Merge PR** — Orchestrate → pr-create → pr-review → pr-merge
         - **Stop early** — then ask a follow-up: **Orchestrate only** (stop after implementation review, work stays in worktree) or **Plan only** (stop after plan is reviewed)
 

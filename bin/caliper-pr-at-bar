@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# caliper-pr-at-bar <pr> [--allow-no-checks] [--no-checks-min N]
+#
+# One snapshot of whether a PR is ready to merge (gh #319): the check a
+# coordinator re-runs instead of trusting a pane's "at bar" report, and the
+# exit check of pr-review's automated-fix mode. Ready means every bot comment
+# is addressed and CI is green, plus the mechanical prerequisites for a merge:
+#
+#   state       the PR is OPEN
+#   checks      at least one check registered, none pending, none failed
+#               (SUCCESS, NEUTRAL and SKIPPED pass). A bot still reviewing
+#               (e.g. CodeRabbit's pending check) counts as pending
+#   threads     every review thread, bot or human, is resolved or has a reply
+#   mergeable   GitHub reports MERGEABLE (UNKNOWN is not taken as clean)
+#   up_to_date  the head is 0 commits behind its base branch
+#
+# Safety valve for broken CI: a check that failed on the PR but whose latest
+# run on the base branch's head also failed is not this PR's doing. It moves
+# from failed to `broken` (named in broken_names) and doesn't block. A failure
+# the base doesn't share still blocks, including a check that never runs on the
+# base (a pull_request-only workflow). While base is red, a regression the PR
+# adds to that same check is masked: callers must surface broken_names.
+#
+# A cancelled check from an app outside GitHub Actions (empty workflowName,
+# e.g. CodeRabbit giving up on a review) doesn't block either: it goes in
+# cancelled_bot_names. A cancelled Actions job still blocks, as does a check
+# with no workflowName field at all. Third-party CI apps (e.g. Cloudflare
+# Workers Builds) also have an empty workflowName, so their cancellations are
+# waived the same way and reported.
+#
+# A snapshot, not a wait: caliper-wait-pr is the CI wait. When no check has
+# registered and the head commit is older than --no-checks-min (default 10),
+# the JSON carries a hint that GitHub likely dropped the push event, and how
+# to re-trigger it. --allow-no-checks is for repos with no CI at all.
+#
+# Prints one JSON object on stdout; when not at the bar, one reason line on
+# stderr naming the failing criteria. Exit: 0 at bar, 1 not at bar, 64 usage
+# error or a gh read failure. Reads every review thread (paginated).
+
+usage() {
+  echo "Usage: caliper-pr-at-bar <pr> [--allow-no-checks] [--no-checks-min N]" >&2
+  exit 64
+}
+
+PR="" ALLOW_NO_CHECKS=false NO_CHECKS_MIN=10
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --allow-no-checks) ALLOW_NO_CHECKS=true; shift ;;
+    --no-checks-min) [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]] || usage; NO_CHECKS_MIN=$2; shift 2 ;;
+    -*) usage ;;
+    *) [[ -z "$PR" && "$1" =~ ^[0-9]+$ ]] || usage; PR="$1"; shift ;;
+  esac
+done
+[[ -n "$PR" ]] || usage
+
+fail_read() { echo "caliper-pr-at-bar: could not read PR #$PR ($1)" >&2; exit 64; }
+
+VIEW="$(gh pr view "$PR" --json state,headRefOid,baseRefName,mergeable,statusCheckRollup,commits)" \
+  || fail_read "gh pr view"
+
+# {owner}/{repo} are gh's own placeholders, filled from the current repo.
+# shellcheck disable=SC2016  # $owner etc. are GraphQL variables
+THREADS_QUERY='query($owner: String!, $name: String!, $n: Int!, $endCursor: String) {
+  repository(owner: $owner, name: $name) { pullRequest(number: $n) {
+    reviewThreads(first: 100, after: $endCursor) {
+      pageInfo { hasNextPage endCursor }
+      nodes { isResolved comments { totalCount } } }
+  } } }'
+# --paginate follows endCursor and prints one JSON document per page; jq -s
+# flattens them, so an unanswered thread past the first 100 still counts.
+THREADS="$(gh api graphql --paginate -F owner='{owner}' -F name='{repo}' -F n="$PR" -f query="$THREADS_QUERY" \
+  | jq -s '[.[].data.repository.pullRequest.reviewThreads.nodes[]?]')" \
+  || fail_read "review threads"
+
+HEAD="$(jq -r '.headRefOid' <<<"$VIEW")"
+BASE="$(jq -r '.baseRefName' <<<"$VIEW")"
+BEHIND="$(gh api "repos/{owner}/{repo}/compare/${BASE}...${HEAD}" --jq '.behind_by')" \
+  || fail_read "compare with base"
+
+# Names of checks failing on the base branch's head: check runs (latest per
+# name, the endpoint's default) and commit statuses. Read only when the PR has
+# a failed check, so a green PR costs no extra calls.
+# The one definition of a failed check (SUCCESS, NEUTRAL, SKIPPED pass; an
+# unfinished check is pending, not failed), and of a cancelled bot check.
+PR_CANCELLED_BOTS="$(jq -c '[(.statusCheckRollup // [])[] | select(
+    .__typename == "CheckRun" and .status == "COMPLETED" and .conclusion == "CANCELLED"
+    and .workflowName == "") | .name]' <<<"$VIEW")"
+PR_FAILING="$(jq -c --argjson bots "$PR_CANCELLED_BOTS" '[(.statusCheckRollup // [])[] | select(
+    if .__typename == "StatusContext" then (.state | IN("FAILURE", "ERROR"))
+    else (.status == "COMPLETED" and ((.conclusion | IN("SUCCESS", "NEUTRAL", "SKIPPED")) | not)) end)
+  | .name // .context | select(IN($bots[]) | not)]' <<<"$VIEW")"
+BASE_FAILING='[]'
+if [[ "$PR_FAILING" != '[]' ]]; then
+  RUNS="$(gh api --paginate "repos/{owner}/{repo}/commits/${BASE}/check-runs" \
+    | jq -s '[.[].check_runs[]? | select(.status == "completed"
+        and ((.conclusion // "") | IN("success", "neutral", "skipped") | not)) | .name]')" \
+    || fail_read "base check runs"
+  STATUSES="$(gh api "repos/{owner}/{repo}/commits/${BASE}/status" \
+    | jq '[.statuses[]? | select(.state | IN("failure", "error")) | .context]')" \
+    || fail_read "base statuses"
+  BASE_FAILING="$(jq -cn --argjson a "$RUNS" --argjson b "$STATUSES" '$a + $b | unique')"
+fi
+
+RESULT="$(jq -n \
+  --argjson pr "$PR" \
+  --argjson view "$VIEW" \
+  --argjson threads "$THREADS" \
+  --argjson behind "$BEHIND" \
+  --argjson pr_failing "$PR_FAILING" \
+  --argjson cancelled_bots "$PR_CANCELLED_BOTS" \
+  --argjson base_failing "$BASE_FAILING" \
+  --argjson allow_no_checks "$ALLOW_NO_CHECKS" \
+  --argjson no_checks_min "$NO_CHECKS_MIN" '
+  def cname: .name // .context;
+  # Only applied to checks that did not fail: passed, or still pending.
+  def bucket:
+    if .__typename == "StatusContext" then (if .state == "SUCCESS" then "pass" else "pending" end)
+    elif .status == "COMPLETED" then "pass" else "pending" end;
+
+  $view.headRefOid as $head
+  | ($view.statusCheckRollup // []) as $rollup
+  | ($rollup | map(select(cname | IN($pr_failing[] , $cancelled_bots[]) | not) | bucket)) as $buckets
+  | ($pr_failing | map(select(IN($base_failing[])))) as $broken
+  | ($pr_failing | map(select(IN($base_failing[]) | not))) as $failed
+  | ($buckets | map(select(. == "pass")) | length) as $passed
+  | ($buckets | map(select(. == "pending")) | length) as $pending
+  | ($rollup | length) as $total
+  | (($view.commits // []) | last | .committedDate // null) as $committed
+  | (if $committed then (now - ($committed | fromdateiso8601)) / 60 else 0 end) as $age_min
+  | ($threads | map(select(.isResolved or .comments.totalCount >= 2)) | length) as $answered
+
+  | {
+      state: {value: $view.state, ok: ($view.state == "OPEN")},
+      checks: {
+        passed: $passed, pending: $pending, failed: ($failed | length),
+        broken: ($broken | length), cancelled_bot: ($cancelled_bots | length), total: $total,
+        failed_names: $failed, broken_names: $broken, cancelled_bot_names: $cancelled_bots,
+        ok: (($total > 0 or $allow_no_checks) and ($failed | length) == 0 and $pending == 0)
+      },
+      threads: {answered: $answered, total: ($threads | length), ok: ($answered == ($threads | length))},
+      mergeable: {value: $view.mergeable, ok: ($view.mergeable == "MERGEABLE")},
+      up_to_date: {behind: $behind, ok: ($behind == 0)}
+    } as $c
+  | ["state", "checks", "threads", "mergeable", "up_to_date"]
+    | map(select($c[.].ok | not)) as $failing
+  | {pr: $pr, head: $head, at_bar: ($failing | length == 0), failing: $failing} + $c
+  + (if $total == 0 and ($allow_no_checks | not) and $age_min >= $no_checks_min then
+       {hint: "no checks registered for the head after \($age_min | floor) min: GitHub likely dropped the push event. Re-trigger with an empty commit (git commit --allow-empty -m \"ci: re-trigger\") and push."}
+     else {} end)
+')"
+
+echo "$RESULT"
+BROKEN="$(jq -r '.checks.broken_names | join(", ")' <<<"$RESULT")"
+[[ -z "$BROKEN" ]] || echo "broken CI waived (also failing on base): $BROKEN" >&2
+CANCELLED="$(jq -r '.checks.cancelled_bot_names | join(", ")' <<<"$RESULT")"
+[[ -z "$CANCELLED" ]] || echo "cancelled bot checks waived: $CANCELLED" >&2
+if [[ "$(jq -r '.at_bar' <<<"$RESULT")" == true ]]; then
+  exit 0
+fi
+echo "not at bar: $(jq -r '.failing | join(", ")' <<<"$RESULT")" >&2
+exit 1

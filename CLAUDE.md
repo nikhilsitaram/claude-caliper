@@ -60,6 +60,8 @@ In `hooks/hooks.json`, `command`-type hooks always require a `command` string �
 
 `queue` and `usage-guard` use BSD `date` (`date -r <epoch>`, `date -j -f`) and are **macOS-only** — `date -r` reads a file mtime on GNU/Linux. Their tests guard with `date -r 0 >/dev/null 2>&1` and print `SKIP` rather than fail, so they are intentionally **not** wired into the Linux CI job; run them on macOS. They also depend on a statusline tap (`skills/queue/scripts/statusline-wrapper.sh`) the user must wire into `statusLine` themselves — a plugin can't auto-edit user settings. When a skill needs that kind of out-of-band setup, document it in the skill's `README.md` and gate the dependent path behind a clear error, as `queue` does.
 
+`coordinate` builds on `handoff` (macOS + iTerm2) and gates pane spawns on usage-guard's `check-usage.sh`. Without the statusline tap it runs ungated and says so, rather than failing.
+
 ## Development Workflow
 
 This repo uses its own skills. The design skill routes work into one of three tiers by its actual shape, so ceremony scales with size:

@@ -44,6 +44,9 @@ launcher reports it couldn't create the pane.
    registration with a `ListAgents` check or two — never a poll loop.
 3. Claude composes a self-contained brief and sends it in a single `SendMessage`
    to the new session's name, optionally subscribing `notify_when_idle`.
+4. When the work is done, `scripts/close-pane.sh <SESSION_ID>` closes the pane by
+   the iTerm2 id the launcher printed: Ctrl-C three times, then close. It never
+   matches by pane contents, which fails once the name scrolls out of the buffer.
 
 The new session launches in the caller's directory with interactive permissions
 by default; pass `--perm-mode acceptEdits` to the launcher for hands-off editing.
@@ -53,12 +56,16 @@ by default; pass `--perm-mode acceptEdits` to the launcher for hands-off editing
 | Var | Default | Purpose |
 |-----|---------|---------|
 | `HANDOFF_REGISTER_TIMEOUT` | `20` | Seconds the launcher waits for the new `claude` process before reporting `LAUNCHED=timeout` |
+| `HANDOFF_CLOSE_DELAY` | `2` | Seconds `close-pane.sh` waits after its Ctrl-Cs, so claude can exit before the pane closes |
 | `HANDOFF_SETTLE_DELAY` | `1` | Seconds to let the new pane's shell settle before typing the launch line. Paired with a Ctrl-U buffer clear, this stops the split/focus transition's stray input from corrupting the command (e.g. `cd`→`dcd`). Raise it on a slow-starting shell. |
 
 ## Files
 
 - `SKILL.md` — model-facing instructions.
-- `scripts/spawn-pane.sh` — the iTerm2 launcher (guard, unique name, split, wait).
+- `scripts/spawn-pane.sh` — the iTerm2 launcher (guard, unique name, split, wait;
+  prints `SESSION_ID=`).
+- `scripts/close-pane.sh` — closes a pane by its `SESSION_ID`.
 
-Tests: `tests/handoff/caliper-test_spawn_pane.sh` (guards, name/arg validation,
-launch-line construction — via `--dry-run`, so it needs no iTerm2 and runs on CI).
+Tests: `tests/handoff/caliper-test_*.sh` (guards, name/arg validation,
+launch-line construction, the `SESSION_ID` and close paths). They use `--dry-run`
+or a fake `osascript`, so they need no iTerm2 and run on CI.
