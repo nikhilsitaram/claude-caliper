@@ -206,6 +206,23 @@ check_eq "task never claimed" pending "$(status_of A1)"
 check_eq "task branch removed" no "$(has_branch a1)"
 check_eq "task worktree removed" no "$([[ -e "$FEAT/.claude/worktrees/a1" ]] && echo yes || echo no)"
 
+echo "=== a claim that lands before validate-plan fails is kept, not rolled back ==="
+single_plan
+CLAIM_BIN="$BASE/claimbin"
+mkdir -p "$CLAIM_BIN"
+cp "$REPO_ROOT"/bin/* "$CLAIM_BIN/"   # real siblings; validate-plan writes, then fails
+printf '#!/usr/bin/env bash\n"%s" "$@"\nexit 1\n' "$REPO_ROOT/bin/validate-plan" > "$CLAIM_BIN/validate-plan"
+chmod +x "$CLAIM_BIN"/*
+RC=0
+OUT="$(cd "$MAIN" && "$CLAIM_BIN/caliper-phase-dispatch" "$PLAN" "$FEAT" A1 2>"$BASE/err")" || RC=$?
+ERR="$(cat "$BASE/err")"
+check_eq "exit nonzero" 1 "$((RC != 0))"
+check_eq "task left claimed" in_progress "$(status_of A1)"
+check_eq "task branch kept" yes "$(has_branch a1)"
+check_eq "task worktree kept" yes "$([[ -d "$FEAT/.claude/worktrees/a1" ]] && echo yes || echo no)"
+check_match "says to settle it" "*validate-plan failed after claiming A1*Resuming In-Flight Tasks*" "$ERR"
+remove_task_wt "$FEAT" a1
+
 echo "=== a worktree add that registers then fails is rolled back ==="
 single_plan
 mkdir -p "$BASE/hooks"

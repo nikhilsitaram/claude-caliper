@@ -15,6 +15,8 @@ Match existing patterns (runner, file structure, class vs function style).
 
 ## When Tests Fail Unexpectedly
 
+Always watch a new test fail before implementing: one that passes first protects nothing.
+
 **Test fails when you expected it to pass:**
 1. Read the error message completely
 2. Check path, function name, import
@@ -42,8 +44,5 @@ def test_auth_service_fetches_user_from_repository():
 
 | Failure | Fix |
 |---------|-----|
-| Test passes before implementation | Assertion tests a mock — verify it tests real behavior |
-| Test fails after "correct" implementation | Wrong import, path, or assumption — read error completely |
 | Refactor breaks tests | Changed behavior, not structure — revert, make smaller changes |
 | Tests pass but feature doesn't work | Using mocks at boundaries — use real components |
-| Skipped "verify fail" step | Do it every time |

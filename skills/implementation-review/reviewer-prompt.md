@@ -1,8 +1,6 @@
 # Implementation Reviewer Invocation Template
 
-Use this template when dispatching an implementation-reviewer agent. The agent's static behavior (8-category cross-task checklist, integration test coverage, output format, review-summary format) is defined in the `claude-caliper:implementation-reviewer` agent definition. This template provides only the dynamic per-invocation context.
-
-The template works for both **caliper mode** (a plan drove the work) and **standalone mode** (diff-only review of a branch). In standalone mode, omit the caliper-only sections — see "Standalone mode" below.
+The per-invocation context for an implementation-reviewer dispatch; the `claude-caliper:implementation-reviewer` agent definition holds its static behavior (8-category checklist, output and review-summary formats). It serves **caliper mode** (a plan drove the work) and **standalone mode** (diff-only branch review; see Standalone Mode).
 
 ## Variables
 
@@ -61,35 +59,4 @@ Agent(
 
 ## Standalone Mode
 
-When no caliper plan drove the work, drop the plan-derived sections — the diff is the only source of truth. The prompt collapses to:
-
-```text
-Agent(
-  subagent_type: "claude-caliper:implementation-reviewer",
-  model: "{IMPL_REVIEWER_MODEL}",
-  prompt: "Review the complete branch implementation.
-
-    ## Summary
-
-    {FEATURE_SUMMARY}
-
-    ## Git Range
-
-    The code is at {REPO_PATH}
-
-    git diff --stat {BASE_SHA}..{HEAD_SHA}
-    git diff {BASE_SHA}..{HEAD_SHA}
-
-    Read every file in the diff.
-
-    ## Design Doc
-
-    None.
-
-    ## Phase Context
-
-    (none — single standalone review)"
-)
-```
-
-The reviewer runs categories 1–7 against the diff. Category 8 (success-criteria fulfillment) self-skips because the design doc is "None".
+When no caliper plan drove the work, the diff is the only source of truth. Use the same call with these changes: the opening line becomes "Review the complete branch implementation."; `## Feature Summary` is renamed `## Summary`; the `## Tasks Implemented` and `## Plan Context` sections are dropped; Design Doc is `None.` and Phase Context is `(none — single standalone review)`. The reviewer runs categories 1–7; category 8 (success-criteria fulfillment) self-skips on a "None" design doc.

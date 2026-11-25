@@ -111,7 +111,7 @@ Applies in both modes. Pass 1 is discovery. The lead fixes all findings and veri
 
 1. Dispatch the reviewer, extract its `json review-summary` block.
 2. Display all findings for visibility, then triage (fix vs dismiss with a stated technical reason) autonomously — don't stop for confirmation. Findings marked `non_dismissible: true` (category-7 seam-mock gaps) can't be dismissed — fix them.
-3. Apply all fixes in a single editing pass, verifying each inline (grep/read) and rerunning affected tests.
+3. Apply all fixes in a single editing pass, verifying each inline (grep/read) and rerunning affected tests, then commit them and use the new `HEAD_SHA` for any pass 2: the reviewer reads committed history only.
 4. If zero critical/high issues were found: done, the review passes.
 
 **Pass 2 (only if pass 1 found critical or high):**
