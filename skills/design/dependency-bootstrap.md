@@ -1,6 +1,6 @@
 # Dependency Bootstrap
 
-Install dependencies in a worktree so tests and tools work. Run once per worktree; tasks inherit the environment.
+Install dependencies in a worktree so tests and tools work. Run once per worktree. Task worktrees nest inside it (`.claude/worktrees/<task>`), so they inherit only what resolves by walking up the directory tree, like `node_modules`; a Python `.venv` at the parent root isn't found from a task worktree.
 
 ## Detection Order
 
