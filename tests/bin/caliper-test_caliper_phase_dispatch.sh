@@ -113,6 +113,7 @@ echo "=== multi-phase: integration (feature) worktree is refused ==="
 multi_plan
 run "$PLAN" "$FEAT" B1
 check_eq "exit 1" 1 "$RC"
+check_match "names the phase worktree it needs" "*phase-b*" "$ERR"
 check_eq "task stays pending" pending "$(status_of B1)"
 check_eq "no branch created" no "$(has_branch b1)"
 
@@ -193,8 +194,7 @@ echo "=== a failed seed rolls back before the claim ==="
 single_plan
 FAKE_BIN="$BASE/fakebin"
 mkdir -p "$FAKE_BIN"
-cp "$SCRIPT" "$REPO_ROOT/bin/validate-plan" "$REPO_ROOT/bin/clear-worktree-scratch" \
-  "$REPO_ROOT/bin/sync-agent-memory" "$REPO_ROOT/bin/caliper-main-root" "$FAKE_BIN/"
+cp "$REPO_ROOT"/bin/* "$FAKE_BIN/"   # real siblings; only the seed is stubbed
 printf '#!/usr/bin/env bash\necho "seed boom" >&2\nexit 1\n' > "$FAKE_BIN/seed-agent-memory"
 chmod +x "$FAKE_BIN"/*
 RC=0

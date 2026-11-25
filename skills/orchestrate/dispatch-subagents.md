@@ -4,13 +4,13 @@ Parallel task execution via Agent tool dispatches with worktree isolation.
 
 ## Dispatch Implementers
 
-List the dispatchable tasks: `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` prints one task ID per line — `pending`, every dependency `complete`/`skipped`, no open `gated_on` (in-flight `in_progress` tasks are never re-listed). Tasks held only by a gate are reported on stderr as `GATED: <id> — <input>`. For each ready task, one call per task, with `<PARENT_WORKTREE>` the absolute path of the feature worktree (single-phase) or the task's own phase worktree (`PHASE_WORKTREE` from Prepare Phase step 1) written in as a literal:
+List the dispatchable tasks: `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` prints one task ID per line — `pending`, every dependency `complete`/`skipped`, no open `gated_on` (in-flight `in_progress` tasks are never re-listed). Tasks held only by a gate are reported on stderr as `GATED: <id> — <input>`. For each ready task, one call per task, with `<PARENT_WORKTREE>` the absolute path of the feature worktree (`$MAIN_ROOT/.claude/worktrees/<feature>`, single-phase) or the task's own phase worktree (`PHASE_WORKTREE` from Prepare Phase step 1) written in as a literal:
 
 ```bash
 caliper-phase-dispatch "$PLAN_JSON" <PARENT_WORKTREE> {TASK_ID}
 ```
 
-It adds the task worktree at `<PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER}` on branch `{TASK_ID_LOWER}`, seeds agent memory into it, claims the task `in_progress` (so the next `--ready` can't re-list it), and prints the worktree path. It refuses the main checkout, a parent on another phase's branch, a task that isn't `pending`, and a surviving task branch or directory (settle those per Resuming In-Flight Tasks). On failure the task stays `pending` and nothing is left behind. Then extract metadata (strip `status` — orchestrator state not needed by implementer):
+It adds the task worktree at `<PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER}` on branch `{TASK_ID_LOWER}`, seeds agent memory into it, claims the task `in_progress` (so the next `--ready` can't re-list it), and prints the worktree path. It refuses the main checkout, a parent on another phase's branch, a task that isn't `pending`, and a surviving task branch or directory (settle those per Resuming In-Flight Tasks). On failure the task stays `pending` and what it created is rolled back; if it reports `rollback incomplete`, settle the leftover per Resuming In-Flight Tasks. Then extract metadata (strip `status` — orchestrator state not needed by implementer):
 
 ```bash
 TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
@@ -121,7 +121,7 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
 
 A run that stopped mid-phase can strand task work at any point between dispatch and cleanup: an `in_progress` task with no live implementer (`--ready` never re-lists it), a `pending` task whose worktree was created just before the claim, or a `complete` task whose branch was never merged (After Completion marks done before it merges). Prepare Phase step 6 settles all of these before the dispatch loop starts. If the stopped session might still be running, ask the user before touching its tasks.
 
-Work from the phase worktree (the feature worktree for a single-phase plan). Get its absolute path as in Dispatch Implementers — line 1 of `git rev-parse --path-format=absolute --show-toplevel` — and write it below as the literal `<PARENT_WORKTREE>`, so a CWD left in a subdirectory (e.g. by dependency bootstrap) can't misplace a worktree. If `git rev-parse -q --verify MERGE_HEAD` succeeds, a task merge stopped mid-conflict — surface it to the user before settling anything. Then list the phase's task statuses and the task branches still present:
+Work from the phase worktree (the feature worktree for a single-phase plan). Run `git rev-parse --path-format=absolute --show-toplevel --git-dir --git-common-dir`. If lines 2 and 3 are equal, the CWD is the main checkout: stop and `cd` into the phase worktree. Otherwise write line 1 below as the literal `<PARENT_WORKTREE>`, so a CWD left in a subdirectory (e.g. by dependency bootstrap) can't misplace a worktree. If `git rev-parse -q --verify MERGE_HEAD` succeeds, a task merge stopped mid-conflict — surface it to the user before settling anything. Then list the phase's task statuses and the task branches still present:
 
 ```bash
 jq -r --arg l "{LETTER}" '.phases[] | select(.letter == $l) | .tasks[] | "\(.id) \(.status)"' "$PLAN_JSON"
