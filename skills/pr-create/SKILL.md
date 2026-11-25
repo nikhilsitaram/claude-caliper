@@ -19,7 +19,7 @@ Commit, push, and create PR — ready for external review.
 git status && git diff --stat && git log --oneline -5
 ```
 
-If no changes to commit, stop here.
+A clean tree alone isn't a reason to stop: a fully committed, unpushed branch (orchestrate hands one over) still needs a push and a PR. Step 2 decides.
 
 ### Step 2: Detect Branch Context
 
@@ -30,7 +30,15 @@ git symbolic-ref --short refs/remotes/origin/HEAD
 
 Line 1 is `CURRENT_BRANCH`; line 2 is `origin/<DEFAULT_BRANCH>`. If line 2 errors (the clone has no `origin/HEAD`), run `git remote set-head origin --auto` and repeat it. Plain calls, read and carried forward, because the worktree-isolation guard refuses tests on `$(git …)` results (**See:** `skills/design/worktree-isolation.md`).
 
-Use `<DEFAULT_BRANCH>` (never hardcode `main`) for all subsequent steps.
+Use `<DEFAULT_BRANCH>` (never hardcode `main`) for all subsequent steps. `<BASE>` is the `--base` branch when given, else `<DEFAULT_BRANCH>`.
+
+**Nothing to ship?** If Step 1 showed no uncommitted changes, list the commits ahead of the base (run `git fetch origin` first if `origin/<BASE>` doesn't resolve):
+
+```bash
+git log --oneline origin/<BASE>..HEAD
+```
+
+Stop only if this is empty too: no uncommitted changes and no commits ahead of the base means there's nothing to push or open a PR for.
 
 **If on default branch:**
 1. Sync with origin first (stash → fetch → rebase → pop)
@@ -51,7 +59,7 @@ Skip with `--skip-tests` or `-T`. If neither flag was passed, check `caliper-set
 
 ### Step 5: Stage and Commit
 
-Stage specific files (avoid `git add .` to prevent accidental secrets inclusion).
+Skip this step when the tree is clean (the work is already committed). Otherwise stage specific files (avoid `git add .` to prevent accidental secrets inclusion).
 
 **Show staged diff summary before committing.** Create conventional commit with HEREDOC:
 
@@ -68,7 +76,7 @@ EOF
 
 ### Step 6: Rebase on Target Base
 
-`<BASE>` is the `--base` branch when given, else `<DEFAULT_BRANCH>`:
+Rebase onto `<BASE>` (from Step 2):
 
 ```bash
 git fetch origin
