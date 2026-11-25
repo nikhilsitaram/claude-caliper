@@ -32,9 +32,10 @@ Line 1 is `CURRENT_BRANCH`; line 2 is `origin/<DEFAULT_BRANCH>`. If line 2 error
 
 Use `<DEFAULT_BRANCH>` (never hardcode `main`) for all subsequent steps. `<BASE>` is the `--base` branch when given, else `<DEFAULT_BRANCH>`.
 
-**Nothing to ship?** If Step 1 showed no uncommitted changes, list the commits ahead of the base (run `git fetch origin` first if `origin/<BASE>` doesn't resolve):
+**Nothing to ship?** If Step 1 showed no uncommitted changes, fetch (a stale `origin/<BASE>` overcounts) and list the commits ahead of the base:
 
 ```bash
+git fetch origin
 git log --oneline origin/<BASE>..HEAD
 ```
 
@@ -85,7 +86,7 @@ git rebase origin/<BASE>
 
 Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/<BASE>` actually advances. `git fetch origin <BASE>` only updates `FETCH_HEAD`, leaving the remote-tracking ref stale — `git rebase origin/<BASE>` then rebases onto an outdated tip.
 
-If conflicts occur, resolve them and re-run tests before continuing.
+If conflicts occur, resolve them and re-run tests before continuing. If the rebase leaves nothing ahead (`git log --oneline origin/<BASE>..HEAD` is empty, e.g. the work already landed on the base), stop and report it: there's nothing to push.
 
 ### Step 7: Push
 
