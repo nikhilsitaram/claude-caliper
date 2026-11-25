@@ -69,9 +69,10 @@ Merge only right after `caliper-pr-at-bar` exits 0 in this turn, and only if the
 - **`confirm` (default):** report "#N at bar" with the pane's report summarized, then wait for the user to say merge. If the user merges from a pane, the pane reports it, and `caliper-coordinate status` confirms it.
 - **`auto-merge`:** first check for holds. Hold when:
   - `gh pr diff N --name-only` touches a sensitive path the repo names;
-  - a reported deviation changes the approved scope, or an unverified claim is material to correctness. Judge minor ones yourself and list them in the merge report.
+  - a reported deviation changes the approved scope;
+  - an unverified claim is material to correctness and you can't verify it yourself (read the code, run the test or command; no edits). Name what you tried in the hold reason.
 
-  For each hold, run `caliper-coordinate set <slug> --hold "<reason>"`, report it, and wait for the user. Otherwise merge.
+  Judge minor deviations and claims yourself, and list them in the merge report. For each hold, run `caliper-coordinate set <slug> --hold "<reason>"`, report it, and wait for the user. Otherwise merge.
 
 In both modes, name the bar JSON's waived checks, `broken_names` and `cancelled_bot_names`, since nothing vouched for them. In auto-merge they don't hold the merge; list them in the merge report.
 

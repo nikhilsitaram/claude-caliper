@@ -43,7 +43,7 @@ WAIVED CHECKS: <broken_names and cancelled_bot_names from the bar JSON, or none>
 GATES: <command>: <passed>/<total>   (one line per gate)
 LIVE EVIDENCE: <quoted output showing the change working, or "none: <why>">
 DEVIATIONS: <departures from this brief, or none>
-UNVERIFIED CLAIMS: <behaviour you assert but didn't observe, or none>
+UNVERIFIED CLAIMS: <behaviour you assert but still couldn't verify after trying (exercise it live, run or write a test, trace the code path), each with why, e.g. "needs a real parallel run"; or none>
 UNRELATED FIXES: <sha: what, or none>
 OPEN QUESTIONS: <design questions sent to me and still open, or none>
 CLEANUP: waiting for "merged"
