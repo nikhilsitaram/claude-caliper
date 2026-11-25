@@ -10,9 +10,10 @@ set -euo pipefail
 # .claude/ path, and hand-edited JSON drifts. --ledger overrides the path.
 #
 # Commands:
-#   add <slug> [--issue N] [--after a,b,...]   queue an item
-#   set <slug> [--status S] [--issue N] [--after a,b] [--pane-name X]
-#              [--session-id ID] [--pr N] [--head SHA] [--hold REASON] [--unhold]
+#   add <slug> [--issue N] [--after a,b,...] [--soft-after a,b,...]   queue an item
+#   set <slug> [--status S] [--issue N] [--after a,b] [--soft-after a,b]
+#              [--pane-name X] [--session-id ID] [--pr N] [--head SHA]
+#              [--hold REASON] [--unhold]
 #   get <slug>                    print one item (JSON)
 #   list [--status S]             print items (JSON array)
 #   ready                         slugs of queued, unheld items whose deps merged
@@ -22,14 +23,24 @@ set -euo pipefail
 # Statuses run queued -> running -> at-bar -> merged -> done; dropped abandons an
 # item. Held is a flag with reasons, beside the status. An --after entry is
 # another item's slug (met once that item is merged or done) or pr:N for a PR
-# outside the ledger (met once gh reports it MERGED). `active` counts running,
+# outside the ledger (met once gh reports it MERGED). A --soft-after entry (gh
+# #329) is another item's slug only: the dependent may start as soon as that
+# item has started, building against what it anticipates from it, and rebases
+# once it merges. `ready` counts a soft dep met once it is running or later (not
+# queued, so parked dependents can't fill every slot ahead of it, and not
+# dropped); `status` shows each unmerged one as
+# `<slug> (soft)` in WAITING ON. A slug can't be both a hard and a soft dep of
+# the same item, and add/set refuse a cycle through either kind. `status`
+# re-adds a dropped-dependency hold after --unhold until the dependency list is
+# edited. `active` counts running,
 # at-bar and merged items: a merged item's pane stays open until its cleanup
 # report, when the coordinator closes it and sets done. `status` moves an item
 # whose PR GitHub reports MERGED to merged, so merges done outside the
 # coordinator (by the user, in a pane) aren't missed. It also holds what would
 # otherwise stall silently: an item whose PR was closed without merging, and a
 # queued item that depends on a dropped item or on a pr:N closed unmerged (it
-# can never become ready). Each item it moves to merged is printed as a
+# can never become ready), and a queued, running or at-bar item whose soft dep
+# was dropped (what it builds against will never land). Each item it moves to merged is printed as a
 # `MERGED-ON-GITHUB <slug>` line before the table, so the coordinator can run
 # its after-merge steps for it.
 # --session-id takes the SESSION_ID= spawn-pane.sh prints.
@@ -68,22 +79,44 @@ valid_status() { [[ " $STATUSES " == *" $1 "* ]] || usage "status '$1' is not on
 valid_int() { [[ "$2" =~ ^[0-9]+$ ]] || usage "$1 needs a number, got '$2'"; }
 has_item() { jq -e --arg s "$2" 'any(.items[]; .slug == $s)' <<<"$1" >/dev/null; }
 
-after_json() {  # <ledger-json> <slug> <comma-list> -> JSON array, validated
-  local json="$1" self="$2" list="$3" a out='[]'
+after_json() {  # <ledger-json> <slug> <comma-list> [--soft-after] -> JSON array, validated
+  local json="$1" self="$2" list="$3" flag="${4:---after}" a out='[]'
   # An empty list leaves `parts` empty, and "${parts[@]}" on an empty array
   # trips `set -u` in bash 3.2 (stock macOS).
   [[ -n "$list" ]] || { echo '[]'; return; }
   IFS=',' read -ra parts <<<"$list"
   for a in "${parts[@]}"; do
     [[ -n "$a" ]] || continue
-    if [[ "$a" =~ ^pr:[0-9]+$ ]]; then :
+    if [[ "$a" =~ ^pr:[0-9]+$ ]]; then
+      # A soft dep is built against its item's approved scope, and only ledger
+      # merges send the after-merge message, so an outside PR has no soft form.
+      [[ "$flag" == --after ]] || usage "--soft-after takes item slugs only, not '$a'"
     else
       [[ "$a" != "$self" ]] || die "$self can't depend on itself"
-      has_item "$json" "$a" || die "--after '$a' is not an item in the ledger (or pr:N)"
+      has_item "$json" "$a" || die "$flag '$a' is not an item in the ledger$([[ "$flag" == --after ]] && echo ' (or pr:N)')"
     fi
     out="$(jq -c --arg a "$a" '. + [$a]' <<<"$out")"
   done
   echo "$out"
+}
+
+check_deps() {  # <ledger-json> <slug>: refuse a slug both hard and soft, and any cycle
+  local both
+  both="$(jq -r --arg s "$2" '.items[] | select(.slug == $s)
+    | (.soft_after // []) as $soft | [.after[] | select(IN($soft[]))] | join(",")' <<<"$1")"
+  [[ -z "$both" ]] || die "$2: '$both' can't be both --after and --soft-after"
+  # Hard or soft, a cycle deadlocks: each end waits for the other to merge. A
+  # merged, done or dropped item waits on nothing, so the walk stops there.
+  jq -e --arg s "$2" '. as $l
+    | def deps($x): [$l.items[] | select(.slug == $x)
+        | select(.status | IN("merged", "done", "dropped") | not)
+        | .after[], (.soft_after // [])[]];
+    {seen: [], todo: deps($s)}
+    | until(.todo | length == 0;
+        .todo[0] as $x | .todo |= .[1:]
+        | if any(.seen[]; . == $x) then . else .seen += [$x] | .todo += deps($x) end)
+    | any(.seen[]; . == $s) | not' <<<"$1" >/dev/null \
+    || die "$2: that dependency would make a cycle back to $2"
 }
 
 hold_once() {  # <ledger-json> <slug> <reason> -> ledger with the hold added once
@@ -100,29 +133,33 @@ case "$CMD" in
   add)
     SLUG="${1:-}"; [[ -n "$SLUG" ]] || usage "add needs a slug"; shift
     valid_slug "$SLUG"
-    ISSUE=null AFTER=""
+    ISSUE=null AFTER="" SOFT=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --issue) [[ $# -ge 2 ]] || usage; valid_int --issue "$2"; ISSUE="$2"; shift 2 ;;
         --after) [[ $# -ge 2 ]] || usage; AFTER="$2"; shift 2 ;;
+        --soft-after) [[ $# -ge 2 ]] || usage; SOFT="$2"; shift 2 ;;
         *) usage "unknown add option '$1'" ;;
       esac
     done
     J="$(load)"
     ! has_item "$J" "$SLUG" || die "item '$SLUG' already exists"
     A="$(after_json "$J" "$SLUG" "$AFTER")"
-    save "$(jq --arg s "$SLUG" --argjson i "$ISSUE" --argjson a "$A" --arg t "$(now)" '
+    SA="$(after_json "$J" "$SLUG" "$SOFT" --soft-after)"
+    J="$(jq --arg s "$SLUG" --argjson i "$ISSUE" --argjson a "$A" --argjson sa "$SA" --arg t "$(now)" '
       .items += [{slug: $s, issue: $i, status: "queued", held: false, hold_reasons: [],
-                  after: $a, pane: {name: null, session_id: null},
+                  after: $a, soft_after: $sa, pane: {name: null, session_id: null},
                   pr: {number: null, head: null}, created_at: $t, updated_at: $t,
                   merged_at: null}]' <<<"$J")"
+    check_deps "$J" "$SLUG"
+    save "$J"
     ;;
 
   set)
     SLUG="${1:-}"; [[ -n "$SLUG" ]] || usage "set needs a slug"; shift
     J="$(load)"
     has_item "$J" "$SLUG" || die "no item '$SLUG'"
-    F='.'
+    F='.' DEPS_EDITED=""
     ARGS=(--arg s "$SLUG" --arg t "$(now)")
     while [[ $# -gt 0 ]]; do
       [[ "$1" == --unhold || $# -ge 2 ]] || usage "$1 needs a value"
@@ -130,7 +167,8 @@ case "$CMD" in
         --status) valid_status "$2"; ARGS+=(--arg st "$2")
                   F+=' | .status = $st | if $st == "merged" and .merged_at == null then .merged_at = $t else . end' ;;
         --issue) valid_int --issue "$2"; ARGS+=(--argjson iss "$2"); F+=' | .issue = $iss' ;;
-        --after) ARGS+=(--argjson af "$(after_json "$J" "$SLUG" "$2")"); F+=' | .after = $af' ;;
+        --after) DEPS_EDITED=1; ARGS+=(--argjson af "$(after_json "$J" "$SLUG" "$2")"); F+=' | .after = $af' ;;
+        --soft-after) DEPS_EDITED=1; ARGS+=(--argjson saf "$(after_json "$J" "$SLUG" "$2" --soft-after)"); F+=' | .soft_after = $saf' ;;
         --pane-name) ARGS+=(--arg pn "$2"); F+=' | .pane.name = $pn' ;;
         --session-id) ARGS+=(--arg sid "$2"); F+=' | .pane.session_id = $sid' ;;
         --pr) valid_int --pr "$2"; ARGS+=(--argjson prn "$2"); F+=' | .pr.number = $prn' ;;
@@ -141,7 +179,11 @@ case "$CMD" in
       esac
       shift 2
     done
-    save "$(jq "${ARGS[@]}" "(.items[] | select(.slug == \$s)) |= ($F | .updated_at = \$t)" <<<"$J")"
+    J="$(jq "${ARGS[@]}" "(.items[] | select(.slug == \$s)) |= ($F | .updated_at = \$t)" <<<"$J")"
+    # Only a dependency edit is checked, so a ledger holding a cycle from before
+    # the check existed can still drop or hold its items.
+    [[ -z "$DEPS_EDITED" ]] || check_deps "$J" "$SLUG"
+    save "$J"
     ;;
 
   get)
@@ -170,8 +212,10 @@ case "$CMD" in
     done
     jq -r --argjson mp "$MERGED_PRS" '
       ([.items[] | select(.status == "merged" or .status == "done") | .slug] + $mp) as $met
+      | [.items[] | select(.status | IN("running", "at-bar", "merged", "done")) | .slug] as $started
       | .items[] | select(.status == "queued" and (.held | not))
       | select(all(.after[]; IN($met[])))
+      | select(all((.soft_after // [])[]; IN($started[])))
       | .slug' <<<"$J"
     ;;
 
@@ -194,6 +238,11 @@ case "$CMD" in
         | .after[] | select(IN($d[])) | "\($s):\(.)"' <<<"$J"); do
       J="$(hold_once "$J" "${row%%:*}" "depends on dropped item ${row#*:}")"
     done
+    for row in $(jq -r '([.items[] | select(.status == "dropped") | .slug]) as $d
+        | .items[] | select(.status | IN("queued", "running", "at-bar")) | .slug as $s
+        | (.soft_after // [])[] | select(IN($d[])) | "\($s):\(.)"' <<<"$J"); do
+      J="$(hold_once "$J" "${row%%:*}" "depends on dropped item ${row#*:} (soft)")"
+    done
     for row in $(jq -r '.items[] | select(.status == "queued") | .slug as $s
         | .after[] | select(startswith("pr:")) | "\($s):\(.[3:])"' <<<"$J"); do
       [[ "$(pr_state "${row#*:}")" == CLOSED ]] \
@@ -201,14 +250,18 @@ case "$CMD" in
     done
     save "$J"
     jq -r '
-      ["STATUS", "SLUG", "ISSUE", "PR", "PANE", "WAITING ON", "HOLD"],
+      [.items[] | select(.status == "merged" or .status == "done") | .slug] as $met
+      | ["STATUS", "SLUG", "ISSUE", "PR", "PANE", "WAITING ON", "HOLD"],
       (.items | sort_by(.status as $st | ["running", "at-bar", "merged", "queued", "done", "dropped"] | index($st))[]
        | [ .status + (if .held then " (held)" else "" end),
            .slug,
            (if .issue then "#\(.issue)" else "-" end),
            (if .pr.number then "#\(.pr.number)" else "-" end),
            (.pane.name // "-"),
-           (if .status == "queued" and (.after | length) > 0 then (.after | join(",")) else "-" end),
+           ([ (if .status == "queued" then .after[] else empty end),
+              (if .status | IN("queued", "running", "at-bar")
+               then (.soft_after // [])[] | select(IN($met[]) | not) | "\(.) (soft)" else empty end) ]
+            | if length > 0 then join(",") else "-" end),
            (if .held then (.hold_reasons | join("; ")) else "-" end) ])
       | @tsv' <<<"$J" | column -t -s $'\t'
     ;;

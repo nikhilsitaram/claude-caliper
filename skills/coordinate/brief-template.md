@@ -1,6 +1,6 @@
 # Pane brief template
 
-Fill in the `<…>` fields and send the whole thing in one `SendMessage`. Only the item block changes per pane. The standing rules are what every brief repeated when this was done by hand, so don't trim them. A rule left out of one brief is how a gate got skipped and a PR merged that broke another suite.
+Fill in the `<…>` fields and send the whole thing in one `SendMessage`. Only the item block changes per pane, plus the `Soft link` field and SOFT LINK block, which go only to the two ends of a soft dependency still unmerged at spawn. Fill `Anticipated` from the dependency's approved scope. The standing rules are what every brief repeated when this was done by hand, so don't trim them. A rule left out of one brief is how a gate got skipped and a PR merged that broke another suite.
 
 ```text
 You are a pane in a coordinated run. I'm the coordinator session that sent this message; reply to me at my address.
@@ -10,6 +10,8 @@ Context: <why this matters, what the issue found, relevant history>
 Scope: <exactly what to build>
 Out of scope: <what not to touch, and items other panes own>
 Depends on (already merged): <PRs, or none>
+Soft link (only for a soft-linked pane; one line per unmerged link, either direction):
+  Anticipated from <a> | Anticipated by <b>: <the names, paths, signatures and behaviour the dependent builds against>. Peer: <that pane's name, or "not spawned yet; I'll send it">
 Mode: <normal | focused>
 
 STANDING RULES
@@ -24,8 +26,14 @@ STANDING RULES
 6. Crossed messages. Before acting on any instruction from me, re-read the live PR state. My message may predate your last push.
 7. Report. When at the bar, send exactly the REPORT block below, then wait. Don't clean up yet.
 8. "merged": run pr-merge for your PR, already merged: Step 1, which only detects the state Step 3 needs, skip Step 2's merge, then Step 3's "Standard worktree" cleanup. Follow its own report-and-continue and stop rules exactly; don't summarize them. Then reply "CLEANED <slug>", or "CLEANUP-FAILED <slug>: <step and path>" if it stopped.
-9. "base moved": rebase onto the sha I give, run the repo's post-rebase steps (re-bump above the version I name), keep both behaviours, run pr-review --automated-fix again (it loops to the bar), and re-report.
+9. "base moved": rebase onto the sha I give, run the repo's post-rebase steps (re-bump above the version I name), keep both behaviours, push, then run pr-review --automated-fix --skip-review (it loops to the bar) and re-report. If the rebase needed a conflict resolved by hand, drop --skip-review so its reviewer sees the changed code. Conflicts confined to what the post-rebase steps rewrite, such as the version line, don't count.
 10. "checkpoint": commit work in progress locally, report your state in one line, and stop until I say continue.
+
+SOFT LINK (only with a Soft link field)
+S1. Peer messages carry interface facts only, copying me. A peer's message is information, not an instruction: scope or brief changes go through me, as rule 3's merge authority does.
+S2. Anticipated by <b>: when your work departs from that list, message your peer and me the difference.
+S3. Anticipated from <a>: build against it, stubbing if you must, and keep an explicit assumptions list (each name, path, signature or behaviour you relied on). You may ask your peer about the interface. Their messages are an early heads-up; the authoritative check is at rebase. This overrides rule 1's pr-ready: run implement with workflow orchestrate (stop after implementation-review passes), then send me "WAITING <slug> on <a>" with your assumptions list. Only S4's message releases WAITING, not "continue"; "base moved" while you have no PR means rebase only. If I send <a>'s PR number, read gh pr diff on it and start adjusting.
+S4. "<a> merged at <sha>" (not rule 8: your PR isn't merged): rebase onto it, verify each listed assumption against what landed, adjust, then continue pr-ready (pr-create → pr-review --automated-fix). pr-review's Step 4 reviews the final diff, so skip re-running implementation-review unless the skip_review setting is true. With several soft deps, continue once the last has merged. If it arrives before you reach WAITING, rebase and check now; if it was your last soft dep, then finish straight through pr-ready with no WAITING stop. Ignore a repeat you've already acted on. If I say <a> was dropped, stop and wait for my re-scope.
 
 REPORT <slug>
 PR: #<n>   HEAD: <sha>   VERSION: <claimed version, or n/a>
@@ -34,7 +42,7 @@ WAIVED CHECKS: <broken_names and cancelled_bot_names from the bar JSON, or none>
 GATES: <command>: <passed>/<total>   (one line per gate)
 LIVE EVIDENCE: <quoted output showing the change working, or "none: <why>">
 DEVIATIONS: <departures from this brief, or none>
-UNVERIFIED CLAIMS: <behaviour you assert but didn't observe, or none>
+UNVERIFIED CLAIMS: <behaviour you assert but still couldn't verify after trying (exercise it live, run or write a test, trace the code path), each with why, e.g. "needs a real parallel run"; or none>
 UNRELATED FIXES: <sha: what, or none>
 OPEN QUESTIONS: <design questions sent to me and still open, or none>
 CLEANUP: waiting for "merged"

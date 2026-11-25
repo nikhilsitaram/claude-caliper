@@ -72,7 +72,7 @@ Map the `workflow` setting to implementation-review's continuation flag (all fiv
 
 Resolve the value:
 - **Downstream of design:** the value is already resolved from design's workflow question earlier in this session — reuse it, don't re-prompt or re-read settings.
-- **Conversate hand-off or coordinate brief:** always `pr-ready` — their fixed contract, regardless of the setting.
+- **Conversate hand-off or coordinate brief:** always `pr-ready` — their fixed contract, regardless of the setting. The exception is a brief whose SOFT LINK rules name `orchestrate` for a soft dependent: the brief releases it to `pr-ready` once its dependency merges.
 - **Direct invocation:** the Compressed Design Gate already resolved it (from settings, or the workflow question asked at approval) — reuse that value, don't re-prompt or re-read settings.
 
 ## Integration
