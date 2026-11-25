@@ -24,7 +24,7 @@ Each phase gets its own implementation-review over its own `PHASE_BASE_SHA..HEAD
 
 A hit on a sibling is a fix. It lies outside this phase's diff, so it doesn't count toward this review's `remaining`. Note it as one line in this phase's `completion.md`, naming its route, so a resume doesn't lose it. Route it by the sibling's state:
 
-- **Past review, unpushed:** from the sibling's worktree (own Bash call), fix it on that branch, re-run `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}` with the sibling's letter, then `cd` back.
+- **Past review, unpushed:** from the sibling's worktree (own Bash call), fix it on that branch and commit it (Catch Up's rebase refuses a dirty tree), re-run `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}` with the sibling's letter, then `cd` back.
 - **PR open or merged:** this phase reaches Catch Up anyway, so fix it there after the rebase; if the sibling's code is already in this phase's base, fix it now.
 - **Still in review:** hand it to that review's triage.
 
