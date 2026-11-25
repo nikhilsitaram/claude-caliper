@@ -41,7 +41,7 @@ git log --oneline origin/<BASE>..HEAD
 Stop only if this is empty too: no uncommitted changes and no commits ahead of the base means there's nothing to push or open a PR for.
 
 **If on default branch:**
-1. Sync with origin first (stash → fetch → rebase → pop)
+1. Sync with origin first (fetch → rebase). Stash only if the tree is dirty, and restore that entry by its SHA: a `pop` after an empty stash takes another session's entry from the shared stack
 2. If local main has unpushed commits, **warn user and list them** before any push
 3. Create feature branch: `git checkout -b <descriptive-branch-name>`
 
@@ -97,7 +97,7 @@ If branch was rebased and already has remote, use `git push -u origin HEAD --for
 
 ### Step 8: Create PR
 
-Add `--base <BASE>` only when `--base` was given — written in as a literal, since a shell test in the same call as a body that mentions git gets the whole call refused under isolation:
+If `gh pr view` already shows an open PR for this branch, the push updated it: report its URL and skip creation. Otherwise add `--base <BASE>` only when `--base` was given — written in as a literal, since a shell test in the same call as a body that mentions git gets the whole call refused under isolation:
 
 ```bash
 gh pr create --title "<commit subject>" --body "$(cat <<'EOF'
