@@ -33,13 +33,14 @@ Panes load the same files, so gates are never copied into briefs.
 
 ## The bar
 
-`caliper-pr-at-bar <pr>` exits 0 only when all of these hold:
+Ready to merge means every bot comment is addressed and CI is green. `caliper-pr-at-bar <pr>` exits 0 only when all of these hold:
 - the PR is open;
-- checks are green;
-- the newest `Reviewed-Head: <sha> · blocking: 0` line names the head (pr-review writes this line at the end of its summary). Only lines from the gh user running the check, or from the repo's owners, members and collaborators, count, so an outside commenter can't supply the verdict;
-- every review thread is resolved or answered;
+- CI is green: no check pending (a bot still reviewing counts as pending) and none failed;
+- every review thread, bot or human, is resolved or has a reply;
 - the PR is mergeable;
 - it is 0 commits behind base.
+
+**Safety valve for broken CI.** A check that fails on the PR is waived if its latest run on the base branch's head also failed. That's breakage the PR didn't cause, like a repo whose main is red. Waived checks are listed in `broken_names` and reported every time, because while base is red a regression the PR adds to that same check is masked. A failure the base doesn't share still blocks, including a check that never runs on the base (a `pull_request`-only workflow).
 
 ## Files
 

@@ -69,7 +69,7 @@ Run this at start, after every merge, and after every pane report or resume:
 
 Re-read live state (the ledger and the PR) before acting on any message. A report and one of your instructions can cross in flight, and acting on a stale picture "corrects" the wrong thing.
 
-- **An at-bar report.** Record it with `caliper-coordinate set <slug> --pr N --head <sha>`. Then run `caliper-pr-at-bar N` yourself; never relay or merge on the pane's word, because a "claimed at bar" can carry a verdict for an old head.
+- **An at-bar report.** Record it with `caliper-coordinate set <slug> --pr N --head <sha>`. Then run `caliper-pr-at-bar N` yourself; never relay or merge on the pane's word, because a claimed "at bar" can describe a state that has since changed, such as a new push or a new bot comment.
   - Exit 1: send the failing criteria back to the pane.
   - Exit 64: GitHub couldn't be read. Re-run; it isn't news for the pane.
   - Exit 0: run `set --status at-bar`, then go to Merge.
@@ -94,6 +94,8 @@ Merge only right after `caliper-pr-at-bar` exits 0 in this turn, and only if the
 
   For each hold, run `caliper-coordinate set <slug> --hold "<reason>"`, report it, and wait for the user. Otherwise merge.
 
+In both modes, name any `broken_names` from the bar JSON: checks waived because they also fail on the base branch. CI didn't vouch for those, so the user should see them. In auto-merge they don't hold the merge; list them in the merge report.
+
 A hold, whether from auto-merge or one `status` adds (a closed PR, or a dropped or closed dependency), stays until the cause is fixed or the user says to proceed. Then clear it with `caliper-coordinate set <slug> --unhold`.
 
 Merge command: `gh pr merge N --<merge_strategy> --match-head-commit <head>`. Pinning the head means a push that lands after your check makes the merge fail safely. Don't pass `--delete-branch`: the branch is checked out in the pane's worktree, and the pane deletes it, locally and on the remote, during its pr-merge cleanup.
@@ -102,7 +104,7 @@ Merge command: `gh pr merge N --<merge_strategy> --match-head-commit <head>`. Pi
 1. Run `caliper-coordinate set <slug> --status merged`.
 2. Tell that pane "merged". It runs pr-merge's cleanup and replies `CLEANED`, or `CLEANUP-FAILED` (see above: skip step 3 for that item, but still do steps 4 and 5, since the base has moved either way).
 3. Run `./skills/handoff/scripts/close-pane.sh <session_id>`. On exit 0 or 3 (already closed), `set --status done`. On any other exit, report it, and once the user confirms the pane is closed, `set --status done`.
-4. Tell every pane with an open PR that the base moved: rebase onto `<sha>`, run the repo's post-rebase steps (for a version bump, expect a version above the one just merged), keep both behaviours, and get a fresh verdict. Concurrent PRs claim the same next version, and a rebase can silently drop a duplicate bump.
+4. Tell every pane with an open PR that the base moved: rebase onto `<sha>`, run the repo's post-rebase steps (for a version bump, expect a version above the one just merged), keep both behaviours, and re-reach the bar. Concurrent PRs claim the same next version, and a rebase can silently drop a duplicate bump.
 5. Re-run the spawn loop.
 
 ## At the usage limit
@@ -125,4 +127,4 @@ When asked, or after each merge, show the `caliper-coordinate status` table with
 
 ## Integration
 
-**Uses:** handoff (panes), usage-guard and queue (the window), pr-review (the `Reviewed-Head:` verdict), conversate (scoping heavier items). **Panes run:** implement → `pr-ready`.
+**Uses:** handoff (panes), usage-guard and queue (the window), pr-review (bot comments addressed), conversate (scoping heavier items). **Panes run:** implement → `pr-ready`.

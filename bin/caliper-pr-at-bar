@@ -3,22 +3,25 @@ set -euo pipefail
 
 # caliper-pr-at-bar <pr> [--allow-no-checks] [--no-checks-min N]
 #
-# One snapshot of whether a PR is at the merge bar (gh #319): the check a
+# One snapshot of whether a PR is ready to merge (gh #319): the check a
 # coordinator re-runs instead of trusting a pane's "at bar" report, and the
-# exit check of pr-review's automated-fix mode. The bar, every criterion:
+# exit check of pr-review's automated-fix mode. Ready means every bot comment
+# is addressed and CI is green, plus the mechanical prerequisites for a merge:
 #
 #   state       the PR is OPEN
-#   checks      at least one check registered, none failed, none pending
-#               (SUCCESS, NEUTRAL and SKIPPED pass)
-#   verdict     the newest PR comment line starting `Reviewed-Head: <sha>`
-#               names the current head and says `blocking: 0` — the line
-#               pr-review's summary ends with. Only comments by the gh user
-#               running this, or by the repo's OWNER/MEMBER/COLLABORATOR,
-#               count: in auto-merge the line is the evidence a review ran, so
-#               an outside commenter must not be able to supply it
-#   threads     every review thread is resolved or has a reply
+#   checks      at least one check registered, none pending, none failed
+#               (SUCCESS, NEUTRAL and SKIPPED pass). A bot still reviewing
+#               (e.g. CodeRabbit's pending check) counts as pending
+#   threads     every review thread, bot or human, is resolved or has a reply
 #   mergeable   GitHub reports MERGEABLE (UNKNOWN is not taken as clean)
 #   up_to_date  the head is 0 commits behind its base branch
+#
+# Safety valve for broken CI: a check that failed on the PR but whose latest
+# run on the base branch's head also failed is not this PR's doing. It moves
+# from failed to `broken` (named in broken_names) and doesn't block. A failure
+# the base doesn't share still blocks, including a check that never runs on the
+# base (a pull_request-only workflow). While base is red, a regression the PR
+# adds to that same check is masked: callers must surface broken_names.
 #
 # A snapshot, not a wait: caliper-wait-pr is the CI wait. When no check has
 # registered and the head commit is older than --no-checks-min (default 10),
@@ -27,8 +30,7 @@ set -euo pipefail
 #
 # Prints one JSON object on stdout; when not at the bar, one reason line on
 # stderr naming the failing criteria. Exit: 0 at bar, 1 not at bar, 64 usage
-# error or a gh read failure. Reads every review thread (paginated) and the
-# newest 100 comments, where the verdict lives.
+# error or a gh read failure. Reads every review thread (paginated).
 
 usage() {
   echo "Usage: caliper-pr-at-bar <pr> [--allow-no-checks] [--no-checks-min N]" >&2
@@ -48,7 +50,7 @@ done
 
 fail_read() { echo "caliper-pr-at-bar: could not read PR #$PR ($1)" >&2; exit 64; }
 
-VIEW="$(gh pr view "$PR" --json state,headRefOid,baseRefName,mergeable,statusCheckRollup,comments,commits)" \
+VIEW="$(gh pr view "$PR" --json state,headRefOid,baseRefName,mergeable,statusCheckRollup,commits)" \
   || fail_read "gh pr view"
 
 # {owner}/{repo} are gh's own placeholders, filled from the current repo.
@@ -70,63 +72,67 @@ BASE="$(jq -r '.baseRefName' <<<"$VIEW")"
 BEHIND="$(gh api "repos/{owner}/{repo}/compare/${BASE}...${HEAD}" --jq '.behind_by')" \
   || fail_read "compare with base"
 
+# Names of checks failing on the base branch's head: check runs (latest per
+# name, the endpoint's default) and commit statuses. Read only when the PR has
+# a failed check, so a green PR costs no extra calls.
+# The one definition of a failed check (SUCCESS, NEUTRAL, SKIPPED pass; an
+# unfinished check is pending, not failed).
+PR_FAILING="$(jq -c '[(.statusCheckRollup // [])[] | select(
+    if .__typename == "StatusContext" then (.state | IN("FAILURE", "ERROR"))
+    else (.status == "COMPLETED" and ((.conclusion | IN("SUCCESS", "NEUTRAL", "SKIPPED")) | not)) end)
+  | .name // .context]' <<<"$VIEW")"
+BASE_FAILING='[]'
+if [[ "$PR_FAILING" != '[]' ]]; then
+  RUNS="$(gh api --paginate "repos/{owner}/{repo}/commits/${BASE}/check-runs" \
+    | jq -s '[.[].check_runs[]? | select(.status == "completed"
+        and ((.conclusion // "") | IN("success", "neutral", "skipped") | not)) | .name]')" \
+    || fail_read "base check runs"
+  STATUSES="$(gh api "repos/{owner}/{repo}/commits/${BASE}/status" \
+    | jq '[.statuses[]? | select(.state | IN("failure", "error")) | .context]')" \
+    || fail_read "base statuses"
+  BASE_FAILING="$(jq -cn --argjson a "$RUNS" --argjson b "$STATUSES" '$a + $b | unique')"
+fi
+
 RESULT="$(jq -n \
   --argjson pr "$PR" \
   --argjson view "$VIEW" \
   --argjson threads "$THREADS" \
   --argjson behind "$BEHIND" \
+  --argjson pr_failing "$PR_FAILING" \
+  --argjson base_failing "$BASE_FAILING" \
   --argjson allow_no_checks "$ALLOW_NO_CHECKS" \
   --argjson no_checks_min "$NO_CHECKS_MIN" '
-  def bucket:
-    if .__typename == "StatusContext" then
-      (if .state == "SUCCESS" then "pass"
-       elif .state == "PENDING" or .state == "EXPECTED" then "pending"
-       else "fail" end)
-    elif .status != "COMPLETED" then "pending"
-    elif (.conclusion | IN("SUCCESS", "NEUTRAL", "SKIPPED")) then "pass"
-    else "fail" end;
   def cname: .name // .context;
+  # Only applied to checks that did not fail: passed, or still pending.
+  def bucket:
+    if .__typename == "StatusContext" then (if .state == "SUCCESS" then "pass" else "pending" end)
+    elif .status == "COMPLETED" then "pass" else "pending" end;
 
   $view.headRefOid as $head
   | ($view.statusCheckRollup // []) as $rollup
-  | ($rollup | map(select(bucket == "pass")) | length) as $passed
-  | ($rollup | map(select(bucket == "pending")) | length) as $pending
-  | ($rollup | map(select(bucket == "fail"))) as $failed
+  | ($rollup | map(select(cname | IN($pr_failing[]) | not) | bucket)) as $buckets
+  | ($pr_failing | map(select(IN($base_failing[])))) as $broken
+  | ($pr_failing | map(select(IN($base_failing[]) | not))) as $failed
+  | ($buckets | map(select(. == "pass")) | length) as $passed
+  | ($buckets | map(select(. == "pending")) | length) as $pending
   | ($rollup | length) as $total
   | (($view.commits // []) | last | .committedDate // null) as $committed
   | (if $committed then (now - ($committed | fromdateiso8601)) / 60 else 0 end) as $age_min
-
-  # Newest trusted comment carrying a verdict line; within it, the last one.
-  | ([$view.comments[]?
-      | select(.viewerDidAuthor == true
-               or ((.authorAssociation // "") | IN("OWNER", "MEMBER", "COLLABORATOR")))
-      | .body
-      | [splits("\r?\n")
-         | capture("^Reviewed-Head: (?<sha>[0-9a-f]{40})\\b.*\\bblocking: (?<blocking>[0-9]+)")
-           + {line: .}]
-      | select(length > 0) | last] | last) as $v
-  | $threads as $tn
-  | ($tn | map(select(.isResolved or .comments.totalCount >= 2)) | length) as $answered
+  | ($threads | map(select(.isResolved or .comments.totalCount >= 2)) | length) as $answered
 
   | {
       state: {value: $view.state, ok: ($view.state == "OPEN")},
       checks: {
-        passed: $passed, pending: $pending, failed: ($failed | length), total: $total,
-        failed_names: ($failed | map(cname)),
+        passed: $passed, pending: $pending, failed: ($failed | length),
+        broken: ($broken | length), total: $total,
+        failed_names: $failed, broken_names: $broken,
         ok: (($total > 0 or $allow_no_checks) and ($failed | length) == 0 and $pending == 0)
       },
-      verdict: {
-        line: ($v.line // null),
-        head: ($v.sha // null),
-        blocking: (if $v then ($v.blocking | tonumber) else null end),
-        names_head: (($v.sha // "") == $head),
-        ok: ($v != null and $v.sha == $head and ($v.blocking | tonumber) == 0)
-      },
-      threads: {answered: $answered, total: ($tn | length), ok: ($answered == ($tn | length))},
+      threads: {answered: $answered, total: ($threads | length), ok: ($answered == ($threads | length))},
       mergeable: {value: $view.mergeable, ok: ($view.mergeable == "MERGEABLE")},
       up_to_date: {behind: $behind, ok: ($behind == 0)}
     } as $c
-  | ["state", "checks", "verdict", "threads", "mergeable", "up_to_date"]
+  | ["state", "checks", "threads", "mergeable", "up_to_date"]
     | map(select($c[.].ok | not)) as $failing
   | {pr: $pr, head: $head, at_bar: ($failing | length == 0), failing: $failing} + $c
   + (if $total == 0 and ($allow_no_checks | not) and $age_min >= $no_checks_min then
@@ -135,6 +141,8 @@ RESULT="$(jq -n \
 ')"
 
 echo "$RESULT"
+BROKEN="$(jq -r '.checks.broken_names | join(", ")' <<<"$RESULT")"
+[[ -z "$BROKEN" ]] || echo "broken CI waived (also failing on base): $BROKEN" >&2
 if [[ "$(jq -r '.at_bar' <<<"$RESULT")" == true ]]; then
   exit 0
 fi

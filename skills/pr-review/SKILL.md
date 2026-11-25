@@ -166,15 +166,7 @@ Skip if `--skip-fixes`. Fix each item, run tests (fail = stop), commit and push.
 
 Post `gh pr comment`: what was fixed, dismissed (with reasons), no-action. Omit empty sections. Anything answered in its own inline thread (subagent findings, and external inline comments from Step 5/6/8) needs only a roll-up count here plus a restatement of the dismissals — the per-item reasoning lives in the threads, but dismissals are what a human is most likely to re-litigate, so name them. The summary still fully covers conversation-level comments (source 1), review bodies (source 3), and any body-only findings that had no thread.
 
-End the summary, in every mode, with this exact last line. It's the machine-readable verdict that `caliper-pr-at-bar` and the coordinate skill check:
-
-```text
-Reviewed-Head: <sha> · blocking: <n>
-```
-
-`<sha>` is the last commit whose findings you handled: your final fix push, or the head you reviewed if you pushed nothing. The line means "findings handled as of this commit", so naming the pre-fix head would make the verdict stale on arrival. Before posting, compare it with `gh pr view $PR_NUMBER --json headRefOid -q .headRefOid`. If someone else pushed since, still name your commit: the verdict is then stale on purpose, and the bar check sends the new commits through another round. `<n>` counts real defects you left unfixed: not dismissed, and not deferred to a linked issue. In automated modes it is normally 0.
-
-**Automated-fix mode: check the bar.** If this run pushed, first rerun the Step 5 wait so the new head's checks can finish. Then run `caliper-pr-at-bar $PR_NUMBER` (add `--allow-no-checks` only when the repo's CLAUDE.md says it has no CI) and report its result: "at bar", or the failing criteria from its JSON. Report only; don't loop here. A caller that needs the bar, like a coordinate pane, decides whether to run another round.
+**Automated-fix mode: check the bar.** Ready to merge means every bot comment is addressed and CI is green. If this run pushed, first rerun the Step 5 wait so the new head's checks can finish. Then run `caliper-pr-at-bar $PR_NUMBER` (add `--allow-no-checks` only when the repo's CLAUDE.md says it has no CI) and report its result: "at bar", or the failing criteria from its JSON. Always name any `broken_names`: checks it waived because they also fail on the base branch. CI didn't vouch for those. Report only; don't loop here. A caller that needs the bar, like a coordinate pane, decides whether to run another round.
 
 Report PR URL and item counts. Automated-merge mode: invoke pr-merge. Automated-fix mode: report the bar result, and tell the user to run `/pr-merge` when ready. Deliberate mode: offer merge or tell user to run `/pr-merge` when ready.
 
