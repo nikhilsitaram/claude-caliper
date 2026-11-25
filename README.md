@@ -496,7 +496,7 @@ Skills degrade silently. A prompt tweak that looks better might fail on edge cas
 Yes. Skills are language-agnostic. They auto-detect test runners, respect project conventions, and work with any git repository.
 
 **Can I stop after the plan?**
-Yes. After approving the design, you choose: **Create PR** (execute and open PR for human review), **Ready to merge** (execute, open PR, review and fix it, stop before merging), **Merge PR** (execute, open PR, review, and merge), or **Plan only** (stop after planning).
+Yes. After approving the design, you choose: **Create PR** (execute and open PR for human review), **Ready to merge** (execute, open PR, review and fix it until every bot comment is addressed and CI is green, stop before merging), **Merge PR** (execute, open PR, review, and merge), or **Plan only** (stop after planning).
 
 **What if the design is wrong?**
 The design skill waits for explicit approval. Say "needs changes" and iterate. Nothing proceeds until you approve.

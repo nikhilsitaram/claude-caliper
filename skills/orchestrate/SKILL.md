@@ -132,7 +132,7 @@ Skip integration branch and phase worktrees. Work directly in the feature worktr
 6. Route on workflow:
    - `"orchestrate"`: `validate-plan --check-workflow "$PLAN_JSON"`, report worktree path, stop
    - `"pr-create"`: invoke pr-create (targets main), `validate-plan --check-workflow "$PLAN_JSON"`, stop
-   - `"pr-ready"`: invoke pr-create (targets main), then pr-review --automated-fix, `validate-plan --check-workflow "$PLAN_JSON"`, stop — the PR is left reviewed and fixed, unmerged
+   - `"pr-ready"`: invoke pr-create (targets main), then pr-review --automated-fix, `validate-plan --check-workflow "$PLAN_JSON"`, stop — the PR is left at the bar or stuck, unmerged
    - `"pr-merge"`: invoke pr-create, read `REVIEW_WAIT=$(caliper-settings get review_wait_minutes)`, invoke pr-review --automated-merge (skip if $REVIEW_WAIT is 0; if skipped, invoke pr-merge directly), `validate-plan --check-workflow "$PLAN_JSON"`
 
 ## After All Phases (Multi-Phase Only)

@@ -78,7 +78,7 @@ Re-read live state (the ledger and the PR) before acting on any message. A repor
   - If the recommendation is clear, decide and reply, to that pane or to another pane better placed to do it.
   - If it has major considerations, ask the user, and don't block the pane meanwhile.
   - If it's still open when that pane's PR reaches the bar, tell the pane to file an issue.
-- **Stuck** (two review rounds without reaching the bar): look at the JSON, then decide or escalate to the user.
+- **Stuck** (pr-review's loop gave up short of the bar): look at the reason and the JSON, then decide or escalate to the user.
 - **`MERGED+CLEANED`:** the user merged from the pane and pr-merge cleaned up. Do steps 1, 3, 4 and 5 of "After a merge" below, skipping the "merged" message.
 - **`CLEANUP-FAILED`:** the pane's worktree holds content pr-merge wouldn't delete. Run `set <slug> --hold "cleanup failed: <path>"`, so a resume doesn't retry it, and report the path to the user. Leave the pane open; once they've resolved it, `--unhold`, close it and set it done.
 - **Checks with total 0:** if the repo really has no CI, tell the pane to pass `--allow-no-checks`, and add that line to the repo's CLAUDE.md if it's missing. Otherwise treat it as a dropped push event (see `hint`).

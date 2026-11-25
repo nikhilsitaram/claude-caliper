@@ -166,9 +166,21 @@ Skip if `--skip-fixes`. Fix each item, run tests (fail = stop), commit and push.
 
 Post `gh pr comment`: what was fixed, dismissed (with reasons), no-action. Omit empty sections. Anything answered in its own inline thread (subagent findings, and external inline comments from Step 5/6/8) needs only a roll-up count here plus a restatement of the dismissals — the per-item reasoning lives in the threads, but dismissals are what a human is most likely to re-litigate, so name them. The summary still fully covers conversation-level comments (source 1), review bodies (source 3), and any body-only findings that had no thread.
 
-**Automated-fix mode: check the bar.** Ready to merge means every bot comment is addressed and CI is green. If this run pushed, first rerun the Step 5 wait so the new head's checks can finish. Then run `caliper-pr-at-bar $PR_NUMBER` (add `--allow-no-checks` only when the repo's CLAUDE.md says it has no CI) and report its result: "at bar", or the failing criteria from its JSON. Always name any waived checks: `broken_names` (they also fail on the base branch) and `cancelled_bot_names` (cancelled checks from apps outside Actions). Nothing vouched for those. Report only; don't loop here. A caller that needs the bar, like a coordinate pane, decides whether to run another round.
+**Automated-fix mode: reach the bar.** Ready to merge means every bot comment is addressed and CI is green. Automated-fix ends there, or reports that it's stuck; it doesn't stop at "one round done". If this run pushed, rerun the Step 5 wait first. Then run `caliper-pr-at-bar $PR_NUMBER` (add `--allow-no-checks` only when the repo's CLAUDE.md says it has no CI).
 
-Report PR URL and item counts. Automated-merge mode: invoke pr-merge. Automated-fix mode: report the bar result, and tell the user to run `/pr-merge` when ready. Deliberate mode: offer merge or tell user to run `/pr-merge` when ready.
+- **Exit 0:** done.
+- **Exit 1:** act on each failing criterion. That's one extra round; then wait and check again. Allow at most 2 extra rounds, and don't re-dispatch the Step 4 reviewer in them.
+  - `checks` failed: the failed checks are Actionable findings (`gh run view <run-id> --log-failed`). Fix, test, push.
+  - `checks` pending: a check or bot is still running, so rerun the wait. Rerunning the wait alone doesn't use up a round.
+  - `threads`: collect the new external comments (Step 5's sources), fix or dismiss each, push any fixes, and reply in every thread.
+  - `up_to_date`, or `mergeable` CONFLICTING: take Step 3's rebase path, and re-run the repo's post-rebase steps, such as a version bump.
+  - `checks` with total 0: if the JSON has a `hint`, push the empty commit it suggests, once. Otherwise the repo has no CI it declared, so stop and report.
+  - `state` not OPEN: stop and report.
+- **Exit 64:** GitHub couldn't be read. Re-run once.
+
+If the PR is still not at the bar after 2 extra rounds, stop and report **stuck** with the failing criteria and the JSON. If the extra rounds fixed anything, post one follow-up comment summarizing those fixes. Always name any waived checks: `broken_names` (they also fail on the base branch) and `cancelled_bot_names` (cancelled checks from apps outside Actions). Nothing vouched for those.
+
+Report PR URL and item counts. Automated-merge mode: invoke pr-merge. Automated-fix mode: report "at bar" (with any waived checks) or "stuck" (with the reason), and tell the user to run `/pr-merge` when ready. Deliberate mode: offer merge or tell user to run `/pr-merge` when ready.
 
 ## Arguments
 
