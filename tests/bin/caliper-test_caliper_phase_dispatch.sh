@@ -11,6 +11,8 @@ TMPDIR_BASE="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 BASE="$(cd "$TMPDIR_BASE" && pwd -P)"
 
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR \
+  GIT_NAMESPACE GIT_PREFIX GIT_ALTERNATE_OBJECT_DIRECTORIES
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 check_eq() {
@@ -203,6 +205,28 @@ check_eq "exit nonzero" 1 "$((RC != 0))"
 check_eq "task never claimed" pending "$(status_of A1)"
 check_eq "task branch removed" no "$(has_branch a1)"
 check_eq "task worktree removed" no "$([[ -e "$FEAT/.claude/worktrees/a1" ]] && echo yes || echo no)"
+
+echo "=== a worktree add that registers then fails is rolled back ==="
+single_plan
+mkdir -p "$BASE/hooks"
+printf '#!/bin/sh\nexit 1\n' > "$BASE/hooks/post-checkout"
+chmod +x "$BASE/hooks/post-checkout"
+g -C "$MAIN" config core.hooksPath "$BASE/hooks"
+run "$PLAN" "$FEAT" A1
+g -C "$MAIN" config --unset core.hooksPath
+check_eq "exit nonzero" 1 "$((RC != 0))"
+check_eq "task never claimed" pending "$(status_of A1)"
+check_eq "task branch removed" no "$(has_branch a1)"
+check_eq "task worktree removed" no "$([[ -e "$FEAT/.claude/worktrees/a1" ]] && echo yes || echo no)"
+check_eq "worktree unregistered" 0 "$(g -C "$MAIN" worktree list --porcelain | grep -c '/a1$' || true)"
+
+echo "=== an inherited GIT_DIR doesn't redirect the helper ==="
+single_plan
+RC=0
+OUT="$(cd "$MAIN" && GIT_DIR="$BASE/nowhere" "$SCRIPT" "$PLAN" "$FEAT" A1 2>"$BASE/err")" || RC=$?
+check_eq "exit 0" 0 "$RC"
+check_eq "task worktree created under the named parent" "$FEAT/.claude/worktrees/a1" "$OUT"
+remove_task_wt "$FEAT" a1
 
 echo "=== usage ==="
 run "$PLAN" "$FEAT"

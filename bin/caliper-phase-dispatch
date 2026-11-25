@@ -35,6 +35,11 @@ usage() {
 }
 die() { echo "ERROR: $*" >&2; exit 1; }
 
+# Called from a git hook, these would point every `git -C <parent>` below at the
+# hook's repository instead.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR \
+  GIT_NAMESPACE GIT_PREFIX GIT_ALTERNATE_OBJECT_DIRECTORIES
+
 [[ $# -eq 3 ]] || usage
 PLAN_JSON="$1" PARENT_ARG="$2" TASK_ID="$3"
 BIN_DIR="$(dirname "$0")"
@@ -54,10 +59,10 @@ PHASE_COUNT="$(jq '.phases | length' "$PLAN_JSON")"
 # Parent: a linked worktree's root, never the main checkout.
 REV="$(git -C "$PARENT_ARG" rev-parse --path-format=absolute --show-toplevel --git-dir --git-common-dir)" \
   || die "not a git worktree: $PARENT_ARG"
-{ read -r PARENT; read -r GIT_DIR; read -r COMMON_DIR; } <<<"$REV"
+{ read -r PARENT; read -r WT_GITDIR; read -r COMMON_DIR; } <<<"$REV"
 [[ "$(cd "$PARENT_ARG" && pwd -P)" == "$(cd "$PARENT" && pwd -P)" ]] \
   || die "not a worktree root: $PARENT_ARG (its root is $PARENT)"
-[[ "$(cd "$GIT_DIR" && pwd -P)" != "$(cd "$COMMON_DIR" && pwd -P)" ]] \
+[[ "$(cd "$WT_GITDIR" && pwd -P)" != "$(cd "$COMMON_DIR" && pwd -P)" ]] \
   || die "$PARENT is the main checkout — dispatch from the feature or phase worktree, or task worktrees land as siblings that background subagents can't write"
 
 PARENT_BRANCH="$(git -C "$PARENT" rev-parse --abbrev-ref HEAD)"
@@ -79,15 +84,25 @@ fi
 
 FORK_SHA="$(git -C "$PARENT" rev-parse HEAD)"
 CREATED=0
-# Undo only what this run made. The worktree is seconds old and holds only the
-# seeded memory copy, which clear-worktree-scratch removes (it's untracked where
-# .claude/ isn't ignored, and would block the bare remove). The branch delete
-# names FORK_SHA as the expected old value, so it can't drop commits. If either
-# step fails the task is still `pending` with a branch — Resuming settles it.
+# Undo only what this run made. Creating the branch on its own first makes it
+# the lock: a concurrent run for the same task fails there with CREATED=0 and
+# touches nothing, so once CREATED=1 anything at TASK_WORKTREE is ours — even
+# from a `worktree add` that registered the worktree and then failed (e.g. a
+# failing post-checkout hook). The worktree holds only the seeded memory copy,
+# which clear-worktree-scratch removes (it's untracked where .claude/ isn't
+# ignored, and would block the bare remove). The branch delete names FORK_SHA as
+# the expected old value, so it can't drop commits. If the claim's plan.json
+# write landed before validate-plan failed, nothing is undone: the task is
+# in_progress with a branch, which Resuming settles.
 rollback() {
   (( CREATED )) || return 0
-  if "$BIN_DIR/clear-worktree-scratch" "$TASK_WORKTREE" >&2 \
-      && git -C "$PARENT" worktree remove "$TASK_WORKTREE" >&2 \
+  if [[ "$(jq -r --arg id "$TASK_ID" '.phases[].tasks[] | select(.id == $id) | .status' "$PLAN_JSON")" != "pending" ]]; then
+    echo "ERROR: validate-plan failed after claiming $TASK_ID; $TASK_WORKTREE kept — settle per Resuming In-Flight Tasks" >&2
+    return 0
+  fi
+  if { [[ ! -e "$TASK_WORKTREE" ]] \
+        || { "$BIN_DIR/clear-worktree-scratch" "$TASK_WORKTREE" >&2 \
+             && git -C "$PARENT" worktree remove "$TASK_WORKTREE" >&2; }; } \
       && git -C "$PARENT" update-ref -d "refs/heads/$BRANCH" "$FORK_SHA"; then
     echo "Rolled back $TASK_WORKTREE; task $TASK_ID left pending" >&2
   else
@@ -96,8 +111,9 @@ rollback() {
 }
 trap rollback EXIT
 
-git -C "$PARENT" worktree add "$TASK_WORKTREE" -b "$BRANCH" "$FORK_SHA" >&2
+git -C "$PARENT" branch "$BRANCH" "$FORK_SHA"
 CREATED=1
+git -C "$PARENT" worktree add "$TASK_WORKTREE" "$BRANCH" >&2
 "$BIN_DIR/seed-agent-memory" "$TASK_WORKTREE" >&2
 "$BIN_DIR/validate-plan" --update-status "$PLAN_JSON" --task "$TASK_ID" --status in_progress >&2
 CREATED=0
