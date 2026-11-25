@@ -42,6 +42,8 @@ Ready to merge means every bot comment is addressed and CI is green. `caliper-pr
 
 **Safety valve for broken CI.** A check that fails on the PR is waived if its latest run on the base branch's head also failed. That's breakage the PR didn't cause, like a repo whose main is red. Waived checks are listed in `broken_names` and reported every time, because while base is red a regression the PR adds to that same check is masked. A failure the base doesn't share still blocks, including a check that never runs on the base (a `pull_request`-only workflow).
 
+**Cancelled bot checks don't block.** A check from an app outside GitHub Actions that concludes `CANCELLED` (for example CodeRabbit giving up on a review) is listed in `cancelled_bot_names` and reported. A cancelled Actions job still blocks. Third-party CI apps, such as Cloudflare Workers Builds, are also outside Actions, so their cancellations are waived the same way.
+
 ## Files
 
 - `SKILL.md`: the coordinator's instructions.

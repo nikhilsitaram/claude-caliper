@@ -23,6 +23,13 @@ set -euo pipefail
 # base (a pull_request-only workflow). While base is red, a regression the PR
 # adds to that same check is masked: callers must surface broken_names.
 #
+# A cancelled check from an app outside GitHub Actions (empty workflowName,
+# e.g. CodeRabbit giving up on a review) doesn't block either: it goes in
+# cancelled_bot_names. A cancelled Actions job still blocks, as does a check
+# with no workflowName field at all. Third-party CI apps (e.g. Cloudflare
+# Workers Builds) also have an empty workflowName, so their cancellations are
+# waived the same way and reported.
+#
 # A snapshot, not a wait: caliper-wait-pr is the CI wait. When no check has
 # registered and the head commit is older than --no-checks-min (default 10),
 # the JSON carries a hint that GitHub likely dropped the push event, and how
@@ -76,11 +83,14 @@ BEHIND="$(gh api "repos/{owner}/{repo}/compare/${BASE}...${HEAD}" --jq '.behind_
 # name, the endpoint's default) and commit statuses. Read only when the PR has
 # a failed check, so a green PR costs no extra calls.
 # The one definition of a failed check (SUCCESS, NEUTRAL, SKIPPED pass; an
-# unfinished check is pending, not failed).
-PR_FAILING="$(jq -c '[(.statusCheckRollup // [])[] | select(
+# unfinished check is pending, not failed), and of a cancelled bot check.
+PR_CANCELLED_BOTS="$(jq -c '[(.statusCheckRollup // [])[] | select(
+    .__typename == "CheckRun" and .status == "COMPLETED" and .conclusion == "CANCELLED"
+    and .workflowName == "") | .name]' <<<"$VIEW")"
+PR_FAILING="$(jq -c --argjson bots "$PR_CANCELLED_BOTS" '[(.statusCheckRollup // [])[] | select(
     if .__typename == "StatusContext" then (.state | IN("FAILURE", "ERROR"))
     else (.status == "COMPLETED" and ((.conclusion | IN("SUCCESS", "NEUTRAL", "SKIPPED")) | not)) end)
-  | .name // .context]' <<<"$VIEW")"
+  | .name // .context | select(IN($bots[]) | not)]' <<<"$VIEW")"
 BASE_FAILING='[]'
 if [[ "$PR_FAILING" != '[]' ]]; then
   RUNS="$(gh api --paginate "repos/{owner}/{repo}/commits/${BASE}/check-runs" \
@@ -99,6 +109,7 @@ RESULT="$(jq -n \
   --argjson threads "$THREADS" \
   --argjson behind "$BEHIND" \
   --argjson pr_failing "$PR_FAILING" \
+  --argjson cancelled_bots "$PR_CANCELLED_BOTS" \
   --argjson base_failing "$BASE_FAILING" \
   --argjson allow_no_checks "$ALLOW_NO_CHECKS" \
   --argjson no_checks_min "$NO_CHECKS_MIN" '
@@ -110,7 +121,7 @@ RESULT="$(jq -n \
 
   $view.headRefOid as $head
   | ($view.statusCheckRollup // []) as $rollup
-  | ($rollup | map(select(cname | IN($pr_failing[]) | not) | bucket)) as $buckets
+  | ($rollup | map(select(cname | IN($pr_failing[] , $cancelled_bots[]) | not) | bucket)) as $buckets
   | ($pr_failing | map(select(IN($base_failing[])))) as $broken
   | ($pr_failing | map(select(IN($base_failing[]) | not))) as $failed
   | ($buckets | map(select(. == "pass")) | length) as $passed
@@ -124,8 +135,8 @@ RESULT="$(jq -n \
       state: {value: $view.state, ok: ($view.state == "OPEN")},
       checks: {
         passed: $passed, pending: $pending, failed: ($failed | length),
-        broken: ($broken | length), total: $total,
-        failed_names: $failed, broken_names: $broken,
+        broken: ($broken | length), cancelled_bot: ($cancelled_bots | length), total: $total,
+        failed_names: $failed, broken_names: $broken, cancelled_bot_names: $cancelled_bots,
         ok: (($total > 0 or $allow_no_checks) and ($failed | length) == 0 and $pending == 0)
       },
       threads: {answered: $answered, total: ($threads | length), ok: ($answered == ($threads | length))},
@@ -143,6 +154,8 @@ RESULT="$(jq -n \
 echo "$RESULT"
 BROKEN="$(jq -r '.checks.broken_names | join(", ")' <<<"$RESULT")"
 [[ -z "$BROKEN" ]] || echo "broken CI waived (also failing on base): $BROKEN" >&2
+CANCELLED="$(jq -r '.checks.cancelled_bot_names | join(", ")' <<<"$RESULT")"
+[[ -z "$CANCELLED" ]] || echo "cancelled bot checks waived: $CANCELLED" >&2
 if [[ "$(jq -r '.at_bar' <<<"$RESULT")" == true ]]; then
   exit 0
 fi

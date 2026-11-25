@@ -94,7 +94,7 @@ Merge only right after `caliper-pr-at-bar` exits 0 in this turn, and only if the
 
   For each hold, run `caliper-coordinate set <slug> --hold "<reason>"`, report it, and wait for the user. Otherwise merge.
 
-In both modes, name any `broken_names` from the bar JSON: checks waived because they also fail on the base branch. CI didn't vouch for those, so the user should see them. In auto-merge they don't hold the merge; list them in the merge report.
+In both modes, name any waived checks from the bar JSON: `broken_names` (also failing on the base branch) and `cancelled_bot_names` (cancelled checks from apps outside Actions). Nothing vouched for those, so the user should see them. In auto-merge they don't hold the merge; list them in the merge report.
 
 A hold, whether from auto-merge or one `status` adds (a closed PR, or a dropped or closed dependency), stays until the cause is fixed or the user says to proceed. Then clear it with `caliper-coordinate set <slug> --unhold`.
 

@@ -51,13 +51,15 @@ HEAD_SHA="1111111111111111111111111111111111111111"
 NOW_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 OLD_ISO="2000-01-01T00:00:00Z"
 
-# Builders. checks: <name>:<status>:<conclusion> for CheckRuns, or
-# ctx:<name>:<state> for commit StatusContexts.
+# Builders. checks: <name>:<status>:<conclusion>[:<workflowName>] for CheckRuns
+# (the 4th field "-" means an empty workflowName, i.e. an app outside Actions;
+# omitted means the field is absent), or ctx:<name>:<state> for StatusContexts.
 checks() {
   local a
   for a in "$@"; do printf '%s\n' "$a"; done | jq -Rcn '[inputs | split(":") |
     if .[0] == "ctx" then {__typename: "StatusContext", context: .[1], state: .[2]}
-    else {__typename: "CheckRun", name: .[0], status: .[1], conclusion: .[2]} end]'
+    else {__typename: "CheckRun", name: .[0], status: .[1], conclusion: .[2]}
+      + (if length > 3 then {workflowName: (if .[3] == "-" then "" else .[3] end)} else {} end) end]'
 }
 view() {  # <state> <mergeable> <checks-json> <committedDate>
   jq -cn --arg s "$1" --arg m "$2" --argjson chk "$3" --arg d "$4" --arg h "$HEAD_SHA" '
@@ -187,6 +189,27 @@ check_eq "valve: base cancelled counts as base failing too" 0 "$RC"
 reset; view OPEN MERGEABLE "$(checks "test:COMPLETED:FAILURE" "slow:IN_PROGRESS:")" "$NOW_ISO"; base_runs "test:failure"
 run 42
 check_eq "valve: a pending check still holds the bar" 1 "$RC"
+
+# --- cancelled bot checks ---
+reset; view OPEN MERGEABLE "$(checks "test:COMPLETED:SUCCESS:CI" "CodeRabbit:COMPLETED:CANCELLED:-")" "$NOW_ISO"
+run 42
+check_eq "cancelled bot check (non-Actions app) doesn't block" 0 "$RC"
+check_eq "cancelled bot check is listed" "CodeRabbit" "$(j '.checks.cancelled_bot_names | join(",")')"
+check_eq "cancelled bot check isn't counted as passed" "1/2" "$(j '"\(.checks.passed)/\(.checks.total)"')"
+check_eq "cancelled bot check: stderr names it" yes "$(yes_no grep -q 'cancelled bot checks waived: CodeRabbit' <<<"$ERR")"
+check_eq "cancelled bot check: base checks not read for it" no "$(yes_no grep -q 'check-runs' "$FAKE/argv")"
+
+reset; view OPEN MERGEABLE "$(checks "test:COMPLETED:CANCELLED:CI")" "$NOW_ISO"
+run 42
+check_eq "cancelled Actions job still blocks" "1 test" "$RC $(j '.checks.failed_names | join(",")')"
+
+reset; view OPEN MERGEABLE "$(checks "test:COMPLETED:CANCELLED")" "$NOW_ISO"
+run 42
+check_eq "cancelled check with no workflowName field still blocks" 1 "$RC"
+
+reset; view OPEN MERGEABLE "$(checks "CodeRabbit:COMPLETED:FAILURE:-")" "$NOW_ISO"
+run 42
+check_eq "a bot check that FAILED (not cancelled) still blocks" 1 "$RC"
 
 # --- threads ---
 reset; threads true:1 false:1 false:3
