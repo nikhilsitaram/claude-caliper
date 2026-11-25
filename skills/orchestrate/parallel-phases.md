@@ -12,7 +12,7 @@ Run Prepare Phase for each listed phase in turn, from the integration worktree. 
 
 ## One Dispatch Loop, Many Parents
 
-Keep one map of agent → (task ID, phase letter). The dispatch protocol derives `PARENT_WORKTREE` from the CWD and resets the CWD to it after each removal. So before running its Dispatch, Process Completions or After Completion steps for a task, `cd` into that task's phase worktree (absolute path, in its own Bash call). Never mix two phases' paths in one call: the worktree-isolation guard refuses chains that span worktrees, so keep each step a plain call with literal paths.
+Keep one map of agent → (task ID, phase letter). `caliper-phase-dispatch` takes each task's phase worktree as an argument, so Dispatch needs no `cd`. Process Completions and After Completion run from the parent, so before them `cd` into that task's phase worktree (absolute path, in its own Bash call). Never mix two phases' paths in one call: the worktree-isolation guard refuses chains that span worktrees.
 
 - **Ready tasks:** run `validate-plan --ready "$PLAN_JSON" --phase <L>` for each active phase. Don't use the unscoped `--ready`: it also lists tasks of phases that haven't started yet.
 - **Dispatch:** send every ready task across all active phases in a single message.
