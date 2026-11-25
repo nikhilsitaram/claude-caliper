@@ -30,7 +30,7 @@ Before the first phase:
 - `WORKFLOW=$(jq -r '.workflow' "$PLAN_JSON")`: once created, the plan, not caliper-settings, is the source of truth.
 - `TASK_IMPLEMENTER_MODEL=$(caliper-settings get task_implementer_model)` and `IMPL_REVIEWER_MODEL=$(caliper-settings get implementation_reviewer_model)` fill `{TASK_IMPLEMENTER_MODEL}` and `{IMPL_REVIEWER_MODEL}`.
 - `PHASE_COUNT=$(jq '.phases | length' "$PLAN_JSON")`
-- Gates, run at startup and again after status changes: `validate-plan --schema "$PLAN_JSON"` (file-set overlap, structure), `validate-plan --check-entry "$PLAN_JSON" --stage execution` (no wasted work), `validate-plan --check-base "$PLAN_JSON"` (no wrong-worktree dispatch), `validate-plan --consistency "$PLAN_JSON"` (state drift).
+- Gates: `validate-plan --schema "$PLAN_JSON"` (file-set overlap, structure), `validate-plan --check-entry "$PLAN_JSON" --stage execution` (no wasted work), `validate-plan --check-base "$PLAN_JSON"` (no wrong-worktree dispatch), `validate-plan --consistency "$PLAN_JSON"` (state drift).
 - Sibling phases (neither in the other's transitive `depends_on`) run in parallel. If the plan has any, confirm them. **See:** `./parallel-phases.md` Confirm Siblings
 - `validate-plan --update-status "$PLAN_JSON" --plan --status "In Development"`
 - `PLAN_BASE_SHA` is what `validate-plan --set-base "$PLAN_JSON" --plan --sha HEAD --if-unset` prints: it records HEAD on the first run and keeps that base on a resume, so review ranges start where the plan did.
@@ -38,7 +38,7 @@ Before the first phase:
 - `git push -u origin HEAD`
 - Read the dispatch protocol: **See:** `./dispatch-subagents.md`
 
-Every status change goes through `validate-plan --update-status`, which keeps plan.json and plan.md in sync and enforces the transition gates.
+Every status change goes through `validate-plan --update-status`, which keeps plan.json and plan.md in sync and enforces the transition gates. Run gate checks at startup and after status changes.
 
 ## Per-Phase Execution
 

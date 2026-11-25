@@ -59,4 +59,4 @@ Agent(
 
 ## Standalone Mode
 
-When no caliper plan drove the work, the diff is the only source of truth. Use the same call with three changes: the first line reads "Review the complete branch implementation." under a `## Summary` heading; drop the `## Tasks Implemented` and `## Plan Context` sections; set Design Doc to `None.` and Phase Context to `(none — single standalone review)`. The reviewer runs categories 1–7; category 8 (success-criteria fulfillment) self-skips on a "None" design doc.
+When no caliper plan drove the work, the diff is the only source of truth. Use the same call with these changes: the opening line becomes "Review the complete branch implementation."; `## Feature Summary` is renamed `## Summary`; the `## Tasks Implemented` and `## Plan Context` sections are dropped; Design Doc is `None.` and Phase Context is `(none — single standalone review)`. The reviewer runs categories 1–7; category 8 (success-criteria fulfillment) self-skips on a "None" design doc.
