@@ -174,7 +174,7 @@ Reviewed-Head: <sha> · blocking: <n>
 
 `<sha>` is the PR head **when you post** (`gh pr view $PR_NUMBER --json headRefOid -q .headRefOid`), after every fix push. The line means "findings handled as of this commit", so naming the pre-fix head would make the verdict stale on arrival. `<n>` counts real defects you left unfixed: not dismissed, and not deferred to a linked issue. In automated modes it is normally 0.
 
-**Automated-fix mode: check the bar.** If this run pushed, first rerun the Step 5 wait so the new head's checks can finish. Then run `caliper-pr-at-bar $PR_NUMBER` and report its result: "at bar", or the failing criteria from its JSON. Report only; don't loop here. A caller that needs the bar, like a coordinate pane, decides whether to run another round.
+**Automated-fix mode: check the bar.** If this run pushed, first rerun the Step 5 wait so the new head's checks can finish. Then run `caliper-pr-at-bar $PR_NUMBER` (add `--allow-no-checks` when the wait returned `NO_CHECKS`) and report its result: "at bar", or the failing criteria from its JSON. Report only; don't loop here. A caller that needs the bar, like a coordinate pane, decides whether to run another round.
 
 Report PR URL and item counts. Automated-merge mode: invoke pr-merge. Automated-fix mode: report the bar result, and tell the user to run `/pr-merge` when ready. Deliberate mode: offer merge or tell user to run `/pr-merge` when ready.
 

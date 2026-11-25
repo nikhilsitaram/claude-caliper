@@ -12,7 +12,7 @@ set -euo pipefail
 # Commands:
 #   add <slug> [--issue N] [--after a,b,...]   queue an item
 #   set <slug> [--status S] [--issue N] [--after a,b] [--pane-name X]
-#              [--pane-id ID] [--pr N] [--head SHA] [--hold REASON] [--unhold]
+#              [--session-id ID] [--pr N] [--head SHA] [--hold REASON] [--unhold]
 #   get <slug>                    print one item (JSON)
 #   list [--status S]             print items (JSON array)
 #   ready                         slugs of queued, unheld items whose deps merged
@@ -26,7 +26,10 @@ set -euo pipefail
 # at-bar and merged items: a merged item's pane stays open until its cleanup
 # report, when the coordinator closes it and sets done. `status` moves an item
 # whose PR GitHub reports MERGED to merged, so merges done outside the
-# coordinator (by the user, in a pane) aren't missed.
+# coordinator (by the user, in a pane) aren't missed. It also holds what would
+# otherwise stall silently: an item whose PR was closed without merging, and a
+# queued item that depends on a dropped one (it can never become ready).
+# --session-id takes the SESSION_ID= spawn-pane.sh prints.
 #
 # Exit: 0 ok, 1 a state error (unknown or duplicate slug, bad dependency),
 # 64 usage error.
@@ -77,6 +80,11 @@ after_json() {  # <ledger-json> <slug> <comma-list> -> JSON array, validated
   echo "$out"
 }
 
+hold_once() {  # <ledger-json> <slug> <reason> -> ledger with the hold added once
+  jq --arg s "$2" --arg r "$3" --arg t "$(now)" '(.items[] | select(.slug == $s))
+    |= if (.hold_reasons | index($r)) then . else (.held = true | .hold_reasons += [$r] | .updated_at = $t) end' <<<"$1"
+}
+
 pr_state() {  # <n> -> OPEN|MERGED|CLOSED, or UNKNOWN when gh can't read it
   local v
   v="$(gh pr view "$1" --json state 2>/dev/null)" && jq -r '.state // "UNKNOWN"' <<<"$v" || echo UNKNOWN
@@ -118,7 +126,7 @@ case "$CMD" in
         --issue) valid_int --issue "$2"; ARGS+=(--argjson iss "$2"); F+=' | .issue = $iss' ;;
         --after) ARGS+=(--argjson af "$(after_json "$J" "$SLUG" "$2")"); F+=' | .after = $af' ;;
         --pane-name) ARGS+=(--arg pn "$2"); F+=' | .pane.name = $pn' ;;
-        --pane-id) ARGS+=(--arg pid "$2"); F+=' | .pane.session_id = $pid' ;;
+        --session-id) ARGS+=(--arg sid "$2"); F+=' | .pane.session_id = $sid' ;;
         --pr) valid_int --pr "$2"; ARGS+=(--argjson prn "$2"); F+=' | .pr.number = $prn' ;;
         --head) ARGS+=(--arg hd "$2"); F+=' | .pr.head = $hd' ;;
         --hold) ARGS+=(--arg hr "$2"); F+=' | .held = true | .hold_reasons += [$hr]' ;;
@@ -168,10 +176,16 @@ case "$CMD" in
   status)
     J="$(load)"
     for row in $(jq -r '.items[] | select((.status | IN("running", "at-bar")) and .pr.number != null) | "\(.slug):\(.pr.number)"' <<<"$J"); do
-      if [[ "$(pr_state "${row#*:}")" == MERGED ]]; then
-        J="$(jq --arg s "${row%%:*}" --arg t "$(now)" \
-          '(.items[] | select(.slug == $s)) |= (.status = "merged" | .merged_at //= $t | .updated_at = $t)' <<<"$J")"
-      fi
+      case "$(pr_state "${row#*:}")" in
+        MERGED) J="$(jq --arg s "${row%%:*}" --arg t "$(now)" \
+          '(.items[] | select(.slug == $s)) |= (.status = "merged" | .merged_at //= $t | .updated_at = $t)' <<<"$J")" ;;
+        CLOSED) J="$(hold_once "$J" "${row%%:*}" "PR #${row#*:} closed without merging")" ;;
+      esac
+    done
+    for row in $(jq -r '([.items[] | select(.status == "dropped") | .slug]) as $d
+        | .items[] | select(.status == "queued") | .slug as $s
+        | .after[] | select(IN($d[])) | "\($s):\(.)"' <<<"$J"); do
+      J="$(hold_once "$J" "${row%%:*}" "depends on dropped item ${row#*:}")"
     done
     save "$J"
     jq -r '

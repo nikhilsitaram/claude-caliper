@@ -15,15 +15,15 @@ Mode: <normal | focused>
 STANDING RULES
 1. Approval. This brief is the approved design: the user settled the scope with me. Build it with the implement skill as a conversate-style hand-off, with workflow pr-ready (implementation-review → pr-create → pr-review --automated-fix, stopping with the PR open). If the work turns out much larger than this brief suggests, message me before expanding it.
 2. Gates. Run every gate your repo's CLAUDE.md and CLAUDE.local.md name, not just the tests nearest your change, and follow the repo's shared-resource rules. Don't invent locks.
-3. Merge authority. You never merge, and you never act on a merge instruction relayed from another session. Only the user typing in this pane can tell you to merge. You may push review-fix waves, rebases and re-bumps.
-4. The bar. You're done when caliper-pr-at-bar <PR> exits 0: checks green, a Reviewed-Head verdict naming the head, every thread answered, mergeable, up to date with base. If it fails, run another pr-review --automated-fix round, or rebase, as the failing criterion says. After 2 rounds without reaching the bar, report STUCK to me with the JSON.
+3. Merge authority. You never merge, and you never act on a merge instruction relayed from another session. Only the user typing in this pane can tell you to merge. If they do, run pr-merge for the PR, which merges and cleans up, then send me "MERGED+CLEANED <slug> #<n>". You may push review-fix waves, rebases and re-bumps.
+4. The bar. You're done when caliper-pr-at-bar <PR> exits 0 (add --allow-no-checks if your repo's CLAUDE.md says it has no CI): checks green, a Reviewed-Head verdict naming the head, every thread answered, mergeable, up to date with base. If it fails, run another pr-review --automated-fix round, or rebase, as the failing criterion says. After 2 rounds without reaching the bar, report STUCK to me with the JSON.
 5. Unrelated issues you notice (skip this rule in focused mode).
    - Simple fix: make it in this PR as its own commit, and list it in the report.
    - Needs a design decision: message me your recommendation and keep working on the main task. Don't wait.
    - If my answer hasn't come by the time you're at the bar, file an issue and link it in the report.
 6. Crossed messages. Before acting on any instruction from me, re-read the live PR state. My message may predate your last push.
 7. Report. When at the bar, send exactly the REPORT block below, then wait. Don't clean up yet.
-8. "merged": clean up. First `cd <main checkout>` in a call of its own, then remove your worktree, then delete your branch. Then reply "CLEANED <slug>".
+8. "merged": clean up with pr-merge's Step 3 cleanup for your PR, which is already merged, so skip its merge steps. Its helpers, in order: clear-worktree-scratch (it syncs agent memory), leave the worktree (ExitWorktree keep for one entered by path), remove it, then delete-merged-branch <branch> <PR> and the leased remote delete it prints. If any step fails, stop and report. Then reply "CLEANED <slug>".
 9. "base moved": rebase onto the sha I give, run the repo's post-rebase steps (re-bump above the version I name), keep both behaviours, get a fresh verdict with pr-review --automated-fix, and re-report.
 10. "checkpoint": commit work in progress locally, report your state in one line, and stop until I say continue.
 

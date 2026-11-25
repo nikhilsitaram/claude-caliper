@@ -12,7 +12,10 @@ set -euo pipefail
 #               (SUCCESS, NEUTRAL and SKIPPED pass)
 #   verdict     the newest PR comment line starting `Reviewed-Head: <sha>`
 #               names the current head and says `blocking: 0` — the line
-#               pr-review's summary ends with
+#               pr-review's summary ends with. Only comments by the gh user
+#               running this, or by the repo's OWNER/MEMBER/COLLABORATOR,
+#               count: in auto-merge the line is the evidence a review ran, so
+#               an outside commenter must not be able to supply it
 #   threads     every review thread is resolved or has a reply
 #   mergeable   GitHub reports MERGEABLE (UNKNOWN is not taken as clean)
 #   up_to_date  the head is 0 commits behind its base branch
@@ -88,8 +91,11 @@ RESULT="$(jq -n \
   | (($view.commits // []) | last | .committedDate // null) as $committed
   | (if $committed then (now - ($committed | fromdateiso8601)) / 60 else 0 end) as $age_min
 
-  # Newest comment carrying a verdict line; within it, the last such line.
-  | ([$view.comments[]?.body
+  # Newest trusted comment carrying a verdict line; within it, the last one.
+  | ([$view.comments[]?
+      | select(.viewerDidAuthor == true
+               or ((.authorAssociation // "") | IN("OWNER", "MEMBER", "COLLABORATOR")))
+      | .body
       | [splits("\r?\n")
          | capture("^Reviewed-Head: (?<sha>[0-9a-f]{40})\\b.*\\bblocking: (?<blocking>[0-9]+)")
            + {line: .}]

@@ -76,6 +76,26 @@ assert "too many arguments exits 4"     '[[ $RC -eq 4 ]]'
 HANDOFF_CLOSE_DELAY="x" run PANE-1
 assert "non-numeric close delay exits 4" '[[ $RC -eq 4 ]]'
 
+# --- seam: the SESSION_ID spawn-pane.sh prints is one close-pane.sh accepts ---
+# The fake returns a real-shaped iTerm2 session UUID for the split; fake ps lists
+# the launch line so the spawn reports LAUNCHED=yes.
+sk="$fk/spawn"; mkdir -p "$sk/bin"
+cat > "$sk/bin/osascript" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+printf '%s\n' "$2" > "$SK/launch"; echo "4646B44F-D3B6-4A32-BC64-26C8CC037946"
+EOF
+cat > "$sk/bin/ps" <<'EOF'
+#!/usr/bin/env bash
+cat "$SK/launch"
+EOF
+printf '#!/usr/bin/env bash\n:\n' > "$sk/bin/sleep"
+chmod +x "$sk/bin/osascript" "$sk/bin/ps" "$sk/bin/sleep"
+sid="$(env SK="$sk" TERM_PROGRAM=iTerm.app ITERM_SESSION_ID="w0t0p0:INVOKER-UUID" PATH="$sk/bin:$PATH" \
+  "$REPO_ROOT/skills/handoff/scripts/spawn-pane.sh" seam /tmp 2>/dev/null | sed -n 's/^SESSION_ID=//p')"
+ITERM_SESSION_ID="w0t0p0:INVOKER-UUID" run --dry-run "$sid"
+assert "seam: spawn-pane's SESSION_ID passes close-pane's validation" '[[ -n "$sid" && $RC -eq 0 && "$(field SESSION_ID)" == "$sid" ]]'
+
 echo "----"
 echo "PASS=$pass FAIL=$fail"
 [ "$fail" -eq 0 ]

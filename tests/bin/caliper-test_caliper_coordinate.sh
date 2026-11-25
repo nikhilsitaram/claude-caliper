@@ -70,7 +70,7 @@ check_eq "add: after list recorded" "fix-a,pr:900" "$(item fix-c '.after | join(
 run ready
 check_eq "ready: only items with no unmet deps" "fix-a" "$OUT"
 
-run set fix-a --status running --pane-name fix-a-1a2b --pane-id PANE-1
+run set fix-a --status running --pane-name fix-a-1a2b --session-id PANE-1
 check_eq "set: exit 0" 0 "$RC"
 check_eq "set: pane name" fix-a-1a2b "$(item fix-a .pane.name)"
 check_eq "set: pane session id" PANE-1 "$(item fix-a .pane.session_id)"
@@ -133,6 +133,28 @@ check_eq "status: table shows the PR" yes "$(grep -q '#77' <<<"$OUT" && echo yes
 echo CLOSED > "$FAKE/pr-55"
 run status
 check_eq "status: done items are left alone" "done" "$(item fix-a .status)"
+
+# --- status: holds what would stall silently ---
+run add fix-e --after fix-b
+run set fix-b --status dropped
+run set fix-c --status running
+echo CLOSED > "$FAKE/pr-77"
+run status
+check_eq "status: PR closed unmerged -> held with reason" "true PR #77 closed without merging" \
+  "$(item fix-c '"\(.held) \(.hold_reasons | join(";"))"')"
+check_eq "status: queued item on a dropped dep -> held" "true depends on dropped item fix-b" \
+  "$(item fix-e '"\(.held) \(.hold_reasons | join(";"))"')"
+run status
+check_eq "status: re-running doesn't duplicate hold reasons" 1 "$(item fix-c '.hold_reasons | length')"
+
+# --- seam: every slug the ledger accepts is one spawn-pane.sh accepts ---
+for slug in fix-a a.b_c-9 X1; do
+  set +e
+  "$REPO_ROOT/bin/caliper-coordinate" --ledger "$BASE/seam.json" add "$slug" >/dev/null 2>&1; added=$?
+  TERM_PROGRAM=iTerm.app "$REPO_ROOT/skills/handoff/scripts/spawn-pane.sh" --dry-run "$slug" /tmp >/dev/null 2>&1; spawned=$?
+  set -e
+  check_eq "seam: slug '$slug' accepted by both ledger and spawn-pane" "0 0" "$added $spawned"
+done
 
 # --- errors ---
 run frobnicate
