@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# caliper-coordinate [--ledger PATH] <command> ...
+#
+# The coordinate skill's ledger (gh #319): one JSON file per repo at
+# <main checkout>/.claude/claude-caliper/coordinate.json, so the train survives
+# compaction and a new session. Only this CLI writes it — Write prompts on every
+# .claude/ path, and hand-edited JSON drifts. --ledger overrides the path.
+#
+# Commands:
+#   add <slug> [--issue N] [--after a,b,...]   queue an item
+#   set <slug> [--status S] [--issue N] [--after a,b] [--pane-name X]
+#              [--pane-id ID] [--pr N] [--head SHA] [--hold REASON] [--unhold]
+#   get <slug>                    print one item (JSON)
+#   list [--status S]             print items (JSON array)
+#   ready                         slugs of queued, unheld items whose deps merged
+#   active                        how many items hold an open pane
+#   status                        reconcile with live gh, then print a table
+#
+# Statuses run queued -> running -> at-bar -> merged -> done; dropped abandons an
+# item. Held is a flag with reasons, beside the status. An --after entry is
+# another item's slug (met once that item is merged or done) or pr:N for a PR
+# outside the ledger (met once gh reports it MERGED). `active` counts running,
+# at-bar and merged items: a merged item's pane stays open until its cleanup
+# report, when the coordinator closes it and sets done. `status` moves an item
+# whose PR GitHub reports MERGED to merged, so merges done outside the
+# coordinator (by the user, in a pane) aren't missed.
+#
+# Exit: 0 ok, 1 a state error (unknown or duplicate slug, bad dependency),
+# 64 usage error.
+
+STATUSES="queued running at-bar merged done dropped"
+
+usage() {
+  echo "Usage: caliper-coordinate [--ledger PATH] add|set|get|list|ready|active|status ..." >&2
+  [[ -z "${1:-}" ]] || echo "caliper-coordinate: $1" >&2
+  exit 64
+}
+die() { echo "caliper-coordinate: $1" >&2; exit 1; }
+
+LEDGER=""
+if [[ "${1:-}" == --ledger ]]; then
+  [[ $# -ge 2 ]] || usage "--ledger needs a path"
+  LEDGER="$2"; shift 2
+fi
+if [[ -z "$LEDGER" ]]; then
+  LEDGER="$("$(dirname "$0")/caliper-main-root")/.claude/claude-caliper/coordinate.json"
+fi
+CMD="${1:-}"; [[ -n "$CMD" ]] || usage; shift
+
+now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+load() { [[ -f "$LEDGER" ]] && cat "$LEDGER" || echo '{"version": 1, "items": []}'; }
+save() {  # <json> — atomic replace in the ledger's own dir
+  mkdir -p "$(dirname "$LEDGER")"
+  local tmp; tmp="$(mktemp "$LEDGER.XXXXXX")"
+  printf '%s\n' "$1" > "$tmp" && mv "$tmp" "$LEDGER"
+}
+valid_slug() { [[ "$1" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]] || usage "slug '$1' must be letters, digits, dot, underscore, dash"; }
+valid_status() { [[ " $STATUSES " == *" $1 "* ]] || usage "status '$1' is not one of: $STATUSES"; }
+valid_int() { [[ "$2" =~ ^[0-9]+$ ]] || usage "$1 needs a number, got '$2'"; }
+has_item() { jq -e --arg s "$2" 'any(.items[]; .slug == $s)' <<<"$1" >/dev/null; }
+
+after_json() {  # <ledger-json> <slug> <comma-list> -> JSON array, validated
+  local json="$1" self="$2" list="$3" a out='[]'
+  IFS=',' read -ra parts <<<"$list"
+  for a in "${parts[@]}"; do
+    [[ -n "$a" ]] || continue
+    if [[ "$a" =~ ^pr:[0-9]+$ ]]; then :
+    else
+      [[ "$a" != "$self" ]] || die "$self can't depend on itself"
+      has_item "$json" "$a" || die "--after '$a' is not an item in the ledger (or pr:N)"
+    fi
+    out="$(jq -c --arg a "$a" '. + [$a]' <<<"$out")"
+  done
+  echo "$out"
+}
+
+pr_state() {  # <n> -> OPEN|MERGED|CLOSED, or UNKNOWN when gh can't read it
+  local v
+  v="$(gh pr view "$1" --json state 2>/dev/null)" && jq -r '.state // "UNKNOWN"' <<<"$v" || echo UNKNOWN
+}
+
+case "$CMD" in
+  add)
+    SLUG="${1:-}"; [[ -n "$SLUG" ]] || usage "add needs a slug"; shift
+    valid_slug "$SLUG"
+    ISSUE=null AFTER=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --issue) [[ $# -ge 2 ]] || usage; valid_int --issue "$2"; ISSUE="$2"; shift 2 ;;
+        --after) [[ $# -ge 2 ]] || usage; AFTER="$2"; shift 2 ;;
+        *) usage "unknown add option '$1'" ;;
+      esac
+    done
+    J="$(load)"
+    ! has_item "$J" "$SLUG" || die "item '$SLUG' already exists"
+    A="$(after_json "$J" "$SLUG" "$AFTER")"
+    save "$(jq --arg s "$SLUG" --argjson i "$ISSUE" --argjson a "$A" --arg t "$(now)" '
+      .items += [{slug: $s, issue: $i, status: "queued", held: false, hold_reasons: [],
+                  after: $a, pane: {name: null, session_id: null},
+                  pr: {number: null, head: null}, created_at: $t, updated_at: $t,
+                  merged_at: null}]' <<<"$J")"
+    ;;
+
+  set)
+    SLUG="${1:-}"; [[ -n "$SLUG" ]] || usage "set needs a slug"; shift
+    J="$(load)"
+    has_item "$J" "$SLUG" || die "no item '$SLUG'"
+    F='.'
+    ARGS=(--arg s "$SLUG" --arg t "$(now)")
+    while [[ $# -gt 0 ]]; do
+      [[ "$1" == --unhold || $# -ge 2 ]] || usage "$1 needs a value"
+      case "$1" in
+        --status) valid_status "$2"; ARGS+=(--arg st "$2")
+                  F+=' | .status = $st | if $st == "merged" and .merged_at == null then .merged_at = $t else . end' ;;
+        --issue) valid_int --issue "$2"; ARGS+=(--argjson iss "$2"); F+=' | .issue = $iss' ;;
+        --after) ARGS+=(--argjson af "$(after_json "$J" "$SLUG" "$2")"); F+=' | .after = $af' ;;
+        --pane-name) ARGS+=(--arg pn "$2"); F+=' | .pane.name = $pn' ;;
+        --pane-id) ARGS+=(--arg pid "$2"); F+=' | .pane.session_id = $pid' ;;
+        --pr) valid_int --pr "$2"; ARGS+=(--argjson prn "$2"); F+=' | .pr.number = $prn' ;;
+        --head) ARGS+=(--arg hd "$2"); F+=' | .pr.head = $hd' ;;
+        --hold) ARGS+=(--arg hr "$2"); F+=' | .held = true | .hold_reasons += [$hr]' ;;
+        --unhold) F+=' | .held = false | .hold_reasons = []'; shift; continue ;;
+        *) usage "unknown set option '$1'" ;;
+      esac
+      shift 2
+    done
+    save "$(jq "${ARGS[@]}" "(.items[] | select(.slug == \$s)) |= ($F | .updated_at = \$t)" <<<"$J")"
+    ;;
+
+  get)
+    [[ $# -eq 1 ]] || usage "get needs one slug"
+    J="$(load)"
+    has_item "$J" "$1" || die "no item '$1'"
+    jq --arg s "$1" '.items[] | select(.slug == $s)' <<<"$J"
+    ;;
+
+  list)
+    if [[ $# -gt 0 ]]; then
+      [[ "$1" == --status && $# -eq 2 ]] || usage "list takes only --status S"
+      valid_status "$2"
+      load | jq --arg st "$2" '[.items[] | select(.status == $st)]'
+    else
+      load | jq '.items'
+    fi
+    ;;
+
+  ready)
+    J="$(load)"
+    # Outside PRs named by any queued item, resolved once each.
+    MERGED_PRS='[]'
+    for p in $(jq -r '[.items[] | select(.status == "queued") | .after[] | select(startswith("pr:"))] | unique[]' <<<"$J"); do
+      [[ "$(pr_state "${p#pr:}")" == MERGED ]] && MERGED_PRS="$(jq -c --arg p "$p" '. + [$p]' <<<"$MERGED_PRS")"
+    done
+    jq -r --argjson mp "$MERGED_PRS" '
+      ([.items[] | select(.status == "merged" or .status == "done") | .slug] + $mp) as $met
+      | .items[] | select(.status == "queued" and (.held | not))
+      | select(all(.after[]; IN($met[])))
+      | .slug' <<<"$J"
+    ;;
+
+  active)
+    load | jq '[.items[] | select(.status | IN("running", "at-bar", "merged"))] | length'
+    ;;
+
+  status)
+    J="$(load)"
+    for row in $(jq -r '.items[] | select((.status | IN("running", "at-bar")) and .pr.number != null) | "\(.slug):\(.pr.number)"' <<<"$J"); do
+      if [[ "$(pr_state "${row#*:}")" == MERGED ]]; then
+        J="$(jq --arg s "${row%%:*}" --arg t "$(now)" \
+          '(.items[] | select(.slug == $s)) |= (.status = "merged" | .merged_at //= $t | .updated_at = $t)' <<<"$J")"
+      fi
+    done
+    save "$J"
+    jq -r '
+      ["STATUS", "SLUG", "ISSUE", "PR", "PANE", "WAITING ON", "HOLD"],
+      (.items | sort_by(.status as $st | ["running", "at-bar", "merged", "queued", "done", "dropped"] | index($st))[]
+       | [ .status + (if .held then " (held)" else "" end),
+           .slug,
+           (if .issue then "#\(.issue)" else "-" end),
+           (if .pr.number then "#\(.pr.number)" else "-" end),
+           (.pane.name // "-"),
+           (if .status == "queued" and (.after | length) > 0 then (.after | join(",")) else "-" end),
+           (if .held then (.hold_reasons | join("; ")) else "-" end) ])
+      | @tsv' <<<"$J" | column -t -s $'\t'
+    ;;
+
+  *) usage "unknown command '$CMD'" ;;
+esac
