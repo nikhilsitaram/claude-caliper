@@ -9,6 +9,8 @@ One coordinator session works a queue of issues through parallel `/handoff` pane
 - closes finished panes by id;
 - keeps a durable ledger (`caliper-coordinate`).
 
+Dependencies come in two kinds. `--after` waits for the other item to merge. `--soft-after` starts at once, building against what it expects the other item's interface to be, and rebases and checks those assumptions once that item merges.
+
 It ships only in the full `claude-caliper` bundle, because its panes run the workflow skills: implement, then implementation-review, pr-create and pr-review.
 
 ## Requirements
