@@ -29,6 +29,7 @@ Set them globally with `/caliper-settings`. A repo can override them, and declar
 - sensitive paths that hold an auto-merge;
 - "no CI" (the bar then accepts zero checks);
 - a post-rebase step such as a version bump;
+- a post-merge step such as a GitHub release;
 - shared-resource rules.
 
 Panes load the same files, so gates are never copied into briefs.
