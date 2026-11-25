@@ -15,6 +15,8 @@ Match existing patterns (runner, file structure, class vs function style).
 
 ## When Tests Fail Unexpectedly
 
+Always watch a new test fail before implementing: one that passes first protects nothing.
+
 **Test fails when you expected it to pass:**
 1. Read the error message completely
 2. Check path, function name, import

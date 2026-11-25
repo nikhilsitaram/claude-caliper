@@ -38,7 +38,7 @@ Before the first phase:
 - `git push -u origin HEAD`
 - Read the dispatch protocol: **See:** `./dispatch-subagents.md`
 
-Every status change goes through `validate-plan --update-status`, which keeps plan.json and plan.md in sync and enforces the transition gates. Run gate checks at startup and after status changes.
+Every status change goes through `validate-plan --update-status`, which keeps plan.json and plan.md in sync and enforces the transition gates. Re-run `validate-plan --consistency "$PLAN_JSON"` after status changes to catch state drift.
 
 ## Per-Phase Execution
 
