@@ -119,7 +119,7 @@ Skip the integration branch and phase worktrees; work in the feature worktree. B
 4. `validate-plan --update-status "$PLAN_JSON" --plan --status done`
 5. Route on workflow:
    - `"orchestrate"`: `--check-workflow`, report the worktree path, stop
-   - `"pr-merge"`: create the final PR, pr-review --automated-merge (no pre-merge check poll, as in 7c), `--check-workflow`, clean up
+   - `"pr-merge"`: create the final PR, pr-review --automated-merge (if `$REVIEW_WAIT`, read as in 7b, is 0, pr-merge directly instead; no pre-merge check poll, as in 7c), `--check-workflow`, clean up
    - `"pr-create"`: create the final PR, `--check-workflow`, stop
    - `"pr-ready"`: create the final PR, pr-review --automated-fix, `--check-workflow`, stop
 
