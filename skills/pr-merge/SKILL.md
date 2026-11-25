@@ -45,12 +45,14 @@ If branch protection requires human approval and the PR lacks it, tell the user 
 
 ```bash
 git fetch origin
-git merge-base --is-ancestor origin/<BASE_BRANCH> HEAD
+git merge-base --is-ancestor origin/<BASE_BRANCH> origin/<BRANCH_NAME>
 ```
 
-Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/<BASE_BRANCH>` actually advances. `git fetch origin <BASE_BRANCH>` only updates `FETCH_HEAD` — the `is-ancestor` check then compares against a stale ref and reports up-to-date when the branch is actually behind.
+Compare the PR's pushed head, not `HEAD`: pr-merge can run from a checkout of another branch (the integration worktree for a phase PR, or the default branch with no worktree), where `HEAD` isn't the PR branch.
 
-If behind (non-zero exit): rebase onto `origin/<BASE_BRANCH>`, resolve conflicts, run tests, push with `git push -u origin HEAD --force-with-lease`. Comment on PR with conflict resolution details. Complex conflicts → stop and ask user.
+Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/<BASE_BRANCH>` and `origin/<BRANCH_NAME>` actually advance. `git fetch origin <BASE_BRANCH>` only updates `FETCH_HEAD` — the `is-ancestor` check then compares against a stale ref and reports up-to-date when the branch is actually behind.
+
+If behind (non-zero exit), work in the PR branch's own worktree: the CWD when `CWD_BRANCH` is `$BRANCH_NAME`, else the path Step 3's phase-worktree lookup prints for `refs/heads/<BRANCH_NAME>`. There, rebase onto `origin/<BASE_BRANCH>`, resolve conflicts, run tests, push with `git push -u origin HEAD --force-with-lease`. Comment on PR with conflict resolution details. Complex conflicts → stop and ask user. If no worktree has the branch checked out, report that the PR is behind `<BASE_BRANCH>` and stop, rather than rebasing a checkout that belongs to another branch.
 
 **Merge method** (`$METHOD` = `squash` or `rebase`):
 - Integration branches (`IS_INTEGRATION=true`): `rebase` — auto-detected, no flag needed
