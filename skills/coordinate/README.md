@@ -36,7 +36,7 @@ Panes load the same files, so gates are never copied into briefs.
 `caliper-pr-at-bar <pr>` exits 0 only when all of these hold:
 - the PR is open;
 - checks are green;
-- the newest `Reviewed-Head: <sha> · blocking: 0` line names the head (pr-review writes this line at the end of its summary);
+- the newest `Reviewed-Head: <sha> · blocking: 0` line names the head (pr-review writes this line at the end of its summary). Only lines from the gh user running the check, or from the repo's owners, members and collaborators, count, so an outside commenter can't supply the verdict;
 - every review thread is resolved or answered;
 - the PR is mergeable;
 - it is 0 commits behind base.

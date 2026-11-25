@@ -28,7 +28,10 @@ set -euo pipefail
 # whose PR GitHub reports MERGED to merged, so merges done outside the
 # coordinator (by the user, in a pane) aren't missed. It also holds what would
 # otherwise stall silently: an item whose PR was closed without merging, and a
-# queued item that depends on a dropped one (it can never become ready).
+# queued item that depends on a dropped item or on a pr:N closed unmerged (it
+# can never become ready). Each item it moves to merged is printed as a
+# `MERGED-ON-GITHUB <slug>` line before the table, so the coordinator can run
+# its after-merge steps for it.
 # --session-id takes the SESSION_ID= spawn-pane.sh prints.
 #
 # Exit: 0 ok, 1 a state error (unknown or duplicate slug, bad dependency),
@@ -178,7 +181,8 @@ case "$CMD" in
     for row in $(jq -r '.items[] | select((.status | IN("running", "at-bar")) and .pr.number != null) | "\(.slug):\(.pr.number)"' <<<"$J"); do
       case "$(pr_state "${row#*:}")" in
         MERGED) J="$(jq --arg s "${row%%:*}" --arg t "$(now)" \
-          '(.items[] | select(.slug == $s)) |= (.status = "merged" | .merged_at //= $t | .updated_at = $t)' <<<"$J")" ;;
+          '(.items[] | select(.slug == $s)) |= (.status = "merged" | .merged_at //= $t | .updated_at = $t)' <<<"$J")"
+                echo "MERGED-ON-GITHUB ${row%%:*}" ;;
         CLOSED) J="$(hold_once "$J" "${row%%:*}" "PR #${row#*:} closed without merging")" ;;
       esac
     done
@@ -186,6 +190,11 @@ case "$CMD" in
         | .items[] | select(.status == "queued") | .slug as $s
         | .after[] | select(IN($d[])) | "\($s):\(.)"' <<<"$J"); do
       J="$(hold_once "$J" "${row%%:*}" "depends on dropped item ${row#*:}")"
+    done
+    for row in $(jq -r '.items[] | select(.status == "queued") | .slug as $s
+        | .after[] | select(startswith("pr:")) | "\($s):\(.[3:])"' <<<"$J"); do
+      [[ "$(pr_state "${row#*:}")" == CLOSED ]] \
+        && J="$(hold_once "$J" "${row%%:*}" "depends on PR #${row#*:}, closed without merging")"
     done
     save "$J"
     jq -r '

@@ -127,6 +127,7 @@ echo MERGED > "$FAKE/pr-77"
 run status
 check_eq "status: exit 0" 0 "$RC"
 check_eq "status: a PR merged outside the ledger moves the item to merged" merged "$(item fix-c .status)"
+check_eq "status: names the reconciled merge so after-merge steps run" yes "$(grep -qx 'MERGED-ON-GITHUB fix-c' <<<"$OUT" && echo yes || echo no)"
 check_eq "status: table lists the item" yes "$(grep -q 'fix-c' <<<"$OUT" && echo yes || echo no)"
 check_eq "status: table shows the PR" yes "$(grep -q '#77' <<<"$OUT" && echo yes || echo no)"
 
@@ -146,6 +147,13 @@ check_eq "status: queued item on a dropped dep -> held" "true depends on dropped
   "$(item fix-e '"\(.held) \(.hold_reasons | join(";"))"')"
 run status
 check_eq "status: re-running doesn't duplicate hold reasons" 1 "$(item fix-c '.hold_reasons | length')"
+check_eq "status: nothing newly merged -> no MERGED-ON-GITHUB line" no "$(grep -q 'MERGED-ON-GITHUB' <<<"$OUT" && echo yes || echo no)"
+
+run add fix-f --after pr:901
+echo CLOSED > "$FAKE/pr-901"
+run status
+check_eq "status: queued item on a closed outside PR -> held" "true depends on PR #901, closed without merging" \
+  "$(item fix-f '"\(.held) \(.hold_reasons | join(";"))"')"
 
 # --- seam: every slug the ledger accepts is one spawn-pane.sh accepts ---
 for slug in fix-a a.b_c-9 X1; do
@@ -154,6 +162,17 @@ for slug in fix-a a.b_c-9 X1; do
   TERM_PROGRAM=iTerm.app "$REPO_ROOT/skills/handoff/scripts/spawn-pane.sh" --dry-run "$slug" /tmp >/dev/null 2>&1; spawned=$?
   set -e
   check_eq "seam: slug '$slug' accepted by both ledger and spawn-pane" "0 0" "$added $spawned"
+done
+
+# --- drift: every caliper-coordinate command and set flag the skill cites exists ---
+SKILL_MD="$REPO_ROOT/skills/coordinate/SKILL.md"
+for cmd in $(grep -o 'caliper-coordinate [a-z]*' "$SKILL_MD" | awk '{print $2}' | sort -u); do
+  check_eq "drift: SKILL's 'caliper-coordinate $cmd' is a CLI command" yes \
+    "$(grep -q "^  $cmd)" "$SCRIPT" && echo yes || echo no)"
+done
+for flag in $(grep -o 'set <slug> [^`]*' "$SKILL_MD" | grep -o -- '--[a-z-]*' | sort -u); do
+  check_eq "drift: SKILL's 'set $flag' is a CLI flag" yes \
+    "$(grep -q -- "^ *$flag)" "$SCRIPT" && echo yes || echo no)"
 done
 
 # --- errors ---
