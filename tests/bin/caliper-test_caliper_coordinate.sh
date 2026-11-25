@@ -209,6 +209,43 @@ check_eq "soft: running item on a dropped soft dep -> held" "true depends on dro
   "$(item both '"\(.held) \(.hold_reasons | join(";"))"')"
 run status
 check_eq "soft: re-running doesn't duplicate a running item's hold" 1 "$(item both '.hold_reasons | length')"
+run set both --unhold
+run status
+check_eq "soft: --unhold alone is re-held while the dropped dep is listed" true "$(item both .held)"
+run set both --soft-after ""
+run set both --unhold
+run status
+check_eq "soft: editing the dep list out, then --unhold, sticks" false "$(item both .held)"
+
+run add core
+run add view --soft-after core
+run set view --status at-bar
+run status
+check_eq "soft: WAITING ON shows an unmerged soft dep on an at-bar item" yes \
+  "$(grep -E '^at-bar +view ' <<<"$OUT" | grep -q 'core (soft)' && echo yes || echo no)"
+run set core --status dropped
+run status
+check_eq "soft: at-bar item on a dropped soft dep -> held" "true depends on dropped item core (soft)" \
+  "$(item view '"\(.held) \(.hold_reasons | join(";"))"')"
+
+# --- cycles: hard, soft or mixed, each end would wait on the other forever ---
+L="$BASE/cycle/coordinate.json"
+run add x
+run add y --soft-after x
+run set x --soft-after y
+check_eq "cycle: soft-soft refused" 1 "$RC"
+check_eq "cycle: refused set leaves the item unchanged" 0 "$(item x '.soft_after | length')"
+run add z --after x
+run set x --soft-after z
+check_eq "cycle: mixed hard/soft refused" 1 "$RC"
+run set x --after z
+check_eq "cycle: hard-hard refused" 1 "$RC"
+run add w --after z --soft-after y
+check_eq "cycle: an acyclic diamond is accepted" 0 "$RC"
+run set x --after pr:5
+check_eq "cycle: pr:N deps aren't followed" 0 "$RC"
+check_eq "add: the --after error keeps its pr:N hint" yes \
+  "$(ERR="$("$SCRIPT" --ledger "$L" add q --after nope 2>&1)"; grep -q '(or pr:N)' <<<"$ERR" && echo yes || echo no)"
 
 # A ledger written before soft deps existed has no soft_after field.
 L="$BASE/legacy/coordinate.json"
@@ -242,10 +279,15 @@ for cmd in $(grep -o 'caliper-coordinate [a-z]*' "$SKILL_MD" | awk '{print $2}' 
   check_eq "drift: SKILL's 'caliper-coordinate $cmd' is a CLI command" yes \
     "$(grep -q "^  $cmd)" "$SCRIPT" && echo yes || echo no)"
 done
-for flag in $(grep -o 'set <slug> [^`]*' "$SKILL_MD" | grep -o -- '--[a-z-]*' | sort -u); do
-  check_eq "drift: SKILL's 'set $flag' is a CLI flag" yes \
+for flag in $(grep -oE '(set|add) <slug> [^`]*' "$SKILL_MD" | grep -o -- '--[a-z-]*' | sort -u); do
+  check_eq "drift: SKILL's 'set/add $flag' is a CLI flag" yes \
     "$(grep -q -- "^ *$flag)" "$SCRIPT" && echo yes || echo no)"
 done
+# SKILL tells the coordinator to find soft dependents by this key in `list`.
+check_eq "drift: SKILL cites the soft_after key" yes "$(grep -q '`soft_after`' "$SKILL_MD" && echo yes || echo no)"
+"$SCRIPT" --ledger "$BASE/seam.json" add drift-key >/dev/null 2>&1
+check_eq "drift: list output carries the soft_after key SKILL cites" yes \
+  "$("$SCRIPT" --ledger "$BASE/seam.json" list | jq -e 'all(.[]; has("soft_after"))' >/dev/null && echo yes || echo no)"
 
 # --- errors ---
 run frobnicate

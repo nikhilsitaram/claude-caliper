@@ -42,7 +42,7 @@ Run this at start, after every merge, and after every pane report or resume:
 
    `STALE=yes` means the reading lags while panes keep using the window, so treat it as a floor.
 3. Spawn the pane with `./skills/handoff/scripts/spawn-pane.sh <slug> <main checkout>`. Add `--perm-mode <mode>` with your own permission mode (e.g. `auto`, `acceptEdits`) when it isn't the default, so an auto-mode run doesn't stall on a pane's prompts. Then record it: `caliper-coordinate set <slug> --status running --pane-name <NAME> --session-id <SESSION_ID>`. On `LAUNCHED=timeout` or a failure, close any half-started pane by its `SESSION_ID`, leave the item queued, and report.
-4. Write the brief. Follow `handoff`'s permission-laundering check, then send one `SendMessage` built from the template. Both ends of a soft dependency still unmerged get the `Soft link` field. If the other end is already running, send it this pane's name, and send a dependency what the dependent anticipates.
+4. Write the brief. Follow `handoff`'s permission-laundering check, then send one `SendMessage` built from the template. Both ends of a soft dependency still unmerged get a `Soft link` line and the SOFT LINK block. If the other end is already running, send it its line (with this pane's name), plus the block if its brief lacked one.
 
 **See:** brief-template.md
 
@@ -64,7 +64,7 @@ Re-read live state (the ledger and the PR) before acting on any message; a repor
 
 ## Merge
 
-Merge only right after `caliper-pr-at-bar` exits 0 in this turn, and only if the ledger item isn't held, in either mode. Pin the merge to that JSON's `.head`. If it differs from the ledger's head, re-record it with `set --head`. With several at the bar, merge first what unblocks queued or waiting items (hard or soft), then narrow before broad.
+Merge only right after `caliper-pr-at-bar` exits 0 in this turn, and only if the ledger item isn't held and `status` shows no `(soft)` dependency for it, in either mode. Pin the merge to that JSON's `.head`. If it differs from the ledger's head, re-record it with `set --head`. With several at the bar, merge first what unblocks queued or waiting items (hard or soft), then narrow before broad.
 
 - **`confirm` (default):** report "#N at bar" with the pane's report summarized, then wait for the user to say merge. If the user merges from a pane, the pane reports it, and `caliper-coordinate status` confirms it.
 - **`auto-merge`:** first check for holds. Hold when:
@@ -76,7 +76,7 @@ Merge only right after `caliper-pr-at-bar` exits 0 in this turn, and only if the
 
 In both modes, name the bar JSON's waived checks, `broken_names` and `cancelled_bot_names`, since nothing vouched for them. In auto-merge they don't hold the merge; list them in the merge report.
 
-A hold, whether from auto-merge or one `status` adds (a closed PR, or a dropped or closed dependency), stays until the cause is fixed or the user says to proceed. Then clear it with `caliper-coordinate set <slug> --unhold`.
+A hold, whether from auto-merge or one `status` adds (a closed PR, or a dropped or closed dependency), stays until the cause is fixed or the user says to proceed. Then clear it with `caliper-coordinate set <slug> --unhold`; for a dropped dependency, first remove it with `set --after` or `--soft-after`, or `status` re-holds. Tell a running soft dependent its dependency was dropped, and re-scope it with the user.
 
 Merge command: `gh pr merge N --<merge_strategy> --match-head-commit <head>`. Pinning the head means a push that lands after your check makes the merge fail safely. Don't pass `--delete-branch`: the branch is checked out in the pane's worktree, and the pane deletes it (local and remote) in its pr-merge cleanup.
 

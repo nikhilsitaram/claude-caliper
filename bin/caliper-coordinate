@@ -28,7 +28,9 @@ set -euo pipefail
 # against what it anticipates from that item, and rebases once it merges. `ready`
 # ignores soft deps unless one was dropped; `status` shows each unmerged one as
 # `<slug> (soft)` in WAITING ON. A slug can't be both a hard and a soft dep of
-# the same item. `active` counts running,
+# the same item, and add/set refuse a cycle through either kind. `status`
+# re-adds a dropped-dependency hold after --unhold until the dependency list is
+# edited. `active` counts running,
 # at-bar and merged items: a merged item's pane stays open until its cleanup
 # report, when the coordinator closes it and sets done. `status` moves an item
 # whose PR GitHub reports MERGED to merged, so merges done outside the
@@ -89,18 +91,28 @@ after_json() {  # <ledger-json> <slug> <comma-list> [--soft-after] -> JSON array
       [[ "$flag" == --after ]] || usage "--soft-after takes item slugs only, not '$a'"
     else
       [[ "$a" != "$self" ]] || die "$self can't depend on itself"
-      has_item "$json" "$a" || die "$flag '$a' is not an item in the ledger"
+      has_item "$json" "$a" || die "$flag '$a' is not an item in the ledger$([[ "$flag" == --after ]] && echo ' (or pr:N)')"
     fi
     out="$(jq -c --arg a "$a" '. + [$a]' <<<"$out")"
   done
   echo "$out"
 }
 
-check_overlap() {  # <ledger-json> <slug>: refuse a slug that is both a hard and a soft dep
+check_deps() {  # <ledger-json> <slug>: refuse a slug both hard and soft, and any cycle
   local both
   both="$(jq -r --arg s "$2" '.items[] | select(.slug == $s)
     | (.soft_after // []) as $soft | [.after[] | select(IN($soft[]))] | join(",")' <<<"$1")"
   [[ -z "$both" ]] || die "$2: '$both' can't be both --after and --soft-after"
+  # Hard or soft, a cycle deadlocks: each end waits for the other to merge.
+  jq -e --arg s "$2" '. as $l
+    | def deps($x): [$l.items[] | select(.slug == $x)
+        | (.after[] | select(startswith("pr:") | not)), (.soft_after // [])[]];
+    {seen: [], todo: deps($s)}
+    | until(.todo | length == 0;
+        .todo[0] as $x | .todo |= .[1:]
+        | if any(.seen[]; . == $x) then . else .seen += [$x] | .todo += deps($x) end)
+    | any(.seen[]; . == $s) | not' <<<"$1" >/dev/null \
+    || die "$2: that dependency would make a cycle back to $2"
 }
 
 hold_once() {  # <ledger-json> <slug> <reason> -> ledger with the hold added once
@@ -135,7 +147,7 @@ case "$CMD" in
                   after: $a, soft_after: $sa, pane: {name: null, session_id: null},
                   pr: {number: null, head: null}, created_at: $t, updated_at: $t,
                   merged_at: null}]' <<<"$J")"
-    check_overlap "$J" "$SLUG"
+    check_deps "$J" "$SLUG"
     save "$J"
     ;;
 
@@ -164,7 +176,7 @@ case "$CMD" in
       shift 2
     done
     J="$(jq "${ARGS[@]}" "(.items[] | select(.slug == \$s)) |= ($F | .updated_at = \$t)" <<<"$J")"
-    check_overlap "$J" "$SLUG"
+    check_deps "$J" "$SLUG"
     save "$J"
     ;;
 
