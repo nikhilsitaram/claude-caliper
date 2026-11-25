@@ -107,7 +107,8 @@ name="${slug}-${suffix}"
 # session's UUID as $ITERM_SESSION_ID ("w0t0p0:<UUID>"); the part after the colon
 # matches an AppleScript session's `id`. Empty (older iTerm2) falls back to the
 # current session in the AppleScript below.
-invoker_id="${ITERM_SESSION_ID##*:}"
+invoker_id="${ITERM_SESSION_ID:-}"   # unset under older iTerm2; `set -u` would abort
+invoker_id="${invoker_id##*:}"
 
 # Build the launch command as ONE shell line to type into the new pane. cwd is
 # %q-quoted so spaces survive; SETTINGS_JSON stays single-quoted so the pane's

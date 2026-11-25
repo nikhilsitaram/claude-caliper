@@ -57,6 +57,13 @@ assert "INVOKER_SESSION passes a colon-less id through" '[[ "$(field INVOKER_SES
 ITERM_SESSION_ID="" run "iTerm.app" --dry-run tabbed /tmp
 assert "empty ITERM_SESSION_ID -> empty INVOKER_SESSION (AppleScript falls back)" '[[ -z "$(field INVOKER_SESSION)" ]]'
 
+# Unset (not just empty): older iTerm2 doesn't export it, and the script runs
+# under `set -u`. run() always passes the variable, so call env -u directly.
+set +e
+STDOUT="$(env -u ITERM_SESSION_ID TERM_PROGRAM=iTerm.app "$HELPER" --dry-run unset-id /tmp 2>/dev/null)"; RC=$?
+set -e
+assert "unset ITERM_SESSION_ID is tolerated (exit 0, empty INVOKER_SESSION)" '[[ $RC -eq 0 && -z "$(field INVOKER_SESSION)" ]]'
+
 # --- default cwd is $PWD ---
 run "iTerm.app" --dry-run just-a-slug
 assert "cwd defaults to invocation dir"     '[[ -n "$(field CWD)" && -d "$(field CWD)" ]]'
