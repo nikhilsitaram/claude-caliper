@@ -1,55 +1,32 @@
-# Implementer Invocation Template
+# Implementer Prompt
 
-Use this template when dispatching a task-implementer agent. The agent's static behavior (test-driven workflow, deviation rules, self-review, completion notes) is defined in the `claude-caliper:task-implementer` agent definition. This template provides only the dynamic per-invocation context.
-
-The implementer reads the codebase directly at full context — the prompt carries the task's plan.json entry and the design-doc path, not pasted implementation code.
+The `prompt` for each `claude-caliper:task-implementer` dispatch (the Agent call itself is in `./dispatch-subagents.md`). The agent definition carries the static behaviour: worktree and branch checks, reading the codebase and design doc, TDD, deviation rules, self-review, completion notes. This prompt carries only the per-task context.
 
 **Variables:**
-- `{TASK_ID}` — the task ID (e.g., A1)
-- `{TASK_ID_LOWER}` — lowercase task ID (e.g., a1)
-- `{TASK_METADATA}` — the task's JSON object from plan.json (strip `status` before injecting — orchestrator tracking state, not implementer guidance; keep `depends_on`, `intent`, `files`, `verification`, `done_when`, `avoid`, `complexity`). This is the task's full specification.
-- `{DESIGN_DOC}` — absolute path to the design doc (the implementer reads it for feature-wide context and rationale)
-- `{PLAN_DIR}` — absolute path to plan directory
-- `{PHASE_DIR}` — absolute path to phase directory
-- `{TASK_IMPLEMENTER_MODEL}` — model for the implementer agent (from caliper-settings)
-- `{TASK_COMPLEXITY}` — the task's complexity level (low, medium, or high)
-- `{COMPLEXITY_GUIDANCE}` — dispatcher-resolved string — the orchestrator maps `{TASK_COMPLEXITY}` to one of the three fixed guidance strings before building the prompt; this is not a raw template variable passed by the implementer.
-- `{WORKTREE_PATH}` — absolute path to the task's worktree (the path `caliper-phase-dispatch` printed)
+- `{TASK_ID}` / `{TASK_ID_LOWER}`: e.g. `A1` / `a1`; `[task name]` is the task's `name`
+- `{TASK_METADATA}`: the task's plan.json object without `status` (`$TASK_METADATA` from dispatch), its full specification
+- `{TASK_COMPLEXITY}` / `{COMPLEXITY_GUIDANCE}`: the task's `complexity` and the guidance string dispatch maps it to
+- `{DESIGN_DOC}`, `{PLAN_DIR}`, `{PHASE_DIR}`: absolute paths
+- `{WORKTREE_PATH}`: the path `caliper-phase-dispatch` printed
 
 ```text
-Agent(
-  subagent_type: "claude-caliper:task-implementer",
-  model: "{TASK_IMPLEMENTER_MODEL}",
-  # complexity: "{TASK_COMPLEXITY}"  # TODO: uncomment when Agent tool supports complexity/effort parameter
-  prompt: "You are implementing {TASK_ID}: [task name]
+You are implementing {TASK_ID}: [task name]
 
-    ## Task (from plan.json)
+## Task (from plan.json)
 
-    {TASK_METADATA}
+{TASK_METADATA}
 
-    This JSON is your full specification: `intent` (what and why), `files` (create/modify/test), `verification` (the command your work must pass), `done_when` (completion criteria), and `avoid` (pitfalls with reasons). Implement exactly what it describes — no more.
+This JSON is your full specification: `intent` (what and why), `files` (create/modify/test), `verification` (the command your work must pass), `done_when` (completion criteria), and `avoid` (pitfalls with reasons). Implement exactly what it describes, no more.
 
-    ## Read the Codebase Directly
+## Complexity: {TASK_COMPLEXITY}
 
-    You have full context. Do not expect pasted implementation code — read the actual files the task touches and their neighbors to learn the conventions, then follow them. For feature-wide rationale and how this task fits the larger design, read the design doc at {DESIGN_DOC}.
+{COMPLEXITY_GUIDANCE}
 
-    ## Complexity: {TASK_COMPLEXITY}
+## Paths
 
-    {COMPLEXITY_GUIDANCE}
-
-    ## Paths
-
-    Design doc: {DESIGN_DOC}
-    Plan directory: {PLAN_DIR}
-    Phase directory: {PHASE_DIR}
-    Working directory: {WORKTREE_PATH}
-
-    ## Before You Begin
-
-    Navigate to your worktree and verify you are on the correct branch:
-    ```bash
-    cd {WORKTREE_PATH} && git branch --show-current
-    ```
-    Output must be `{TASK_ID_LOWER}`. If it shows any other branch, stop and report the mismatch — do not commit anything. (The lead already marked your task `in_progress` when it dispatched you.)"
-)
+Design doc: {DESIGN_DOC}
+Plan directory: {PLAN_DIR}
+Phase directory: {PHASE_DIR}
+Working directory: {WORKTREE_PATH}
+Expected branch: {TASK_ID_LOWER}. If `git branch --show-current` in your working directory shows any other branch, stop and report the mismatch without committing anything. The lead has already marked your task `in_progress`.
 ```
