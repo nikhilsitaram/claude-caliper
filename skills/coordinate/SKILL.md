@@ -83,7 +83,7 @@ Merge command: `gh pr merge N --<merge_strategy> --match-head-commit <head>`. Pi
 
 **After a merge:**
 1. Run `caliper-coordinate set <slug> --status merged`.
-2. If the repo names a post-merge step that applies to this merge, run it once, pinned to the merge commit (`gh pr view N --json mergeCommit --jq .mergeCommit.oid`), so it covers exactly what landed: for a release, `gh release create vX.Y.Z --target <merge sha> --generate-notes`. A resume re-enters here, so skip it if already done.
+2. If the repo names a post-merge step that applies to this merge, run it once, pinned to the merge commit (`gh pr view N --json mergeCommit --jq .mergeCommit.oid`), so it covers exactly what landed: for a release, `gh release create vX.Y.Z --target <merge sha> --generate-notes`. Check first that it isn't already done (for a release, `gh release view vX.Y.Z`): a resume or an earlier `MERGED-ON-GITHUB` pass may have run it.
 3. Tell that pane "merged". It runs pr-merge's cleanup and replies `CLEANED`, or `CLEANUP-FAILED` (see above: skip step 4 for that item, but still do steps 5 and 6, since the base has moved either way).
 4. Run `./skills/handoff/scripts/close-pane.sh <session_id>`. On exit 0 or 3 (already closed), `set --status done`. On any other exit, report it, and once the user confirms the pane is closed, `set --status done`.
 5. Send each running soft dependent of the merged item (by `soft_after` in `list`; the table drops it once merged) "<slug> merged at <sha>": rule S4 of its brief. Tell every pane with an open PR "base moved" with `<sha>` and the version just merged: concurrent PRs claim the same next version, and a rebase can silently drop a duplicate bump.
