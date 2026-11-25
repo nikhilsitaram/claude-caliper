@@ -25,7 +25,7 @@ Many claude workflows are either improperly context engineered, overly complicat
 
 Install claude-caliper. Describe what you want to build. Walk away.
 
-The plugin installs 18 skills that fire automatically at the right moment, enforcing a full development workflow: **design before code, test before merge.** The design skill sizes the work first and routes it — small and medium changes take an inline fast path, large ones fan out through a validated plan. You make three decisions — approve the design, review the PR, and confirm the merge — and everything between runs as a chain of fresh subagents with zero manual handoffs.
+The plugin installs 19 skills that fire automatically at the right moment, enforcing a full development workflow: **design before code, test before merge.** The design skill sizes the work first and routes it — small and medium changes take an inline fast path, large ones fan out through a validated plan. You make three decisions — approve the design, review the PR, and confirm the merge — and everything between runs as a chain of fresh subagents with zero manual handoffs.
 
 ---
 
@@ -130,9 +130,9 @@ Install only what you need:
 
 | Package | What you get | Install command |
 |---------|-------------|-----------------|
-| **claude-caliper** | All 18 skills | `/plugin install claude-caliper@claude-caliper` |
+| **claude-caliper** | All 19 skills | `/plugin install claude-caliper@claude-caliper` |
 | **claude-caliper-workflow** | Design-to-merge pipeline (12 skills) | `/plugin install claude-caliper-workflow@claude-caliper` |
-| **claude-caliper-tooling** | Codebase review + test audit + skill eval + queue + usage-guard + session handoff (6 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
+| **claude-caliper-tooling** | Codebase review + test audit + skill eval + queue + usage-guard + session handoff + coordinate (7 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
 
 ### Updating
 
@@ -184,6 +184,7 @@ Delegate scoped work to a fresh, visible Claude session in a new pane. **macOS +
 | Skill | Trigger | What it does |
 |-------|---------|-------------|
 | [handoff](skills/handoff/) | `/handoff <slug>` | Splits the iTerm2 pane it was invoked from, launches a fresh `claude` in the new pane, and relays a self-contained brief to it over cross-session messaging — a peer session you can watch and steer, unlike a background subagent |
+| [coordinate](skills/coordinate/) | `/coordinate [--focused] [issues...]` | Works a queue of issues through parallel handoff panes, one PR each. It triages scope with you, starts panes as dependencies merge and usage allows, re-checks every PR with `caliper-pr-at-bar`, then merges per `coordinate_merge` (`pr-ready` waits for your say-so; `auto-merge` merges unless a hold applies). It also tells open panes when the base moves, and keeps a durable ledger (`caliper-coordinate`) |
 
 ---
 

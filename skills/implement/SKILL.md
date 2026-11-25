@@ -13,6 +13,8 @@ If design's tier router already presented a mini-design (or short design doc) an
 
 The same holds for a conversate hand-off: the user discussed the change with you and explicitly said to build it, and conversate passes the conversation summary, `$WORKTREE`, and workflow `pr-ready`. That go-ahead is the approval — don't re-present a design or re-ask.
 
+A coordinate pane brief counts the same way: the coordinator settled the item's scope with the user before briefing, and the brief names workflow `pr-ready`. No `$WORKTREE` comes with it, so set one up as on direct invocation.
+
 Otherwise, this is a direct invocation (the user asked for an implementation without going through design first) and the **Compressed Design Gate** below runs before any code is touched — no exceptions.
 
 ### Compressed Design Gate (direct invocation only)
@@ -70,7 +72,7 @@ Map the `workflow` setting to implementation-review's continuation flag (all fiv
 
 Resolve the value:
 - **Downstream of design:** the value is already resolved from design's workflow question earlier in this session — reuse it, don't re-prompt or re-read settings.
-- **Conversate hand-off:** always `pr-ready` — conversate's fixed contract, regardless of the setting.
+- **Conversate hand-off or coordinate brief:** always `pr-ready` — their fixed contract, regardless of the setting.
 - **Direct invocation:** the Compressed Design Gate already resolved it (from settings, or the workflow question asked at approval) — reuse that value, don't re-prompt or re-read settings.
 
 ## Integration
