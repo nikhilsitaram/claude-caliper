@@ -86,7 +86,7 @@
   "review_wait_minutes": {
     "type": "int",
     "default": 5,
-    "description": "Timeout in minutes for pr-review's CI and review-bot wait (caliper-wait-pr, which waits on check completion)",
+    "description": "Timeout in minutes for pr-review's CI and review-bot wait (caliper-wait-pr, which waits on check completion). orchestrate treats 0 as: skip pr-review and run pr-merge directly",
     "used_by": [
       "orchestrate",
       "pr-review"

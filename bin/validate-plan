@@ -28,7 +28,7 @@ Usage:
   validate-plan --check-merge-order <plan.json> --phase <LETTER>
   validate-plan --clear-gate <plan.json> --task <ID>
   validate-plan --set-base <plan.json> (--plan | --phase <LETTER>) --sha <REV> [--if-unset]
-  validate-plan --check-workflow <plan.json>
+  validate-plan --check-workflow <plan.json> [--branch <NAME>]
   validate-plan --add-dep <plan.json> --task <DOWNSTREAM_ID> --depends-on <SOURCE_ID>
   validate-plan --add-file <plan.json> --task <ID> --kind <create|modify|test> --path <FILE>
   validate-plan --remove-file <plan.json> --task <ID> --kind <create|modify|test> --path <FILE>
@@ -1355,7 +1355,7 @@ do_check_review() {
 }
 
 do_check_workflow() {
-  local plan_json="$1"
+  local plan_json="$1" branch_override="${2:-}"
   local plan_dir
   plan_dir="$(cd "$(dirname "$plan_json")" && pwd)"
 
@@ -1367,6 +1367,13 @@ do_check_workflow() {
   if [[ -z "$workflow" ]]; then
     echo "ERROR: missing workflow field in plan.json" >&2
     exit 1
+  fi
+
+  local integration_branch
+  integration_branch=$(echo "$json" | jq -r '(.integration_branch | strings) // empty')
+  if [[ -n "$branch_override" && -n "$integration_branch" && "$branch_override" != "$integration_branch" ]]; then
+    echo "ERROR: --branch '$branch_override' contradicts plan.json's integration_branch '$integration_branch'" >&2
+    exit 2
   fi
 
   local gate_errors=()
@@ -1456,8 +1463,16 @@ do_check_workflow() {
     fi
   }
 
-  local current_branch
-  current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+  # pr-merge's cleanup leaves the CWD on the default branch, so the CWD alone
+  # can't name the merged branch (gh issue #338). Resolution order: --branch;
+  # an integrate/* CWD branch; the plan's integration_branch; the CWD branch.
+  local current_branch="$branch_override"
+  if [[ -z "$current_branch" ]]; then
+    current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    if [[ "$current_branch" != integrate/* && -n "$integration_branch" ]]; then
+      current_branch="$integration_branch"
+    fi
+  fi
 
   if [[ "$current_branch" == integrate/* ]]; then
     for ((p=0; p<phase_count; p++)); do
@@ -2012,6 +2027,8 @@ CRITERIA_CWD=""
 CRITERIA_CWD_SET=""
 SET_BASE_SHA=""
 SET_BASE_IF_UNSET=""
+CHECK_WORKFLOW_BRANCH=""
+CHECK_WORKFLOW_BRANCH_SET=""
 # shellcheck disable=SC2034
 CHECK_ENTRY_STAGE=""
 
@@ -2089,6 +2106,14 @@ while [[ $# -gt 0 ]]; do
       shift
       if [[ $# -gt 0 ]]; then
         PLAN_JSON="$1"
+        shift
+      fi
+      ;;
+    --branch)
+      shift
+      CHECK_WORKFLOW_BRANCH_SET=1
+      if [[ $# -gt 0 ]]; then
+        CHECK_WORKFLOW_BRANCH="$1"
         shift
       fi
       ;;
@@ -2280,6 +2305,17 @@ done
 [[ -z "$MODE" ]] && usage
 [[ -z "$PLAN_JSON" ]] && usage
 
+if [[ -n "$CHECK_WORKFLOW_BRANCH_SET" ]]; then
+  if [[ "$MODE" != "check-workflow" ]]; then
+    echo "ERROR: --branch only applies to --check-workflow" >&2
+    exit 2
+  fi
+  if [[ -z "$CHECK_WORKFLOW_BRANCH" ]]; then
+    echo "ERROR: --branch requires a branch name" >&2
+    exit 2
+  fi
+fi
+
 if [[ -n "$SET_BASE_IF_UNSET" && "$MODE" != "set-base" ]]; then
   echo "ERROR: --if-unset only applies to --set-base" >&2
   exit 2
@@ -2339,7 +2375,7 @@ case "$MODE" in
     do_check_entry "$PLAN_JSON" "$CHECK_ENTRY_STAGE"
     ;;
   check-base) do_check_base "$PLAN_JSON" ;;
-  check-workflow) do_check_workflow "$PLAN_JSON" ;;
+  check-workflow) do_check_workflow "$PLAN_JSON" "$CHECK_WORKFLOW_BRANCH" ;;
   check-deps)
     if [[ "$UPDATE_TARGET" != "task" || -z "$UPDATE_ID" ]]; then
       echo "ERROR: --check-deps requires --task <ID>" >&2

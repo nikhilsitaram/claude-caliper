@@ -100,7 +100,7 @@ At most two dispatches. Residual findings fall to the next gate (the final revie
 
 ## Single-Phase Plans
 
-Skip the integration branch and phase worktrees; work in the feature worktree. Below, `--check-workflow` means `validate-plan --check-workflow "$PLAN_JSON"`.
+Skip the integration branch and phase worktrees; work in the feature worktree. Below, `--check-workflow` means `validate-plan --check-workflow "$PLAN_JSON" --branch <feature>`, the branch a literal: pr-merge's cleanup leaves the CWD on main. After All Phases omits `--branch`; the gate falls back to plan.json's `integration_branch`.
 
 1. If phase A's status already starts with "Complete", a stopped run got past its wrap-up: skip to step 2. Otherwise run Prepare Phase steps 2–6, dispatch and complete tasks with the same dispatch protocol, then Phase Wrap-Up steps 1–6 (scope `phase-a`; step 5 has nothing downstream to hand off). Step 6 marks phase A Complete, which `--plan --status done` requires.
 2. `validate-plan --criteria "$PLAN_JSON" --plan`
@@ -119,7 +119,7 @@ Skip the integration branch and phase worktrees; work in the feature worktree. B
 4. `validate-plan --update-status "$PLAN_JSON" --plan --status done`
 5. Route on workflow:
    - `"orchestrate"`: `--check-workflow`, report the worktree path, stop
-   - `"pr-merge"`: create the final PR, pr-review --automated-merge (no pre-merge check poll, as in 7c), `--check-workflow`, clean up
+   - `"pr-merge"`: create the final PR, pr-review --automated-merge (if `$REVIEW_WAIT`, read as in 7b, is 0, pr-merge directly instead; no pre-merge check poll, as in 7c), `--check-workflow`, clean up
    - `"pr-create"`: create the final PR, `--check-workflow`, stop
    - `"pr-ready"`: create the final PR, pr-review --automated-fix, `--check-workflow`, stop
 
