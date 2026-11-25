@@ -70,6 +70,9 @@ has_item() { jq -e --arg s "$2" 'any(.items[]; .slug == $s)' <<<"$1" >/dev/null;
 
 after_json() {  # <ledger-json> <slug> <comma-list> -> JSON array, validated
   local json="$1" self="$2" list="$3" a out='[]'
+  # An empty list leaves `parts` empty, and "${parts[@]}" on an empty array
+  # trips `set -u` in bash 3.2 (stock macOS).
+  [[ -n "$list" ]] || { echo '[]'; return; }
   IFS=',' read -ra parts <<<"$list"
   for a in "${parts[@]}"; do
     [[ -n "$a" ]] || continue

@@ -57,35 +57,47 @@ if [ "$dry_run" = "yes" ]; then
   exit 0
 fi
 
-# QUOTED heredoc: the id and delay arrive via argv, never spliced into the source.
-if ! result="$(osascript - "$id" "$CLOSE_DELAY" "$PRESS_GAP" <<'APPLESCRIPT'
+# A top-level QUOTED heredoc read into a variable, then fed on stdin with <<<
+# (a heredoc inside $(...) breaks stock macOS bash 3.2). The id and delays
+# arrive via argv, never spliced into the source.
+#
+# The session is found again by id before every action. A session taken from
+# iTerm's loop is a positional reference (item k of tab j of window m), so if
+# focus moves or another pane closes during the delays, it would retarget a
+# different pane, possibly the coordinator's own.
+IFS= read -r -d '' CLOSE_SCRIPT <<'APPLESCRIPT' || true
+on findSession(wantId)
+  tell application "iTerm"
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with s in sessions of t
+          if (id of s) is wantId then return s
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  return missing value
+end findSession
+
 on run argv
   set wantId to item 1 of argv
   set pause to (item 2 of argv) as number
   set gap to (item 3 of argv) as number
-  tell application "iTerm"
-    set target to missing value
-    repeat with w in windows
-      repeat with t in tabs of w
-        repeat with s in sessions of t
-          if (id of s) is wantId then set target to s
-        end repeat
-      end repeat
-    end repeat
-    if target is missing value then return "not-found"
-    tell target
-      repeat 3 times
-        write text (character id 3) newline no
-        delay gap
-      end repeat
-      delay pause
-    end tell
-    close target
-    return "closed"
-  end tell
+  if my findSession(wantId) is missing value then return "not-found"
+  repeat 3 times
+    set target to my findSession(wantId)
+    if target is missing value then return "closed"
+    tell application "iTerm" to tell target to write text (character id 3) newline no
+    delay gap
+  end repeat
+  delay pause
+  set target to my findSession(wantId)
+  if target is missing value then return "closed"
+  tell application "iTerm" to close target
+  return "closed"
 end run
 APPLESCRIPT
-)"; then
+if ! result="$(osascript - "$id" "$CLOSE_DELAY" "$PRESS_GAP" <<<"$CLOSE_SCRIPT")"; then
   echo "ERROR: osascript could not close session $id (has iTerm2 been granted Automation access? see README)." >&2
   echo "CLOSED=failed"
   exit 2

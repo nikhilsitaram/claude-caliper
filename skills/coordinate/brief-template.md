@@ -23,7 +23,7 @@ STANDING RULES
    - If my answer hasn't come by the time you're at the bar, file an issue and link it in the report.
 6. Crossed messages. Before acting on any instruction from me, re-read the live PR state. My message may predate your last push.
 7. Report. When at the bar, send exactly the REPORT block below, then wait. Don't clean up yet.
-8. "merged": run pr-merge's Step 3 "Standard worktree" cleanup for your PR, skipping Steps 1-2 since it's already merged. Follow its own report-and-continue and stop rules exactly; don't summarize them. Then reply "CLEANED <slug>", or "CLEANUP-FAILED <slug>: <step and path>" if it stopped.
+8. "merged": run pr-merge for your PR, already merged: Step 1, which only detects the state Step 3 needs, skip Step 2's merge, then Step 3's "Standard worktree" cleanup. Follow its own report-and-continue and stop rules exactly; don't summarize them. Then reply "CLEANED <slug>", or "CLEANUP-FAILED <slug>: <step and path>" if it stopped.
 9. "base moved": rebase onto the sha I give, run the repo's post-rebase steps (re-bump above the version I name), keep both behaviours, get a fresh verdict with pr-review --automated-fix, and re-report.
 10. "checkpoint": commit work in progress locally, report your state in one line, and stop until I say continue.
 
