@@ -94,7 +94,7 @@ At most two dispatches. Residual findings fall to the next gate (the final revie
 
 1. Extract the response's last `json review-summary` fenced block. Missing/malformed: on pass 1, re-dispatch once (using the pass-2 slot); on pass 2, escalate via AskUserQuestion.
 2. Triage each issue: fix, or dismiss with reasoning. Issues with `non_dismissible: true` must be fixed; dismissing one invalidates the review record.
-3. Fix all actionable findings, verifying each inline (grep/read).
+3. Fix all actionable findings, verifying each inline (grep/read), and commit the fixes: a delta pass 2 reads committed history, and Catch Up's rebase refuses a dirty tree.
 4. Pass 1 found a critical or high issue → dispatch a delta pass 2 over the same scope. Otherwise, or after pass 2 (remaining findings fixed inline), append the pass record to `{PLAN_DIR}/reviews.json` and advance:
 `{"type":"impl-review","scope":"{SCOPE}","pass":N,"issues_found":N,"severity":{...},"actionable":N,"dismissed":N,"dismissals":[...],"fixed":N,"remaining":0,"verdict":"pass","timestamp":"ISO8601"}`
 
