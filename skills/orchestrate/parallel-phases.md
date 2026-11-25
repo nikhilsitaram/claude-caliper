@@ -20,7 +20,14 @@ Keep one map of agent → (task ID, phase letter). The dispatch protocol derives
 
 ## Reviews
 
-Each phase gets its own implementation-review over its own `PHASE_BASE_SHA..HEAD`. A finding of a class that a sibling phase could share (the same pattern, the same seam, the same CI matrix gap) is worth one grep on the sibling's branch before you dismiss it as local. The final cross-phase review is the backstop.
+Each phase gets its own implementation-review over its own `PHASE_BASE_SHA..HEAD`. A shareable class of finding is the same pattern, the same seam, or the same CI matrix gap. Siblings finish review at different times, so sharing runs one way, from the phase that reviewed first to the one reviewing later:
+
+- **Passing it on.** When you dispatch a phase's review (Phase Wrap-Up step 1), look for unmerged siblings whose `$PLAN_DIR/phase-<letter>/completion.md` has a `### Implementation Review Changes` section (step 3 writes it, and omits it when there was nothing to fix). For each one, add to the reviewer's `{PHASE_CONTEXT}`: the file's path, the instruction to check this diff for the same classes, and the instruction to check the sibling's branch too (`git diff <its base_sha>..phase-<letter>`, a ref, so there's no need to enter its worktree). Ask the reviewer to prefix sibling hits with `phase-<letter>:`, since file paths are identical across branches.
+- **A hit on a sibling whose PR hasn't opened** (still at steps 4–6, or waiting its merge turn) is a fix, not a dismissal: its branch is unpushed, so the fix lands before its PR exists. `cd` into that sibling's phase worktree in its own Bash call, commit the fix there, append it to that sibling's review changes, and re-run `validate-plan --criteria "$PLAN_JSON" --phase <letter>`. Its review isn't re-dispatched.
+- **A hit on a sibling whose PR is open:** leave its branch alone, since pr-review may be merging it. Note the hit in this phase's `completion.md`, and the final cross-phase review picks it up.
+- **The reverse direction.** This phase's own shareable-class findings reach any sibling that reviews later through this phase's `completion.md`. An unmerged sibling that has already reviewed won't see them, so give its branch one grep before you dismiss the finding as local, and handle a hit as above.
+
+The final cross-phase review is the backstop.
 
 ## Merge Order
 
