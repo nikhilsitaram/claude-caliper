@@ -40,7 +40,7 @@ Run this at start, after every merge, and after every pane report or resume:
    - **2:** a transient read failure, common right after a window reset (when `--resume` fires). Re-run once after about 5s.
    - **1, or 2 twice:** usage can't be read (the statusline tap may not be wired; see the queue README). Tell the user once that usage gating is off, then carry on ungated.
 
-   `STALE=yes` means the reading lags. You sit idle while the panes use up the window, so treat the number as a floor.
+   `STALE=yes` means the reading lags while panes keep using the window, so treat it as a floor.
 3. Spawn the pane with `./skills/handoff/scripts/spawn-pane.sh <slug> <main checkout>`. Add `--perm-mode <mode>` with your own permission mode (e.g. `auto`, `acceptEdits`) when it isn't the default, so an auto-mode run doesn't stall on a pane's prompts. Then record it: `caliper-coordinate set <slug> --status running --pane-name <NAME> --session-id <SESSION_ID>`. On `LAUNCHED=timeout` or a failure, close any half-started pane by its `SESSION_ID`, leave the item queued, and report.
 4. Write the brief. Follow `handoff`'s permission-laundering check, then send one `SendMessage` built from the template. Both ends of a soft dependency still unmerged get the `Soft link` field. If the other end is already running, send it this pane's name, and send a dependency what the dependent anticipates.
 
@@ -69,7 +69,7 @@ Merge only right after `caliper-pr-at-bar` exits 0 in this turn, and only if the
 - **`confirm` (default):** report "#N at bar" with the pane's report summarized, then wait for the user to say merge. If the user merges from a pane, the pane reports it, and `caliper-coordinate status` confirms it.
 - **`auto-merge`:** first check for holds. Hold when:
   - `gh pr diff N --name-only` touches a sensitive path the repo names;
-  - the report lists a deviation or an unverified claim.
+  - a reported deviation changes the approved scope, or an unverified claim is material to correctness. Judge minor ones yourself and list them in the merge report.
 
   For each hold, run `caliper-coordinate set <slug> --hold "<reason>"`, report it, and wait for the user. Otherwise merge.
 
@@ -77,7 +77,7 @@ In both modes, name the bar JSON's waived checks, `broken_names` and `cancelled_
 
 A hold, whether from auto-merge or one `status` adds (a closed PR, or a dropped or closed dependency), stays until the cause is fixed or the user says to proceed. Then clear it with `caliper-coordinate set <slug> --unhold`.
 
-Merge command: `gh pr merge N --<merge_strategy> --match-head-commit <head>`. Pinning the head means a push that lands after your check makes the merge fail safely. Don't pass `--delete-branch`: the branch is checked out in the pane's worktree, and the pane deletes it, locally and on the remote, during its pr-merge cleanup.
+Merge command: `gh pr merge N --<merge_strategy> --match-head-commit <head>`. Pinning the head means a push that lands after your check makes the merge fail safely. Don't pass `--delete-branch`: the branch is checked out in the pane's worktree, and the pane deletes it (local and remote) in its pr-merge cleanup.
 
 **After a merge:**
 1. Run `caliper-coordinate set <slug> --status merged`.
