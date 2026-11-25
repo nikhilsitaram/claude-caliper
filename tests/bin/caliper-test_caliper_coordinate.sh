@@ -155,6 +155,78 @@ run status
 check_eq "status: queued item on a closed outside PR -> held" "true depends on PR #901, closed without merging" \
   "$(item fix-f '"\(.held) \(.hold_reasons | join(";"))"')"
 
+# --- soft dependencies (gh #329): met for starting, shown until merged ---
+L="$BASE/soft/coordinate.json"
+run add api
+run add ui --soft-after api
+check_eq "soft: add exit 0" 0 "$RC"
+check_eq "soft: soft_after recorded" api "$(item ui '.soft_after | join(",")')"
+check_eq "soft: add without it records an empty list" 0 "$(item api '.soft_after | length')"
+run ready
+check_eq "soft: an unmerged soft dep doesn't block ready" "api ui" "$(tr '\n' ' ' <<<"$OUT" | sed 's/ $//')"
+run add both --after api --soft-after ui
+run ready
+check_eq "soft: a hard dep still gates ready beside a soft one" "api ui" "$(tr '\n' ' ' <<<"$OUT" | sed 's/ $//')"
+
+run add bad --soft-after pr:950
+check_eq "soft: pr:N has no soft form (usage error)" 64 "$RC"
+run add bad --soft-after nope
+check_eq "soft: unknown soft slug refused" 1 "$RC"
+run add bad --soft-after bad
+check_eq "soft: self soft-dependency refused" 1 "$RC"
+run add bad --after api --soft-after api
+check_eq "soft: same slug hard and soft refused" 1 "$RC"
+check_eq "soft: refused add leaves no item" "" "$(item bad .slug)"
+run set ui --after api
+check_eq "soft: set can't make a soft dep also hard" 1 "$RC"
+check_eq "soft: refused set leaves the item unchanged" 0 "$(item ui '.after | length')"
+
+run set ui --status running
+run status
+check_eq "soft: WAITING ON shows an unmerged soft dep on a running item" yes \
+  "$(grep -E '^running +ui ' <<<"$OUT" | grep -q 'api (soft)' && echo yes || echo no)"
+check_eq "soft: WAITING ON lists a queued item's hard and soft deps" yes \
+  "$(grep -E '^queued +both ' <<<"$OUT" | grep -q 'api,ui (soft)' && echo yes || echo no)"
+run set api --status merged
+run status
+check_eq "soft: a merged soft dep leaves WAITING ON" yes \
+  "$(grep -E '^running +ui ' <<<"$OUT" | grep -qv 'api' && echo yes || echo no)"
+
+run set both --soft-after ""
+check_eq "soft: set --soft-after '' clears the list" 0 "$(item both '.soft_after | length')"
+run set both --soft-after ui
+check_eq "soft: set --soft-after records the list" ui "$(item both '.soft_after | join(",")')"
+
+run add late --soft-after ui
+run set ui --status dropped
+run ready
+check_eq "soft: a dropped soft dep keeps the item out of ready even before status holds it" "" "$OUT"
+run set both --status running
+run status
+check_eq "soft: queued item on a dropped soft dep -> held" "true depends on dropped item ui (soft)" \
+  "$(item late '"\(.held) \(.hold_reasons | join(";"))"')"
+check_eq "soft: running item on a dropped soft dep -> held" "true depends on dropped item ui (soft)" \
+  "$(item both '"\(.held) \(.hold_reasons | join(";"))"')"
+run status
+check_eq "soft: re-running doesn't duplicate a running item's hold" 1 "$(item both '.hold_reasons | length')"
+
+# A ledger written before soft deps existed has no soft_after field.
+L="$BASE/legacy/coordinate.json"
+mkdir -p "$(dirname "$L")"
+jq -n '{version: 1, items: [
+  {slug: "old", issue: null, status: "queued", held: false, hold_reasons: [], after: [],
+   pane: {name: null, session_id: null}, pr: {number: null, head: null},
+   created_at: "t", updated_at: "t", merged_at: null},
+  {slug: "old2", issue: null, status: "running", held: false, hold_reasons: [], after: [],
+   pane: {name: null, session_id: null}, pr: {number: null, head: null},
+   created_at: "t", updated_at: "t", merged_at: null}]}' > "$L"
+run ready
+check_eq "legacy: ready works on items without soft_after" "0 old" "$RC $OUT"
+run status
+check_eq "legacy: status works on items without soft_after" 0 "$RC"
+run set old --after old2
+check_eq "legacy: set --after works on items without soft_after" 0 "$RC"
+
 # --- seam: every slug the ledger accepts is one spawn-pane.sh accepts ---
 for slug in fix-a a.b_c-9 X1; do
   set +e
