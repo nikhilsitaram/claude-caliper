@@ -1,10 +1,10 @@
 # Dependency Bootstrap
 
-Install dependencies in a worktree so tests and tools work. Run once per worktree — tasks inherit the environment.
+Install dependencies in a worktree so tests and tools work. Run once per worktree; tasks inherit the environment.
 
 ## Detection Order
 
-Check tiers in order. Stop at the first tier that matches — install all matching manifests within that tier:
+Check tiers in order and stop at the first that matches, installing every matching manifest within it:
 
 1. **Root manifests** — check worktree root for lockfiles/manifests in the table below. If found, run the matching install command at the root.
 2. **Workspace indicators** — if no root manifest, check for `pnpm-workspace.yaml`, `nx.json`, `turbo.json`, `lerna.json`. If found, determine the package manager from the lockfile present (`pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `package-lock.json` → npm) and run the matching install command at the root. If no lockfile is found alongside the indicator, try `npm install` as the default.
@@ -39,8 +39,4 @@ For `requirements.txt`, replace `-e '.[dev]'` with `-r requirements.txt`.
 
 ## Failure Handling
 
-Check the exit code of every install command. If non-zero: log the error output and escalate to the user. Do not continue with a broken environment — tasks will fail with misleading import/module errors instead of a clear 'deps failed' message.
-
-## Symlink Fallback Details
-
-Symlinking works because Python venvs resolve via `pyvenv.cfg` and Node resolves `node_modules` by walking up the directory tree, not by absolute path. Only use symlinks when no manifest is detected — installing from a manifest is always preferred.
+If any install command exits non-zero, log its output and escalate to the user rather than continuing: a broken environment surfaces later as misleading import/module errors instead of a clear 'deps failed'.
