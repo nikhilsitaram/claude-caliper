@@ -8,7 +8,7 @@
     {
       "name": "claude-caliper",
       "description": "claude-caliper bundle",
-      "version": "2.11.0",
+      "version": "2.12.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
@@ -40,7 +40,7 @@
     {
       "name": "claude-caliper-workflow",
       "description": "End-to-end development workflow: design routes by size → implement (small/medium fast path) or draft-plan → orchestrate (large) → review → pr-create → pr-review → pr-merge",
-      "version": "1.57.0",
+      "version": "1.58.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
@@ -65,7 +65,7 @@
     {
       "name": "claude-caliper-tooling",
       "description": "Standalone tools: codebase audit, test audit, skill evaluation, usage-window scheduling (queue / usage-guard), and session handoff",
-      "version": "1.58.0",
+      "version": "1.59.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
