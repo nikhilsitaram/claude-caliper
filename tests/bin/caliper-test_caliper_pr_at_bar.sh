@@ -201,6 +201,13 @@ reset; threads
 run 42
 check_eq "no threads: at bar" 0 "$RC"
 
+# gh --paginate prints one document per page: an unanswered thread on page 2
+# must still fail the bar.
+reset; threads true:1; cp "$FAKE/threads.json" "$BASE/p1"; threads false:1; cat "$BASE/p1" "$FAKE/threads.json" > "$BASE/p12"; mv "$BASE/p12" "$FAKE/threads.json"
+run 42
+check_eq "paginated threads: an unanswered thread on page 2 fails the bar" "1/2" "$(j '"\(.threads.answered)/\(.threads.total)"')"
+check_eq "graphql call paginates" yes "$(grep -q 'api graphql --paginate' "$FAKE/argv" && echo yes || echo no)"
+
 # --- mergeable / state / behind ---
 reset; view OPEN CONFLICTING "$GREEN" "$NOW_ISO" "$(verdict "$HEAD_SHA" 0)"
 run 42

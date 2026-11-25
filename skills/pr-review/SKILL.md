@@ -172,7 +172,7 @@ End the summary, in every mode, with this exact last line. It's the machine-read
 Reviewed-Head: <sha> · blocking: <n>
 ```
 
-`<sha>` is the PR head **when you post** (`gh pr view $PR_NUMBER --json headRefOid -q .headRefOid`), after every fix push. The line means "findings handled as of this commit", so naming the pre-fix head would make the verdict stale on arrival. `<n>` counts real defects you left unfixed: not dismissed, and not deferred to a linked issue. In automated modes it is normally 0.
+`<sha>` is the last commit whose findings you handled: your final fix push, or the head you reviewed if you pushed nothing. The line means "findings handled as of this commit", so naming the pre-fix head would make the verdict stale on arrival. Before posting, compare it with `gh pr view $PR_NUMBER --json headRefOid -q .headRefOid`. If someone else pushed since, still name your commit: the verdict is then stale on purpose, and the bar check sends the new commits through another round. `<n>` counts real defects you left unfixed: not dismissed, and not deferred to a linked issue. In automated modes it is normally 0.
 
 **Automated-fix mode: check the bar.** If this run pushed, first rerun the Step 5 wait so the new head's checks can finish. Then run `caliper-pr-at-bar $PR_NUMBER` (add `--allow-no-checks` only when the repo's CLAUDE.md says it has no CI) and report its result: "at bar", or the failing criteria from its JSON. Report only; don't loop here. A caller that needs the bar, like a coordinate pane, decides whether to run another round.
 

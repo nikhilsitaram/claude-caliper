@@ -46,7 +46,10 @@ esac
 [[ "$CLOSE_DELAY" =~ ^[0-9]+(\.[0-9]+)?$ ]] || usage "HANDOFF_CLOSE_DELAY='$CLOSE_DELAY' is not a number of seconds"
 
 # Never close the session running this script: that would kill the caller.
-if [ -n "${ITERM_SESSION_ID:-}" ] && [ "${ITERM_SESSION_ID##*:}" = "$id" ]; then
+# Compared case-insensitively, as AppleScript's `is` matches the id below.
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+self_id="${ITERM_SESSION_ID:-}"; self_id="${self_id##*:}"
+if [ -n "$self_id" ] && [ "$(lower "$self_id")" = "$(lower "$id")" ]; then
   echo "ERROR: refusing to close this script's own iTerm2 session ($id)." >&2
   exit 4
 fi

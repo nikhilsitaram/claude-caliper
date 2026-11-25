@@ -27,8 +27,8 @@ set -euo pipefail
 #
 # Prints one JSON object on stdout; when not at the bar, one reason line on
 # stderr naming the failing criteria. Exit: 0 at bar, 1 not at bar, 64 usage
-# error or a gh read failure. Reads at most 100 comments and 100 review
-# threads (the newest comments, the first threads).
+# error or a gh read failure. Reads every review thread (paginated) and the
+# newest 100 comments, where the verdict lives.
 
 usage() {
   echo "Usage: caliper-pr-at-bar <pr> [--allow-no-checks] [--no-checks-min N]" >&2
@@ -53,11 +53,16 @@ VIEW="$(gh pr view "$PR" --json state,headRefOid,baseRefName,mergeable,statusChe
 
 # {owner}/{repo} are gh's own placeholders, filled from the current repo.
 # shellcheck disable=SC2016  # $owner etc. are GraphQL variables
-THREADS_QUERY='query($owner: String!, $name: String!, $n: Int!) {
+THREADS_QUERY='query($owner: String!, $name: String!, $n: Int!, $endCursor: String) {
   repository(owner: $owner, name: $name) { pullRequest(number: $n) {
-    reviewThreads(first: 100) { nodes { isResolved comments { totalCount } } }
+    reviewThreads(first: 100, after: $endCursor) {
+      pageInfo { hasNextPage endCursor }
+      nodes { isResolved comments { totalCount } } }
   } } }'
-THREADS="$(gh api graphql -F owner='{owner}' -F name='{repo}' -F n="$PR" -f query="$THREADS_QUERY")" \
+# --paginate follows endCursor and prints one JSON document per page; jq -s
+# flattens them, so an unanswered thread past the first 100 still counts.
+THREADS="$(gh api graphql --paginate -F owner='{owner}' -F name='{repo}' -F n="$PR" -f query="$THREADS_QUERY" \
+  | jq -s '[.[].data.repository.pullRequest.reviewThreads.nodes[]?]')" \
   || fail_read "review threads"
 
 HEAD="$(jq -r '.headRefOid' <<<"$VIEW")"
@@ -100,7 +105,7 @@ RESULT="$(jq -n \
          | capture("^Reviewed-Head: (?<sha>[0-9a-f]{40})\\b.*\\bblocking: (?<blocking>[0-9]+)")
            + {line: .}]
       | select(length > 0) | last] | last) as $v
-  | ($threads.data.repository.pullRequest.reviewThreads.nodes // []) as $tn
+  | $threads as $tn
   | ($tn | map(select(.isResolved or .comments.totalCount >= 2)) | length) as $answered
 
   | {

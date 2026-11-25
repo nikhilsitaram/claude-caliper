@@ -65,6 +65,9 @@ ITERM_SESSION_ID="w0t0p1:PANE-1" run PANE-1
 assert "refuses to close the invoking session (exit 4)" '[[ $RC -eq 4 ]]'
 assert "refusal names the reason" '[[ "$STDERR" == *"own"* ]]'
 
+ITERM_SESSION_ID="w0t0p1:PANE-1" run pane-1
+assert "refuses a case variant of its own id too (AppleScript matches it)" '[[ $RC -eq 4 ]]'
+
 run --dry-run PANE-1
 assert "dry-run exits 0 and touches nothing" '[[ $RC -eq 0 && "$(field CLOSED)" == "dry-run" ]]'
 

@@ -85,7 +85,7 @@ Re-read live state (the ledger and the PR) before acting on any message. A repor
 
 ## Merge
 
-Merge only right after `caliper-pr-at-bar` exits 0 in this turn, and pin the merge to that JSON's `.head`. If it differs from the ledger's head, re-record it with `set --head`.
+Merge only right after `caliper-pr-at-bar` exits 0 in this turn, and only if the ledger item isn't held, in either mode. Pin the merge to that JSON's `.head`. If it differs from the ledger's head, re-record it with `set --head`.
 
 - **`confirm` (default):** report "#N at bar" with the pane's report summarized, then wait for the user to say merge. If the user merges from a pane, the pane reports it, and `caliper-coordinate status` confirms it.
 - **`auto-merge`:** first check for holds. Hold when:
@@ -100,7 +100,7 @@ Merge command: `gh pr merge N --<merge_strategy> --match-head-commit <head>`. Pi
 
 **After a merge:**
 1. Run `caliper-coordinate set <slug> --status merged`.
-2. Tell that pane "merged". It runs pr-merge's cleanup and replies `CLEANED` (go on) or `CLEANUP-FAILED` (see above; stop here for that item).
+2. Tell that pane "merged". It runs pr-merge's cleanup and replies `CLEANED`, or `CLEANUP-FAILED` (see above: skip step 3 for that item, but still do steps 4 and 5, since the base has moved either way).
 3. Run `./skills/handoff/scripts/close-pane.sh <session_id>`. On exit 0 or 3 (already closed), `set --status done`. On any other exit, report it, and once the user confirms the pane is closed, `set --status done`.
 4. Tell every pane with an open PR that the base moved: rebase onto `<sha>`, run the repo's post-rebase steps (for a version bump, expect a version above the one just merged), keep both behaviours, and get a fresh verdict. Concurrent PRs claim the same next version, and a rebase can silently drop a duplicate bump.
 5. Re-run the spawn loop.
@@ -112,7 +112,7 @@ At each event, also run `check-usage.sh 99`. On exit 10:
 2. Queue your own resume the way usage-guard's `--queue` does: run `./skills/queue/scripts/compute-fire.sh`, then `CronCreate` with that `CRON`, `recurring: false`, `durable: true`, and a prompt to `cd <main checkout>` and run `/coordinate --resume`. The ledger carries the run, so the prompt only needs the directory and any decision you're waiting on from the user.
 3. Report.
 
-On resume, first check that you are the coordinator. A durable job can fire in whatever session is open. If your own iTerm2 id (the part of `$ITERM_SESSION_ID` after the colon) is an item's `pane.session_id`, you are a pane: ignore the prompt. Otherwise, read `caliper-coordinate status`. If you aren't the session that sent the briefs, tell every open pane "coordinator moved: reply to <your session name>". Tell each running pane to continue, then run the spawn loop.
+On resume, first check that you are the coordinator. A durable job can fire in whatever session is open. If your own iTerm2 id (the part of `$ITERM_SESSION_ID` after the colon) is an item's `pane.session_id`, you are a pane. Don't act on the prompt, but don't swallow the wake-up either: forward it with `SendMessage` to the coordinator named in your brief, or tell the user if that session isn't listed. Otherwise, read `caliper-coordinate status`. If you aren't the session that sent the briefs, tell every open pane "coordinator moved: reply to <your session name>". Tell each running pane to continue, then run the spawn loop.
 
 ## Status
 
