@@ -11,7 +11,7 @@ You are the coordinator. Each queued item gets its own `/handoff` pane and its o
 
 ## Setup
 
-1. **Read the ledger first:** `caliper-coordinate status`. The ledger lives in `<main checkout>/.claude/claude-caliper/coordinate.json`, and only that CLI writes it. It is the durable state of the run, so after compaction, a new session or `--resume`, rebuild your picture from it, not from memory. It also records PRs GitHub reports merged that the ledger missed, printing `MERGED-ON-GITHUB <slug>`; run steps 2-5 of "After a merge" for those. Any other unheld item in `merged` means a run stopped partway through those steps, so resume it at step 2 too. A merged item holds a pane slot until it's done.
+1. **Read the ledger first:** `caliper-coordinate status`. The ledger lives in `<main checkout>/.claude/claude-caliper/coordinate.json`, and only that CLI writes it. After compaction, a new session or `--resume`, rebuild your picture from it, not from memory. It also records PRs GitHub reports merged that the ledger missed, printing `MERGED-ON-GITHUB <slug>`; run steps 2-5 of "After a merge" for those. Any other unheld item in `merged` means a run stopped partway through those steps, so resume it at step 2 too. A merged item holds a pane slot until it's done.
 2. **Settings:** `caliper-settings get coordinate_max_panes` and `caliper-settings get coordinate_merge`, plus `merge_strategy`. The repo's CLAUDE.md or CLAUDE.local.md can override them. Repo facts live there too, so read them:
    - sensitive paths (they hold an auto-merge);
    - no CI (pass `--allow-no-checks` to `caliper-pr-at-bar`);
@@ -53,10 +53,10 @@ Re-read live state (the ledger and the PR) before acting on any message; a repor
 - **An at-bar report.** Record it with `caliper-coordinate set <slug> --pr N --head <sha>`. Then run `caliper-pr-at-bar N` yourself; never relay or merge on the pane's word, since a new push or bot comment may have landed since.
   - Exit 1: send the failing criteria back to the pane.
   - Exit 64: GitHub couldn't be read. Re-run; it isn't news for the pane.
-  - Exit 0: run `set --status at-bar`, send its soft dependents (items whose `soft_after` in `caliper-coordinate list` names it) the PR number as early warning, then go to Merge.
+  - Exit 0: run `set --status at-bar`, send its soft dependents (by `soft_after` in `caliper-coordinate list`) the PR number as early warning, then go to Merge.
   - If the JSON has a `hint` (no checks registered on the head), the push event was probably dropped. Tell the pane to push the empty commit it suggests.
 - **A design question about an unrelated fix:** if the answer is clear, decide and reply, to that pane or one better placed. Otherwise ask the user without blocking the pane, and if it's still open when that PR reaches the bar, tell the pane to file an issue.
-- **`WAITING <slug> on <a>`:** a soft dependent is built and parked before pr-create; it holds its assumptions list. Nothing to do until `<a>` merges. A copied peer note about an interface change needs you only if it changes scope.
+- **`WAITING <slug> on <a>`:** a soft dependent is built and parked before pr-create; it holds its assumptions list. Nothing to do until `<a>` merges; if its `soft_after` items have all merged already, send S4's message now. A copied peer note about an interface change needs you only if it changes scope.
 - **Stuck** (pr-review's loop gave up short of the bar): look at the reason and the JSON, then decide or escalate to the user.
 - **`MERGED+CLEANED`:** the user merged from the pane and pr-merge cleaned up. Do steps 1, 3, 4 and 5 of "After a merge" below, skipping the "merged" message.
 - **`CLEANUP-FAILED`:** the pane's worktree holds content pr-merge wouldn't delete. Run `set <slug> --hold "cleanup failed: <path>"`, so a resume doesn't retry it, and report the path to the user. Leave the pane open; once they've resolved it, `--unhold`, close it and set it done.
@@ -84,17 +84,17 @@ Merge command: `gh pr merge N --<merge_strategy> --match-head-commit <head>`. Pi
 1. Run `caliper-coordinate set <slug> --status merged`.
 2. Tell that pane "merged". It runs pr-merge's cleanup and replies `CLEANED`, or `CLEANUP-FAILED` (see above: skip step 3 for that item, but still do steps 4 and 5, since the base has moved either way).
 3. Run `./skills/handoff/scripts/close-pane.sh <session_id>`. On exit 0 or 3 (already closed), `set --status done`. On any other exit, report it, and once the user confirms the pane is closed, `set --status done`.
-4. Send each running soft dependent of the merged item (its `soft_after` names it; `list`, not the table, which drops it once merged) "<slug> merged at <sha>": rule S4 of its brief. Tell every pane with an open PR "base moved" with `<sha>` and the version just merged: concurrent PRs claim the same next version, and a rebase can silently drop a duplicate bump.
+4. Send each running soft dependent of the merged item (by `soft_after` in `list`; the table drops it once merged) "<slug> merged at <sha>": rule S4 of its brief. Tell every pane with an open PR "base moved" with `<sha>` and the version just merged: concurrent PRs claim the same next version, and a rebase can silently drop a duplicate bump.
 5. Re-run the spawn loop.
 
 ## At the usage limit
 
 At each event, also run `check-usage.sh 99`. On exit 10:
 1. Tell each running pane to commit work in progress, report its state, and stop until told to continue.
-2. Queue your own resume the way usage-guard's `--queue` does: run `./skills/queue/scripts/compute-fire.sh`, then `CronCreate` with that `CRON`, `recurring: false`, `durable: true`, and a prompt to `cd <main checkout>` and run `/coordinate --resume`. The ledger carries the run, so the prompt only needs the directory and any decision you're waiting on from the user.
+2. Queue your own resume the way usage-guard's `--queue` does: run `./skills/queue/scripts/compute-fire.sh`, then `CronCreate` with that `CRON`, `recurring: false`, `durable: true`, and a prompt to `cd <main checkout>` and run `/coordinate --resume`. The ledger carries the run; the prompt needs only the directory and any pending user decision.
 3. Report.
 
-On resume, first check that you are the coordinator, since a durable job fires in whatever session is open. If your iTerm2 id (`$ITERM_SESSION_ID` after the colon) is an item's `pane.session_id`, you are a pane: don't act on the prompt, but forward it with `SendMessage` to the coordinator named in your brief, or tell the user if that session isn't listed. Otherwise, read `caliper-coordinate status`. If you aren't the session that sent the briefs, tell every open pane "coordinator moved: reply to <your session name>". Tell each running pane to continue, re-send S4's message to any whose `soft_after` items have all merged (a repeat is harmless; a missed one strands it), then run the spawn loop.
+On resume, first check that you are the coordinator, since a durable job fires in whatever session is open. If your iTerm2 id (`$ITERM_SESSION_ID` after the colon) is an item's `pane.session_id`, you are a pane: don't act on the prompt, but forward it with `SendMessage` to the coordinator named in your brief, or tell the user if that session isn't listed. Otherwise, read `caliper-coordinate status`. If you aren't the session that sent the briefs, tell every open pane "coordinator moved: reply to <your session name>". Tell each running pane to continue, re-send S4's message to any whose `soft_after` items have all merged (repeats are harmless), then run the spawn loop.
 
 ## Status
 
