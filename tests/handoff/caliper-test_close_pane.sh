@@ -46,7 +46,8 @@ assert "close-pane.sh has a bash shebang" '[[ "$(head -1 "$HELPER")" == "#!/usr/
 run PANE-1
 assert "known id closes, exit 0"        '[[ $RC -eq 0 ]]'
 assert "known id reports CLOSED=yes"    '[[ "$(field CLOSED)" == "yes" ]]'
-assert "id is passed to osascript as argv" '[[ "$(cat "$fk/argv")" == "- PANE-1 0" ]]'
+assert "id is passed to osascript as argv" '[[ "$(cat "$fk/argv")" == "- PANE-1 0 0.3" ]]'
+assert "Ctrl-C is sent three times, inside the double-press window" 'grep -q "repeat 3 times" "$fk/src"'
 assert "id is never spliced into the AppleScript source" '! grep -q PANE-1 "$fk/src"'
 assert "AppleScript sends Ctrl-C (character id 3)" 'grep -q "character id 3" "$fk/src"'
 assert "AppleScript matches by session id, not contents" '! grep -q "contents of" "$fk/src"'

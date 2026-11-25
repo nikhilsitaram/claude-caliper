@@ -8,17 +8,24 @@
 #   <session-id>  The SESSION_ID= spawn-pane.sh printed for the pane.
 #   --dry-run     Validate and print what would be closed, without touching iTerm2.
 #
-# Sends Ctrl-C twice (Claude Code exits on the second), waits, then closes the
-# session. It matches by session id only, never by pane contents: a content match
-# by pane name fails once the name scrolls out of the buffer, or after the pane's
-# session is reset (gh #319). It finds the session first and closes after the
+# Sends Ctrl-C three times ~0.3s apart, waits, then closes the session. Claude
+# Code exits on a second press only within a short window (a 1s gap missed it:
+# the second press counted as a new first one). An idle session exits on presses
+# one and two; a mid-turn one is interrupted by the first and exits on the next
+# two; a press left over lands harmlessly in the shell. The close itself sends
+# SIGHUP, so a session that ignored the presses still exits seconds later.
+#
+# It matches by session id only, never by pane contents: a content match by pane
+# name fails once the name scrolls out of the buffer, or after the pane's session
+# is reset (gh #319). It finds the session first and closes after the
 # loop, because closing inside iTerm's session iteration throws "Invalid index".
 #
 # Prints CLOSED=yes|not-found|failed|dry-run. Exit: 0 closed (or dry-run),
 # 3 no session has that id (already closed), 2 osascript failed, 4 usage error.
 set -u
 
-CLOSE_DELAY="${HANDOFF_CLOSE_DELAY:-1}"  # seconds between the Ctrl-Cs and before closing
+CLOSE_DELAY="${HANDOFF_CLOSE_DELAY:-2}"  # seconds to let claude exit before closing
+PRESS_GAP=0.3                            # seconds between Ctrl-Cs: inside the double-press window
 
 usage() { echo "ERROR: $1 (usage: close-pane.sh [--dry-run] <session-id>)." >&2; exit 4; }
 
@@ -51,10 +58,11 @@ if [ "$dry_run" = "yes" ]; then
 fi
 
 # QUOTED heredoc: the id and delay arrive via argv, never spliced into the source.
-if ! result="$(osascript - "$id" "$CLOSE_DELAY" <<'APPLESCRIPT'
+if ! result="$(osascript - "$id" "$CLOSE_DELAY" "$PRESS_GAP" <<'APPLESCRIPT'
 on run argv
   set wantId to item 1 of argv
   set pause to (item 2 of argv) as number
+  set gap to (item 3 of argv) as number
   tell application "iTerm"
     set target to missing value
     repeat with w in windows
@@ -66,9 +74,10 @@ on run argv
     end repeat
     if target is missing value then return "not-found"
     tell target
-      write text (character id 3) newline no
-      delay pause
-      write text (character id 3) newline no
+      repeat 3 times
+        write text (character id 3) newline no
+        delay gap
+      end repeat
       delay pause
     end tell
     close target

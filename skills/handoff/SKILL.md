@@ -89,8 +89,8 @@ directly in that pane or ask you to relay follow-ups to it.
 ## Close the pane
 
 Once the sibling reports it's finished and cleaned up, close its pane by id:
-`./skills/handoff/scripts/close-pane.sh <SESSION_ID>` (Ctrl-C twice, then
-close). Don't match panes by their contents: once the session name scrolls out
+`./skills/handoff/scripts/close-pane.sh <SESSION_ID>` (Ctrl-C to exit
+claude, then close). Don't match panes by their contents: once the session name scrolls out
 of the buffer, nothing matches. Exit 3 means the pane was already closed.
 
 ## Notes
