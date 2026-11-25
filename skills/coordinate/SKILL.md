@@ -11,11 +11,12 @@ You are the coordinator. Each queued item gets its own `/handoff` pane and its o
 
 ## Setup
 
-1. **Read the ledger first:** `caliper-coordinate status`. The ledger lives in `<main checkout>/.claude/claude-caliper/coordinate.json`, and only that CLI writes it. After compaction, a new session or `--resume`, rebuild your picture from it, not from memory. It also records PRs GitHub reports merged that the ledger missed, printing `MERGED-ON-GITHUB <slug>`; run steps 2-5 of "After a merge" for those. Any other unheld item in `merged` means a run stopped partway through those steps, so resume it at step 2 too. A merged item holds a pane slot until it's done.
+1. **Read the ledger first:** `caliper-coordinate status`. The ledger lives in `<main checkout>/.claude/claude-caliper/coordinate.json`, and only that CLI writes it. After compaction, a new session or `--resume`, rebuild your picture from it, not from memory. It also records PRs GitHub reports merged that the ledger missed, printing `MERGED-ON-GITHUB <slug>`; run steps 2-6 of "After a merge" for those. Any other unheld item in `merged` means a run stopped partway through those steps, so resume it at step 2 too. A merged item holds a pane slot until it's done.
 2. **Settings:** `caliper-settings get coordinate_max_panes` and `caliper-settings get coordinate_merge`, plus `merge_strategy`. The repo's CLAUDE.md or CLAUDE.local.md can override them. Repo facts live there too, so read them:
    - sensitive paths (they hold an auto-merge);
    - no CI (pass `--allow-no-checks` to `caliper-pr-at-bar`);
    - a post-rebase step, such as a version bump;
+   - a post-merge step, such as a GitHub release;
    - shared-resource rules.
 
    Precedence: the user this run beats the repo, which beats global settings. Gates are never copied into briefs: each pane loads the repo's CLAUDE.md itself, so a gate can't be dropped by being retyped.
@@ -58,7 +59,7 @@ Re-read live state (the ledger and the PR) before acting on any message; a repor
 - **A design question about an unrelated fix:** if the answer is clear, decide and reply, to that pane or one better placed. Otherwise ask the user without blocking the pane, and if it's still open when that PR reaches the bar, tell the pane to file an issue.
 - **`WAITING <slug> on <a>`:** a soft dependent is built and parked before pr-create; it holds its assumptions list. Nothing to do until `<a>` merges; if its `soft_after` items have all merged already, send S4's message now. A copied peer note about an interface change needs you only if it changes scope.
 - **Stuck** (pr-review's loop gave up short of the bar): look at the reason and the JSON, then decide or escalate to the user.
-- **`MERGED+CLEANED`:** the user merged from the pane and pr-merge cleaned up. Do steps 1, 3, 4 and 5 of "After a merge" below, skipping the "merged" message.
+- **`MERGED+CLEANED`:** the user merged from the pane and pr-merge cleaned up. Do steps 1, 2, 4, 5 and 6 of "After a merge" below, skipping the "merged" message.
 - **`CLEANUP-FAILED`:** the pane's worktree holds content pr-merge wouldn't delete. Run `set <slug> --hold "cleanup failed: <path>"`, so a resume doesn't retry it, and report the path to the user. Leave the pane open; once they've resolved it, `--unhold`, close it and set it done.
 - **Checks with total 0:** if the repo really has no CI, tell the pane to pass `--allow-no-checks`, and add that line to the repo's CLAUDE.md if it's missing. Otherwise treat it as a dropped push event (see `hint`).
 
@@ -82,10 +83,11 @@ Merge command: `gh pr merge N --<merge_strategy> --match-head-commit <head>`. Pi
 
 **After a merge:**
 1. Run `caliper-coordinate set <slug> --status merged`.
-2. Tell that pane "merged". It runs pr-merge's cleanup and replies `CLEANED`, or `CLEANUP-FAILED` (see above: skip step 3 for that item, but still do steps 4 and 5, since the base has moved either way).
-3. Run `./skills/handoff/scripts/close-pane.sh <session_id>`. On exit 0 or 3 (already closed), `set --status done`. On any other exit, report it, and once the user confirms the pane is closed, `set --status done`.
-4. Send each running soft dependent of the merged item (by `soft_after` in `list`; the table drops it once merged) "<slug> merged at <sha>": rule S4 of its brief. Tell every pane with an open PR "base moved" with `<sha>` and the version just merged: concurrent PRs claim the same next version, and a rebase can silently drop a duplicate bump.
-5. Re-run the spawn loop.
+2. If the repo names a post-merge step that applies to this merge, run it once, pinned to the merge commit (`gh pr view N --json mergeCommit --jq .mergeCommit.oid`), so it covers exactly what landed: for a release, `gh release create vX.Y.Z --target <merge sha> --generate-notes`. A resume re-enters here, so skip it if already done.
+3. Tell that pane "merged". It runs pr-merge's cleanup and replies `CLEANED`, or `CLEANUP-FAILED` (see above: skip step 4 for that item, but still do steps 5 and 6, since the base has moved either way).
+4. Run `./skills/handoff/scripts/close-pane.sh <session_id>`. On exit 0 or 3 (already closed), `set --status done`. On any other exit, report it, and once the user confirms the pane is closed, `set --status done`.
+5. Send each running soft dependent of the merged item (by `soft_after` in `list`; the table drops it once merged) "<slug> merged at <sha>": rule S4 of its brief. Tell every pane with an open PR "base moved" with `<sha>` and the version just merged: concurrent PRs claim the same next version, and a rebase can silently drop a duplicate bump.
+6. Re-run the spawn loop.
 
 ## At the usage limit
 
