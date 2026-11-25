@@ -27,6 +27,7 @@ check "bin/delete-merged-branch exists" test -f "$REPO_ROOT/bin/delete-merged-br
 check "bin/caliper-wait-pr exists" test -f "$REPO_ROOT/bin/caliper-wait-pr"
 check "bin/caliper-pr-at-bar exists" test -f "$REPO_ROOT/bin/caliper-pr-at-bar"
 check "bin/caliper-coordinate exists" test -f "$REPO_ROOT/bin/caliper-coordinate"
+check "bin/caliper-phase-dispatch exists" test -f "$REPO_ROOT/bin/caliper-phase-dispatch"
 check "bin/validate-plan is executable" test -x "$REPO_ROOT/bin/validate-plan"
 check "bin/caliper-settings is executable" test -x "$REPO_ROOT/bin/caliper-settings"
 check "bin/seed-agent-memory is executable" test -x "$REPO_ROOT/bin/seed-agent-memory"
@@ -38,6 +39,7 @@ check "bin/delete-merged-branch is executable" test -x "$REPO_ROOT/bin/delete-me
 check "bin/caliper-wait-pr is executable" test -x "$REPO_ROOT/bin/caliper-wait-pr"
 check "bin/caliper-pr-at-bar is executable" test -x "$REPO_ROOT/bin/caliper-pr-at-bar"
 check "bin/caliper-coordinate is executable" test -x "$REPO_ROOT/bin/caliper-coordinate"
+check "bin/caliper-phase-dispatch is executable" test -x "$REPO_ROOT/bin/caliper-phase-dispatch"
 check "retired bin/link-agent-memory is gone" test ! -e "$REPO_ROOT/bin/link-agent-memory"
 check "scripts/ directory does not exist" test ! -d "$REPO_ROOT/scripts"
 check_shebang() {
@@ -56,6 +58,7 @@ check "bin/delete-merged-branch has bash shebang" check_shebang "$REPO_ROOT/bin/
 check "bin/caliper-wait-pr has bash shebang" check_shebang "$REPO_ROOT/bin/caliper-wait-pr"
 check "bin/caliper-pr-at-bar has bash shebang" check_shebang "$REPO_ROOT/bin/caliper-pr-at-bar"
 check "bin/caliper-coordinate has bash shebang" check_shebang "$REPO_ROOT/bin/caliper-coordinate"
+check "bin/caliper-phase-dispatch has bash shebang" check_shebang "$REPO_ROOT/bin/caliper-phase-dispatch"
 
 echo ""
 echo "Results: $pass passed, $fail failed"

@@ -14,7 +14,7 @@ The implementer reads the codebase directly at full context — the prompt carri
 - `{TASK_IMPLEMENTER_MODEL}` — model for the implementer agent (from caliper-settings)
 - `{TASK_COMPLEXITY}` — the task's complexity level (low, medium, or high)
 - `{COMPLEXITY_GUIDANCE}` — dispatcher-resolved string — the orchestrator maps `{TASK_COMPLEXITY}` to one of the three fixed guidance strings before building the prompt; this is not a raw template variable passed by the implementer.
-- `{WORKTREE_PATH}` — absolute path to the task's worktree (orchestrator creates it via `git worktree add`)
+- `{WORKTREE_PATH}` — absolute path to the task's worktree (the path `caliper-phase-dispatch` printed)
 
 ```text
 Agent(

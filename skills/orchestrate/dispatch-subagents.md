@@ -4,25 +4,15 @@ Parallel task execution via Agent tool dispatches with worktree isolation.
 
 ## Dispatch Implementers
 
-List the dispatchable tasks: `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` prints one task ID per line — `pending`, every dependency `complete`/`skipped`, no open `gated_on` (in-flight `in_progress` tasks are never re-listed). Tasks held only by a gate are reported on stderr as `GATED: <id> — <input>`. For each ready task, create a worktree nested under the parent (feature or phase) worktree and extract metadata (strip `status` — orchestrator state not needed by implementer). Use plain git calls and carry their printed values forward as literals — the worktree-isolation guard refuses git arguments built from `$(git …)` (**See:** `skills/design/worktree-isolation.md`). First:
+List the dispatchable tasks: `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` prints one task ID per line — `pending`, every dependency `complete`/`skipped`, no open `gated_on` (in-flight `in_progress` tasks are never re-listed). Tasks held only by a gate are reported on stderr as `GATED: <id> — <input>`. For each ready task, one call per task, with `<PARENT_WORKTREE>` the absolute path of the feature worktree (`$MAIN_ROOT/.claude/worktrees/<feature>`, single-phase) or the task's own phase worktree (`PHASE_WORKTREE` from Prepare Phase step 1) written in as a literal:
 
 ```bash
-git rev-parse --path-format=absolute --show-toplevel --git-dir --git-common-dir
+caliper-phase-dispatch "$PLAN_JSON" <PARENT_WORKTREE> {TASK_ID}
 ```
 
-Line 1 is `PARENT_WORKTREE`. If lines 2 and 3 are equal, the CWD is the main repo — stop: dispatching from there creates sibling task worktrees that trigger silent permission denials in background subagents; `cd` into the feature or phase worktree first. In a multi-phase plan, line 1 must end in `phase-{letter_lower}` for the task's own phase; with several phases active, `cd` into the right one first. Otherwise, with that literal:
+It adds the task worktree at `<PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER}` on branch `{TASK_ID_LOWER}`, seeds agent memory into it, claims the task `in_progress` (so the next `--ready` can't re-list it), and prints the worktree path. It refuses the main checkout, a parent on another phase's branch, a task that isn't `pending`, and a surviving task branch or directory (settle those per Resuming In-Flight Tasks). On failure the task stays `pending` and what it created is rolled back; if it reports `rollback incomplete`, settle the leftover per Resuming In-Flight Tasks. Then extract metadata (strip `status` — orchestrator state not needed by implementer):
 
 ```bash
-git worktree add <PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER} -b {TASK_ID_LOWER} HEAD
-```
-
-```bash
-TASK_WORKTREE=<PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER}
-# Claim the task before dispatch: --ready lists only `pending` tasks, so a task
-# still `pending` while its implementer starts up would be re-listed — and
-# dispatched twice — after the next completion.
-validate-plan --update-status "$PLAN_JSON" --task {TASK_ID} --status in_progress
-seed-agent-memory "$TASK_WORKTREE"  # copy $MAIN_ROOT/.claude/agent-memory into the task worktree as a real dir so memory: project subagents read accumulated memory and write locally; step-3 cleanup + the SubagentStop hook sync writes back (symlinks are blocked under worktree isolation, issue #244)
 TASK_METADATA=$(jq -c --arg id "{TASK_ID}" '[.phases[].tasks[] | select(.id == $id)][0] | del(.status)' "$PLAN_JSON")
 TASK_COMPLEXITY=$(echo "$TASK_METADATA" | jq -r '.complexity')
 case "$TASK_COMPLEXITY" in
@@ -123,7 +113,7 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
    - Guard before merge: `git -C "$PARENT_WORKTREE" rev-parse --abbrev-ref HEAD` — in a multi-phase plan it must print `phase-{letter_lower}`, the task's own phase. On `integrate/*`, stop: task branches merge into the phase branch, and integration happens only in Phase Wrap-Up step 7 (this catches drift from the wrong-worktree recovery path). On another phase's branch, the CWD belongs to a sibling phase (**See:** `./parallel-phases.md`): `cd` into this task's phase worktree, re-derive the paths, and retry.
    - Merge: `git -C "$PARENT_WORKTREE" merge {TASK_ID_LOWER}` (task branch into the phase branch, never directly into integration)
    - Clean up: `clear-worktree-scratch "$TASK_WORKTREE"` (persists the task-implementer's `memory: project` writes to `$MAIN_ROOT` — belt-and-suspenders with the `SubagentStop` hook — then deletes the seeded memory, which in repos that don't ignore `.claude/` would block the remove), then `git worktree remove "$TASK_WORKTREE"` then `git branch -d {TASK_ID_LOWER}`. If the clear fails, stop and surface the path: its memory may be unsynced, and in repos that ignore `.claude/` the remove would still delete it
-   - Reset CWD after removal: `cd "$PARENT_WORKTREE" && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted. Return to the parent (phase) worktree, not the multi-phase feature/integration worktree: the next dispatch derives `PARENT_WORKTREE` from CWD
+   - Reset CWD after removal: `cd "$PARENT_WORKTREE" && pwd` — run this after every worktree removal even if you believe CWD hasn't drifted. Return to the parent (phase) worktree, not the multi-phase feature/integration worktree: the next task's `git branch -d` checks merges against the CWD's branch
 4. Re-run `validate-plan --ready "$PLAN_JSON" --phase {LETTER}` for newly unblocked tasks
 5. Dispatch them (same pattern as above). If nothing is ready, no implementer is in flight, and the phase still has `pending` tasks, they're waiting on gates — see Gated Tasks. (No `GATED:` lines on stderr means a dependency is stuck `in_progress`; surface it to the user.)
 
@@ -131,7 +121,7 @@ Never `cd` into a task worktree — not for inspection, not for criteria. Step 3
 
 A run that stopped mid-phase can strand task work at any point between dispatch and cleanup: an `in_progress` task with no live implementer (`--ready` never re-lists it), a `pending` task whose worktree was created just before the claim, or a `complete` task whose branch was never merged (After Completion marks done before it merges). Prepare Phase step 6 settles all of these before the dispatch loop starts. If the stopped session might still be running, ask the user before touching its tasks.
 
-Work from the phase worktree (the feature worktree for a single-phase plan). Get its absolute path as in Dispatch Implementers — line 1 of `git rev-parse --path-format=absolute --show-toplevel` — and write it below as the literal `<PARENT_WORKTREE>`, so a CWD left in a subdirectory (e.g. by dependency bootstrap) can't misplace a worktree. If `git rev-parse -q --verify MERGE_HEAD` succeeds, a task merge stopped mid-conflict — surface it to the user before settling anything. Then list the phase's task statuses and the task branches still present:
+Work from the phase worktree (the feature worktree for a single-phase plan). Run `git rev-parse --path-format=absolute --show-toplevel --git-dir --git-common-dir`. If lines 2 and 3 are equal, the CWD is the main checkout: stop and `cd` into the phase worktree. Otherwise write line 1 below as the literal `<PARENT_WORKTREE>`, so a CWD left in a subdirectory (e.g. by dependency bootstrap) can't misplace a worktree. If `git rev-parse -q --verify MERGE_HEAD` succeeds, a task merge stopped mid-conflict — surface it to the user before settling anything. Then list the phase's task statuses and the task branches still present:
 
 ```bash
 jq -r --arg l "{LETTER}" '.phases[] | select(.letter == $l) | .tasks[] | "\(.id) \(.status)"' "$PLAN_JSON"
@@ -148,7 +138,7 @@ Settle every task that is `in_progress` or still has a branch. Where a branch su
   - **No misplaced commit, count 0** (nothing committed) → `git worktree remove "$TASK_WORKTREE"`, `git branch -d {TASK_ID_LOWER}`, then `--status pending` so `--ready` lists it again. If the removal fails on uncommitted changes, surface the worktree path to the user rather than forcing it.
   - **Uncommitted changes** (`git -C <PARENT_WORKTREE>/.claude/worktrees/{TASK_ID_LOWER} status --porcelain` prints anything — check before criteria) → the implementer died mid-edit, and criteria would pass or fail on edits the merge won't carry. Ask the user as for a criteria failure.
   - **Criteria pass** → mark done, merge, clean up (After Completion steps 2–3). But if `--criteria` printed `no criteria defined`, nothing vouches for the commits — ask the user as for a failure, adding "merge as done" as an option.
-  - **Criteria fail** → ask the user: re-dispatch into the existing worktree (skip `worktree add` and the status update; tell the implementer the branch carries partial work and which criteria failed), or discard (`git worktree remove`, adding `--force` only for uncommitted changes the user chose to drop, then `git branch -D`, `--status pending`).
+  - **Criteria fail** → ask the user: re-dispatch into the existing worktree (skip `caliper-phase-dispatch`, but re-seed with `seed-agent-memory "$TASK_WORKTREE"`; tell the implementer the branch carries partial work and which criteria failed), or discard (`git worktree remove`, adding `--force` only for uncommitted changes the user chose to drop, then `git branch -D`, `--status pending`).
 
 ## Gated Tasks
 
@@ -160,5 +150,4 @@ A task's `gated_on` names outside inputs (another team's PR, reviewer-supplied d
 
 ## Worktree Placement
 
-- Worktrees are created by the orchestrator via `git worktree add` from the parent (feature or phase) branch; the implementer works inside the worktree it is handed.
-- Task worktrees must nest **inside** the parent (feature or phase) worktree — anchor `git worktree add` with the absolute `$PARENT_WORKTREE/.claude/worktrees/...` path so CWD drift never produces siblings under the main repo (and no `git -C` on a computed path, which the isolation guard refuses — **See:** `skills/design/worktree-isolation.md`). Background subagents writing into a sibling worktree get silent permission denials because Claude Code scopes write permission to the parent session's project root, and they cannot answer the cross-directory prompt.
+- Task worktrees nest **inside** the parent (feature or phase) worktree: `caliper-phase-dispatch` anchors them at the parent's absolute path, so CWD drift never produces siblings under the main repo. Background subagents writing into a sibling worktree get silent permission denials because Claude Code scopes write permission to the parent session's project root, and they cannot answer the cross-directory prompt.
