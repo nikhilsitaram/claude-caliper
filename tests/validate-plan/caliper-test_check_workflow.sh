@@ -26,7 +26,7 @@ assert_fail() {
   if output=$("$@" 2>&1); then
     echo "FAIL: $desc (expected failure, got success)"
     ((FAIL++)) || true
-  elif echo "$output" | grep -q "$expected_error"; then
+  elif echo "$output" | grep -q -- "$expected_error"; then
     echo "PASS: $desc"
     ((PASS++)) || true
   else
@@ -290,6 +290,57 @@ write_single_phase_plan "pr-create" "Complete"
 printf '[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0}]' > "$TMPDIR/reviews.json"
 assert_fail "single-phase pr-create without impl-review exits 1" "impl-review phase-a" \
   "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo ""
+echo "=== --branch: check a branch other than the CWD's (gh #338) ==="
+# After pr-merge cleans up, the CWD is back on the default branch; the gate must
+# still find the merged PR for the branch that was merged. GH_MOCK_ONLY_BRANCH
+# makes the mock answer only for that branch, so a pass proves which one was asked.
+CWD_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+GONE_BRANCH="feat/merged-and-gone"
+GONE_INTEGRATE="integrate/merged-and-gone"
+SINGLE_REVIEWS='[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0}]'
+MULTI_REVIEWS='[{"type":"design-review","scope":"design","verdict":"pass","remaining":0},{"type":"plan-review","scope":"plan","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-a","verdict":"pass","remaining":0},{"type":"impl-review","scope":"phase-b","verdict":"pass","remaining":0},{"type":"impl-review","scope":"final","verdict":"pass","remaining":0}]'
+
+echo "Test 11a: single-phase pr-merge without --branch checks the CWD branch and fails"
+setup_plan_dir
+write_single_phase_plan "pr-merge" "Complete"
+printf '%s' "$SINGLE_REVIEWS" > "$TMPDIR/reviews.json"
+GH_MOCK_ONLY_BRANCH="$GONE_BRANCH" GH_MOCK_PR_COUNT=1 assert_fail "default resolves the CWD branch" "no PR found for $CWD_BRANCH" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo "Test 11b: single-phase pr-merge with --branch finds the merged PR"
+GH_MOCK_ONLY_BRANCH="$GONE_BRANCH" GH_MOCK_PR_COUNT=1 assert_pass "--branch <feature> passes from another branch" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json" --branch "$GONE_BRANCH"
+
+echo "Test 11c: single-phase pr-merge with --branch names that branch when unmerged"
+GH_MOCK_ONLY_BRANCH="$GONE_BRANCH" GH_MOCK_PR_COUNT=1 GH_MOCK_MERGED_COUNT=0 assert_fail "--branch used in the merged check" "PR not merged for $GONE_BRANCH" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json" --branch "$GONE_BRANCH"
+
+echo "Test 11d: multi-phase pr-merge without --branch fails off the integration branch"
+setup_plan_dir
+write_two_phase_plan "pr-merge" "Complete"
+printf '%s' "$MULTI_REVIEWS" > "$TMPDIR/reviews.json"
+GH_MOCK_ONLY_BRANCH="$GONE_INTEGRATE" GH_MOCK_PR_COUNT=1 assert_fail "default misses the integration branch" "no PR found for $CWD_BRANCH" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo "Test 11e: multi-phase pr-merge with --branch integrate/* runs the phase and final PR checks"
+GH_MOCK_ONLY_BRANCH="$GONE_INTEGRATE" GH_MOCK_PR_COUNT=1 assert_pass "--branch integrate/<feature> passes" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json" --branch "$GONE_INTEGRATE"
+
+echo "Test 11f: --branch integrate/* reports missing phase PRs against that branch"
+GH_MOCK_PR_COUNT=0 assert_fail "phase PR check uses --branch as base" "no PR found for phase-a → $GONE_INTEGRATE" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json" --branch "$GONE_INTEGRATE"
+
+echo "Test 11g: --branch needs a value"
+assert_fail "--branch with no value exits non-zero" "--branch requires a branch name" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json" --branch
+assert_fail "--branch with an empty value exits non-zero" "--branch requires a branch name" \
+  "$VALIDATE" --check-workflow "$TMPDIR/plan.json" --branch ""
+
+echo "Test 11h: --branch is refused outside --check-workflow"
+assert_fail "--branch with --consistency exits non-zero" "--branch only applies to --check-workflow" \
+  "$VALIDATE" --consistency "$TMPDIR/plan.json" --branch "$GONE_BRANCH"
 
 echo ""
 echo "=== error handling ==="
