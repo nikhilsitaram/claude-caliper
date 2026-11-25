@@ -33,6 +33,7 @@ Identify the PR from argument, current branch (`gh pr view`), or `gh pr list --a
 
 Detect environment:
 - `DEFAULT_BRANCH` from `refs/remotes/origin/HEAD` (fallback: main/master)
+- `BASE_BRANCH` — the PR's base, from `gh pr view $PR_NUMBER --json baseRefName --jq .baseRefName` (fallback: `DEFAULT_BRANCH`)
 - `IS_INTEGRATION` — true when `$BRANCH_NAME` matches `integrate/*`
 - `IS_INTEGRATION_CWD` — true when `$CWD_BRANCH` matches `integrate/*` (CWD is an integration worktree, regardless of which PR is being merged)
 
@@ -40,16 +41,16 @@ Detect environment:
 
 If branch protection requires human approval and the PR lacks it, tell the user and stop with the PR URL.
 
-**Pre-merge rebase check:** Verify the PR branch is up-to-date with the base branch:
+**Pre-merge rebase check:** Verify the PR branch is up-to-date with `<BASE_BRANCH>`. Checking the default branch instead would read a phase PR as behind once main moves, and rebasing it onto main would pull unrelated commits into the phase PR:
 
 ```bash
 git fetch origin
-git merge-base --is-ancestor origin/<DEFAULT_BRANCH> HEAD
+git merge-base --is-ancestor origin/<BASE_BRANCH> HEAD
 ```
 
-Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/<DEFAULT_BRANCH>` actually advances. `git fetch origin <DEFAULT_BRANCH>` only updates `FETCH_HEAD` — the `is-ancestor` check then compares against a stale ref and reports up-to-date when the branch is actually behind.
+Use bare `git fetch origin` (no branch arg) so `refs/remotes/origin/<BASE_BRANCH>` actually advances. `git fetch origin <BASE_BRANCH>` only updates `FETCH_HEAD` — the `is-ancestor` check then compares against a stale ref and reports up-to-date when the branch is actually behind.
 
-If behind (non-zero exit): rebase onto default branch, resolve conflicts, run tests, push with `git push -u origin HEAD --force-with-lease`. Comment on PR with conflict resolution details. Complex conflicts → stop and ask user.
+If behind (non-zero exit): rebase onto `origin/<BASE_BRANCH>`, resolve conflicts, run tests, push with `git push -u origin HEAD --force-with-lease`. Comment on PR with conflict resolution details. Complex conflicts → stop and ask user.
 
 **Merge method** (`$METHOD` = `squash` or `rebase`):
 - Integration branches (`IS_INTEGRATION=true`): `rebase` — auto-detected, no flag needed
