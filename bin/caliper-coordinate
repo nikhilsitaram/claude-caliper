@@ -24,9 +24,11 @@ set -euo pipefail
 # item. Held is a flag with reasons, beside the status. An --after entry is
 # another item's slug (met once that item is merged or done) or pr:N for a PR
 # outside the ledger (met once gh reports it MERGED). A --soft-after entry (gh
-# #329) is another item's slug only: the dependent may start at once, building
-# against what it anticipates from that item, and rebases once it merges. `ready`
-# ignores soft deps unless one was dropped; `status` shows each unmerged one as
+# #329) is another item's slug only: the dependent may start as soon as that
+# item has started, building against what it anticipates from it, and rebases
+# once it merges. `ready` counts a soft dep met once it is running or later (not
+# queued, so parked dependents can't fill every slot ahead of it, and not
+# dropped); `status` shows each unmerged one as
 # `<slug> (soft)` in WAITING ON. A slug can't be both a hard and a soft dep of
 # the same item, and add/set refuse a cycle through either kind. `status`
 # re-adds a dropped-dependency hold after --unhold until the dependency list is
@@ -108,7 +110,7 @@ check_deps() {  # <ledger-json> <slug>: refuse a slug both hard and soft, and an
   jq -e --arg s "$2" '. as $l
     | def deps($x): [$l.items[] | select(.slug == $x)
         | select(.status | IN("merged", "done", "dropped") | not)
-        | (.after[] | select(startswith("pr:") | not)), (.soft_after // [])[]];
+        | .after[], (.soft_after // [])[]];
     {seen: [], todo: deps($s)}
     | until(.todo | length == 0;
         .todo[0] as $x | .todo |= .[1:]
@@ -210,10 +212,10 @@ case "$CMD" in
     done
     jq -r --argjson mp "$MERGED_PRS" '
       ([.items[] | select(.status == "merged" or .status == "done") | .slug] + $mp) as $met
-      | [.items[] | select(.status == "dropped") | .slug] as $dropped
+      | [.items[] | select(.status | IN("running", "at-bar", "merged", "done")) | .slug] as $started
       | .items[] | select(.status == "queued" and (.held | not))
       | select(all(.after[]; IN($met[])))
-      | select(any((.soft_after // [])[]; IN($dropped[])) | not)
+      | select(all((.soft_after // [])[]; IN($started[])))
       | .slug' <<<"$J"
     ;;
 

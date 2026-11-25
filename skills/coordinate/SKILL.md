@@ -27,7 +27,7 @@ For each new issue, read it and the code it touches. Then show a table of item, 
 
 Once the user approves, post the dispositions comment on the issue, create any split issues and close won't-do items. These are visible to others, so they need that approval. Then queue each item: `caliper-coordinate add <slug> --issue N [--after <slug>,pr:<n>] [--soft-after <slug>]`. Record every dependency; one held only in your head is lost at compaction. Offer hard or soft for each:
 - **Hard** (`--after`, don't start until merged): B edits A's files or needs A's real shape.
-- **Soft**: their files and concepts differ, and A's interface is predictable from its brief. B starts now against what it anticipates from A, and rebases once A merges.
+- **Soft**: their files and concepts differ, and A's interface is predictable from its brief. B starts once A has started, builds against what it anticipates from A, and rebases once A merges.
 
 ## Spawn loop
 

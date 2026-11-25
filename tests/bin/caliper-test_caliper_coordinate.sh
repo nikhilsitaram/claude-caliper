@@ -163,10 +163,16 @@ check_eq "soft: add exit 0" 0 "$RC"
 check_eq "soft: soft_after recorded" api "$(item ui '.soft_after | join(",")')"
 check_eq "soft: add without it records an empty list" 0 "$(item api '.soft_after | length')"
 run ready
-check_eq "soft: an unmerged soft dep doesn't block ready" "api ui" "$(tr '\n' ' ' <<<"$OUT" | sed 's/ $//')"
-run add both --after api --soft-after ui
+check_eq "soft: a still-queued soft dep keeps the dependent out of ready (no slot starvation)" "api" "$OUT"
+run set api --status running
 run ready
-check_eq "soft: a hard dep still gates ready beside a soft one" "api ui" "$(tr '\n' ' ' <<<"$OUT" | sed 's/ $//')"
+check_eq "soft: once the soft dep has started, its unmerged state doesn't block ready" "ui" "$OUT"
+run set api --status queued
+run add both --after api --soft-after ui
+run set ui --status running
+run ready
+check_eq "soft: a hard dep still gates ready beside a started soft one" "api" "$OUT"
+run set ui --status queued
 
 run add bad --soft-after pr:950
 check_eq "soft: pr:N has no soft form (usage error)" 64 "$RC"
@@ -243,7 +249,7 @@ check_eq "cycle: hard-hard refused" 1 "$RC"
 run add w --after z --soft-after y
 check_eq "cycle: an acyclic diamond is accepted" 0 "$RC"
 run set x --after pr:5
-check_eq "cycle: pr:N deps aren't followed" 0 "$RC"
+check_eq "cycle: a pr:N dep beside item deps is accepted" 0 "$RC"
 run set y --status merged
 run set x --soft-after y
 check_eq "cycle: a merged item waits on nothing, so no cycle runs through it" 0 "$RC"
