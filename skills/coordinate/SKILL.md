@@ -87,7 +87,7 @@ Re-read live state (the ledger and the PR) before acting on any message. A repor
 
 Merge only right after `caliper-pr-at-bar` exits 0 in this turn, and pin the merge to that JSON's `.head`. If it differs from the ledger's head, re-record it with `set --head`.
 
-- **`pr-ready` (default):** report "#N at bar" with the pane's report summarized, then wait for the user to say merge. If the user merges from a pane, the pane reports it, and `caliper-coordinate status` confirms it.
+- **`confirm` (default):** report "#N at bar" with the pane's report summarized, then wait for the user to say merge. If the user merges from a pane, the pane reports it, and `caliper-coordinate status` confirms it.
 - **`auto-merge`:** first check for holds. Hold when:
   - `gh pr diff N --name-only` touches a sensitive path the repo names;
   - the report lists a deviation or an unverified claim.

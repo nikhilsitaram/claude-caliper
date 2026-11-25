@@ -166,11 +166,11 @@
   "coordinate_merge": {
     "type": "enum",
     "values": [
-      "pr-ready",
+      "confirm",
       "auto-merge"
     ],
-    "default": "pr-ready",
-    "description": "How coordinate merges an at-bar PR: pr-ready waits for the user to say merge; auto-merge merges unless a hold applies",
+    "default": "confirm",
+    "description": "How coordinate merges an at-bar PR: confirm waits for the user to say merge; auto-merge merges unless a hold applies",
     "used_by": [
       "coordinate"
     ]

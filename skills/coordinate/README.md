@@ -21,7 +21,7 @@ It ships only in the full `claude-caliper` bundle, because its panes run the wor
 | Setting | Default | Meaning |
 |---|---|---|
 | `coordinate_max_panes` | `10` | Most panes open at once |
-| `coordinate_merge` | `pr-ready` | `pr-ready`: the coordinator merges an at-bar PR only after you say so. `auto-merge`: it merges unless a hold applies (sensitive paths touched, or the pane reported a deviation or an unverified claim). |
+| `coordinate_merge` | `confirm` | `confirm`: the coordinator merges an at-bar PR only after you say so. `auto-merge`: it merges unless a hold applies (sensitive paths touched, or the pane reported a deviation or an unverified claim). |
 
 Set them globally with `/caliper-settings`. A repo can override them, and declare its own facts, in `CLAUDE.md` or `CLAUDE.local.md`:
 - sensitive paths that hold an auto-merge;
