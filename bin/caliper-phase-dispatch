@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# caliper-phase-dispatch <plan.json> <parent-worktree> <task-id>
+#
+# Orchestrate's per-task dispatch in one call (issue #321): add the task's
+# worktree nested under <parent-worktree> at .claude/worktrees/<task_lower> on a
+# new branch <task_lower> forked from the parent's HEAD, seed agent memory into
+# it, then claim the task in_progress. On success stdout is exactly one line —
+# the task worktree's absolute path — and git/validate-plan chatter goes to
+# stderr. Under worktree isolation the lead can't loop over task ids or chain
+# calls across two phase worktrees, so the three steps used to be three
+# hand-written calls per task.
+#
+# <parent-worktree> is the feature worktree (single-phase plan) or the task's
+# own phase worktree, on branch phase-<letter_lower> (multi-phase plan). Refused:
+# the main checkout (sibling task worktrees there get silent permission denials
+# in background subagents), a path that isn't a worktree root, a detached
+# parent, a parent on another phase's branch, a task that isn't `pending`
+# (`--ready` lists only pending tasks; re-dispatching an in_progress or
+# complete task would double-run it), and a task whose branch or worktree
+# directory already exists (stranded work — settle it per Resuming In-Flight
+# Tasks in skills/orchestrate/dispatch-subagents.md; this never re-attaches).
+#
+# Order is add -> seed -> claim. The claim is the only step --ready sees, so it
+# goes last: any failure before it leaves the task `pending` and rolls back the
+# worktree and branch this run created (nothing pre-existing is touched). A hard
+# kill between add and claim leaves "pending with a branch", which Resuming
+# already settles; claim-first would strand "in_progress with no branch", which
+# --ready never re-lists.
+
+usage() {
+  echo "Usage: caliper-phase-dispatch <plan.json> <parent-worktree> <task-id>" >&2
+  exit 1
+}
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+[[ $# -eq 3 ]] || usage
+PLAN_JSON="$1" PARENT_ARG="$2" TASK_ID="$3"
+BIN_DIR="$(dirname "$0")"
+
+[[ -f "$PLAN_JSON" ]] || die "plan not found: $PLAN_JSON"
+[[ -d "$PARENT_ARG" ]] || die "parent worktree does not exist: $PARENT_ARG"
+
+TASK_INFO="$(jq -r --arg id "$TASK_ID" '
+  [.phases[] | .letter as $l | .tasks[] | select(.id == $id) | "\($l) \(.status)"][0] // empty
+' "$PLAN_JSON")" || die "can't read plan: $PLAN_JSON"
+[[ -n "$TASK_INFO" ]] || die "task_not_found: '$TASK_ID' not found in plan"
+read -r LETTER STATUS <<<"$TASK_INFO"
+[[ "$STATUS" == "pending" ]] \
+  || die "task $TASK_ID is '$STATUS', not pending — only pending tasks are dispatched (settle in-flight ones per Resuming In-Flight Tasks)"
+PHASE_COUNT="$(jq '.phases | length' "$PLAN_JSON")"
+
+# Parent: a linked worktree's root, never the main checkout.
+REV="$(git -C "$PARENT_ARG" rev-parse --path-format=absolute --show-toplevel --git-dir --git-common-dir)" \
+  || die "not a git worktree: $PARENT_ARG"
+{ read -r PARENT; read -r GIT_DIR; read -r COMMON_DIR; } <<<"$REV"
+[[ "$(cd "$PARENT_ARG" && pwd -P)" == "$(cd "$PARENT" && pwd -P)" ]] \
+  || die "not a worktree root: $PARENT_ARG (its root is $PARENT)"
+[[ "$(cd "$GIT_DIR" && pwd -P)" != "$(cd "$COMMON_DIR" && pwd -P)" ]] \
+  || die "$PARENT is the main checkout — dispatch from the feature or phase worktree, or task worktrees land as siblings that background subagents can't write"
+
+PARENT_BRANCH="$(git -C "$PARENT" rev-parse --abbrev-ref HEAD)"
+[[ "$PARENT_BRANCH" != "HEAD" ]] || die "parent worktree $PARENT has a detached HEAD — task branches merge into the parent's branch"
+if (( PHASE_COUNT > 1 )); then
+  WANT="phase-$(tr '[:upper:]' '[:lower:]' <<<"$LETTER")"
+  [[ "$PARENT_BRANCH" == "$WANT" ]] \
+    || die "task $TASK_ID belongs to phase $LETTER: dispatch it from the $WANT worktree, not $PARENT (on $PARENT_BRANCH)"
+fi
+
+BRANCH="$(tr '[:upper:]' '[:lower:]' <<<"$TASK_ID")"
+git check-ref-format "refs/heads/$BRANCH" || die "task id '$TASK_ID' isn't a valid branch name"
+TASK_WORKTREE="$PARENT/.claude/worktrees/$BRANCH"
+if git -C "$PARENT" rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
+  die "branch $BRANCH already exists — settle it per Resuming In-Flight Tasks before re-dispatching"
+fi
+[[ ! -e "$TASK_WORKTREE" ]] \
+  || die "$TASK_WORKTREE already exists — settle it per Resuming In-Flight Tasks before re-dispatching"
+
+FORK_SHA="$(git -C "$PARENT" rev-parse HEAD)"
+CREATED=0
+# Undo only what this run made. --force is safe: the worktree is seconds old and
+# holds only the seeded memory copy (untracked where .claude/ isn't ignored,
+# which a bare remove refuses). The branch delete names FORK_SHA as the expected
+# old value, so it can't drop commits.
+rollback() {
+  (( CREATED )) || return 0
+  git -C "$PARENT" worktree remove --force "$TASK_WORKTREE" >&2 \
+    || echo "ERROR: rollback: couldn't remove $TASK_WORKTREE — remove it by hand" >&2
+  git -C "$PARENT" update-ref -d "refs/heads/$BRANCH" "$FORK_SHA" \
+    || echo "ERROR: rollback: couldn't delete branch $BRANCH — delete it by hand" >&2
+  echo "Rolled back $TASK_WORKTREE; task $TASK_ID left pending" >&2
+}
+trap rollback EXIT
+
+git -C "$PARENT" worktree add "$TASK_WORKTREE" -b "$BRANCH" "$FORK_SHA" >&2
+CREATED=1
+"$BIN_DIR/seed-agent-memory" "$TASK_WORKTREE" >&2
+"$BIN_DIR/validate-plan" --update-status "$PLAN_JSON" --task "$TASK_ID" --status in_progress >&2
+CREATED=0
+trap - EXIT
+
+echo "$TASK_WORKTREE"
