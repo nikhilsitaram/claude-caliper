@@ -9,8 +9,8 @@ set -euo pipefail
 # it, then claim the task in_progress. On success stdout is exactly one line —
 # the task worktree's absolute path — and git/validate-plan chatter goes to
 # stderr. Under worktree isolation the lead can't loop over task ids or chain
-# calls across two phase worktrees, so the three steps used to be three
-# hand-written calls per task.
+# calls across two phase worktrees, so the three steps are bundled into one
+# call per task.
 #
 # <parent-worktree> is the feature worktree (single-phase plan) or the task's
 # own phase worktree, on branch phase-<letter_lower> (multi-phase plan). Refused:
