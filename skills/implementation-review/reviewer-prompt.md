@@ -13,7 +13,7 @@ The template works for both **caliper mode** (a plan drove the work) and **stand
 - `{HEAD_SHA}` — current tip (`git rev-parse HEAD`)
 - `{PLAN_DIR}` — path to plan directory (caliper only)
 - `{PHASE_DIR}` — path to current phase directory (caliper only)
-- `{PHASE_CONTEXT}` — phase letter/name and downstream expectations (empty for final/single-phase; caliper only)
+- `{PHASE_CONTEXT}` — phase letter/name and downstream expectations, plus sibling phases' review changes when siblings ran in parallel (orchestrate `parallel-phases.md` Reviews); empty for final/single-phase; caliper only
 - `{DESIGN_DOC_PATH}` — path to design doc, or "None" (always "None" in standalone mode)
 - `{IMPL_REVIEWER_MODEL}` — model for the reviewer agent (from caliper-settings)
 
