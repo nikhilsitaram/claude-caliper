@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# caliper-pr-at-bar <pr> [--allow-no-checks] [--no-checks-min N]
+#
+# One snapshot of whether a PR is at the merge bar (gh #319): the check a
+# coordinator re-runs instead of trusting a pane's "at bar" report, and the
+# exit check of pr-review's automated-fix mode. The bar, every criterion:
+#
+#   state       the PR is OPEN
+#   checks      at least one check registered, none failed, none pending
+#               (SUCCESS, NEUTRAL and SKIPPED pass)
+#   verdict     the newest PR comment line starting `Reviewed-Head: <sha>`
+#               names the current head and says `blocking: 0` — the line
+#               pr-review's summary ends with
+#   threads     every review thread is resolved or has a reply
+#   mergeable   GitHub reports MERGEABLE (UNKNOWN is not taken as clean)
+#   up_to_date  the head is 0 commits behind its base branch
+#
+# A snapshot, not a wait: caliper-wait-pr is the CI wait. When no check has
+# registered and the head commit is older than --no-checks-min (default 10),
+# the JSON carries a hint that GitHub likely dropped the push event, and how
+# to re-trigger it. --allow-no-checks is for repos with no CI at all.
+#
+# Prints one JSON object on stdout; when not at the bar, one reason line on
+# stderr naming the failing criteria. Exit: 0 at bar, 1 not at bar, 64 usage
+# error or a gh read failure. Reads at most 100 comments and 100 review
+# threads (the newest comments, the first threads).
+
+usage() {
+  echo "Usage: caliper-pr-at-bar <pr> [--allow-no-checks] [--no-checks-min N]" >&2
+  exit 64
+}
+
+PR="" ALLOW_NO_CHECKS=false NO_CHECKS_MIN=10
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --allow-no-checks) ALLOW_NO_CHECKS=true; shift ;;
+    --no-checks-min) [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]] || usage; NO_CHECKS_MIN=$2; shift 2 ;;
+    -*) usage ;;
+    *) [[ -z "$PR" && "$1" =~ ^[0-9]+$ ]] || usage; PR="$1"; shift ;;
+  esac
+done
+[[ -n "$PR" ]] || usage
+
+fail_read() { echo "caliper-pr-at-bar: could not read PR #$PR ($1)" >&2; exit 64; }
+
+VIEW="$(gh pr view "$PR" --json state,headRefOid,baseRefName,mergeable,statusCheckRollup,comments,commits)" \
+  || fail_read "gh pr view"
+
+# {owner}/{repo} are gh's own placeholders, filled from the current repo.
+THREADS_QUERY='query($owner: String!, $name: String!, $n: Int!) {
+  repository(owner: $owner, name: $name) { pullRequest(number: $n) {
+    reviewThreads(first: 100) { nodes { isResolved comments { totalCount } } }
+  } } }'
+THREADS="$(gh api graphql -F owner='{owner}' -F name='{repo}' -F n="$PR" -f query="$THREADS_QUERY")" \
+  || fail_read "review threads"
+
+HEAD="$(jq -r '.headRefOid' <<<"$VIEW")"
+BASE="$(jq -r '.baseRefName' <<<"$VIEW")"
+BEHIND="$(gh api "repos/{owner}/{repo}/compare/${BASE}...${HEAD}" --jq '.behind_by')" \
+  || fail_read "compare with base"
+
+RESULT="$(jq -n \
+  --argjson pr "$PR" \
+  --argjson view "$VIEW" \
+  --argjson threads "$THREADS" \
+  --argjson behind "$BEHIND" \
+  --argjson allow_no_checks "$ALLOW_NO_CHECKS" \
+  --argjson no_checks_min "$NO_CHECKS_MIN" '
+  def bucket:
+    if .__typename == "StatusContext" then
+      (if .state == "SUCCESS" then "pass"
+       elif .state == "PENDING" or .state == "EXPECTED" then "pending"
+       else "fail" end)
+    elif .status != "COMPLETED" then "pending"
+    elif (.conclusion | IN("SUCCESS", "NEUTRAL", "SKIPPED")) then "pass"
+    else "fail" end;
+  def cname: .name // .context;
+
+  $view.headRefOid as $head
+  | ($view.statusCheckRollup // []) as $rollup
+  | ($rollup | map(select(bucket == "pass")) | length) as $passed
+  | ($rollup | map(select(bucket == "pending")) | length) as $pending
+  | ($rollup | map(select(bucket == "fail"))) as $failed
+  | ($rollup | length) as $total
+  | (($view.commits // []) | last | .committedDate // null) as $committed
+  | (if $committed then (now - ($committed | fromdateiso8601)) / 60 else 0 end) as $age_min
+
+  # Newest comment carrying a verdict line; within it, the last such line.
+  | ([$view.comments[]?.body
+      | [splits("\r?\n")
+         | capture("^Reviewed-Head: (?<sha>[0-9a-f]{40})\\b.*\\bblocking: (?<blocking>[0-9]+)")
+           + {line: .}]
+      | select(length > 0) | last] | last) as $v
+  | ($threads.data.repository.pullRequest.reviewThreads.nodes // []) as $tn
+  | ($tn | map(select(.isResolved or .comments.totalCount >= 2)) | length) as $answered
+
+  | {
+      state: {value: $view.state, ok: ($view.state == "OPEN")},
+      checks: {
+        passed: $passed, pending: $pending, failed: ($failed | length), total: $total,
+        failed_names: ($failed | map(cname)),
+        ok: (($total > 0 or $allow_no_checks) and ($failed | length) == 0 and $pending == 0)
+      },
+      verdict: {
+        line: ($v.line // null),
+        head: ($v.sha // null),
+        blocking: (if $v then ($v.blocking | tonumber) else null end),
+        names_head: (($v.sha // "") == $head),
+        ok: ($v != null and $v.sha == $head and ($v.blocking | tonumber) == 0)
+      },
+      threads: {answered: $answered, total: ($tn | length), ok: ($answered == ($tn | length))},
+      mergeable: {value: $view.mergeable, ok: ($view.mergeable == "MERGEABLE")},
+      up_to_date: {behind: $behind, ok: ($behind == 0)}
+    } as $c
+  | ["state", "checks", "verdict", "threads", "mergeable", "up_to_date"]
+    | map(select($c[.].ok | not)) as $failing
+  | {pr: $pr, head: $head, at_bar: ($failing | length == 0), failing: $failing} + $c
+  + (if $total == 0 and ($allow_no_checks | not) and $age_min >= $no_checks_min then
+       {hint: "no checks registered for the head after \($age_min | floor) min: GitHub likely dropped the push event. Re-trigger with an empty commit (git commit --allow-empty -m \"ci: re-trigger\") and push."}
+     else {} end)
+')"
+
+echo "$RESULT"
+if [[ "$(jq -r '.at_bar' <<<"$RESULT")" == true ]]; then
+  exit 0
+fi
+echo "not at bar: $(jq -r '.failing | join(", ")' <<<"$RESULT")" >&2
+exit 1
