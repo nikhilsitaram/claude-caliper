@@ -102,12 +102,10 @@ At most two dispatches. Residual findings fall to the next gate (the final revie
 
 Skip the integration branch and phase worktrees; work in the feature worktree. Below, `--check-workflow` means `validate-plan --check-workflow "$PLAN_JSON"`.
 
-1. If phase A's status already starts with "Complete", a stopped run got past review: skip to step 3. Otherwise run Prepare Phase steps 2–6, then dispatch tasks, process completions and wrap up with the same dispatch protocol.
-2. Dispatch implementation-review over `PHASE_BASE_SHA..HEAD`; run the Review Loop Protocol (scope: `phase-a`).
-3. `validate-plan --check-review "$PLAN_JSON" --type impl-review --scope phase-a`
-4. `validate-plan --criteria "$PLAN_JSON" --plan`
-5. `validate-plan --update-status "$PLAN_JSON" --plan --status done`
-6. Route on workflow:
+1. If phase A's status already starts with "Complete", a stopped run got past its wrap-up: skip to step 2. Otherwise run Prepare Phase steps 2–6, dispatch and complete tasks with the same dispatch protocol, then Phase Wrap-Up steps 1–6 (scope `phase-a`; step 5 has nothing downstream to hand off). Step 6 marks phase A Complete, which `--plan --status done` requires.
+2. `validate-plan --criteria "$PLAN_JSON" --plan`
+3. `validate-plan --update-status "$PLAN_JSON" --plan --status done`
+4. Route on workflow:
    - `"orchestrate"`: `--check-workflow`, report the worktree path, stop
    - `"pr-create"`: pr-create (targets main), `--check-workflow`, stop
    - `"pr-ready"`: pr-create (targets main), then pr-review --automated-fix, `--check-workflow`, stop; the PR is left at the bar or stuck, unmerged
