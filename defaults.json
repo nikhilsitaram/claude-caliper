@@ -157,7 +157,7 @@
   },
   "coordinate_max_panes": {
     "type": "int",
-    "default": 3,
+    "default": 10,
     "description": "Most handoff panes the coordinate skill runs at once",
     "used_by": [
       "coordinate"
