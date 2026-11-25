@@ -1,6 +1,6 @@
 # Parallel Phases
 
-Read this at Setup when the plan has sibling phases, when `validate-plan --ready-phases` lists more than one phase, when a phase is waiting on a sibling's merge, or when step 7a sends a phase to Catch Up. Example: A has `depends_on: []`, while B and C each have `["A"]`. Once A merges, B and C run side by side. Each still gets the full per-phase flow (Prepare Phase, dispatch, Phase Wrap-Up). This file covers only what changes when two of those flows run at once.
+Read this at Setup when the plan has sibling phases, when `validate-plan --ready-phases` lists more than one phase, when a phase is waiting on a sibling's merge, before dispatching a phase's review while it has siblings, or when step 7a sends a phase to Catch Up. Example: A has `depends_on: []`, while B and C each have `["A"]`. Once A merges, B and C run side by side. Each still gets the full per-phase flow (Prepare Phase, dispatch, Phase Wrap-Up). This file covers only what changes when two of those flows run at once.
 
 ## Confirm Siblings
 
@@ -20,7 +20,15 @@ Keep one map of agent → (task ID, phase letter). The dispatch protocol derives
 
 ## Reviews
 
-Each phase gets its own implementation-review over its own `PHASE_BASE_SHA..HEAD`. A finding of a class that a sibling phase could share (the same pattern, the same seam, the same CI matrix gap) is worth one grep on the sibling's branch before you dismiss it as local. The final cross-phase review is the backstop.
+Each phase gets its own implementation-review over its own `PHASE_BASE_SHA..HEAD`. Siblings finish review at different times, so sharing runs one way. When you dispatch a phase's review, for each sibling (merged ones too) whose `$PLAN_DIR/phase-<letter>/completion.md` has a `### Implementation Review Changes` section, add that file's path to the reviewer's `{PHASE_CONTEXT}` and ask it to check this diff for the same classes (the same pattern, the same seam, the same CI matrix gap). For an unmerged sibling, also ask it to check that sibling's branch (`git diff integrate/<feature>...phase-<letter>`, three dots, so a rebased sibling shows only its own work) and to prefix those hits `phase-<letter>:`. In reverse, a sibling whose review was already dispatched (running or finished), or that merged, won't see this phase's shareable-class findings, so grep its code (`phase-<letter>`, or `integrate/<feature>` once merged) before dismissing one as local.
+
+A hit on a sibling is a fix. It lies outside this phase's diff, so it doesn't count toward this review's `remaining`. Note it as one line in this phase's `completion.md`, naming its route, so a resume doesn't lose it. Route it by the sibling's state:
+
+- **Past review, unpushed:** from the sibling's worktree (own Bash call), fix it on that branch, then re-run `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}` with the sibling's letter. Then `cd` back.
+- **PR open or merged:** this phase reaches Catch Up anyway, so fix it there after the rebase. If the sibling's code is already in this phase's base, fix it now.
+- **Still in review:** hand it to that review's triage.
+
+The final cross-phase review is the backstop.
 
 ## Merge Order
 
@@ -35,5 +43,5 @@ After every merge, also re-run `--ready-phases`. Phases whose dependencies just 
 Step 7a sends a phase here whenever `integrate/<feature>` isn't an ancestor of its HEAD. That covers a phase that waited, one that finished after a sibling had already merged, and one resumed as Complete-but-unmerged. Its review and criteria ran against the old base, so re-check them against the new one:
 
 1. From the phase worktree: `git rebase integrate/<feature>`. Rebase, not merge: pr-create's own `git rebase origin/<BASE>` would flatten a merge commit and replay its conflicts. After this it's a no-op, since 7d (or reconcile, on a resume) already fast-forwarded local integrate to the remote tip. The branch is still unpushed, because a PR opens only once every earlier phase has merged and the base can't move after that, so no force-push is needed. Resolve any conflict the way pr-create does. `--schema`'s `sibling_fileset_overlap` warning predicts where it will be. If resolving it needs a judgment call about the code, `git rebase --abort` and surface it to the user with the worktree path.
-2. Re-run the phase criteria: `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}`. A failure means the sibling's merged work broke this phase. Treat it as a review finding: fix it, then re-run.
+2. Fix any sibling hit this phase's `completion.md` routes to Catch Up (see Reviews), then re-run the phase criteria: `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}`. A failure means the sibling's merged work broke this phase. Treat it as a review finding: fix it, then re-run.
 3. Return to step 7a and open the PR. pr-create applies the repo's own PR conventions, such as a version bump, against the new merge-base.

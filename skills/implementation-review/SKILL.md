@@ -65,7 +65,7 @@ Fill the template variables:
 | `{FEATURE_SUMMARY}` | What the feature does (1-2 sentences) | What the branch does — infer from commits/diff, or ask the user |
 | `{TASK_LIST}` | `jq '.phases[N].tasks[] \| .id + ": " + .name'` | Omit — the prompt drops this section |
 | `{PLAN_DIR}` / `{PHASE_DIR}` | Plan and phase directory paths | Omit — the prompt drops these |
-| `{PHASE_CONTEXT}` | Phase letter/name + downstream expectations (empty for final/single-phase) | Empty |
+| `{PHASE_CONTEXT}` | Phase letter/name + downstream expectations, plus sibling phases' review changes when siblings ran in parallel (orchestrate `parallel-phases.md` Reviews). Empty for final/single-phase | Empty |
 | `{DESIGN_DOC_PATH}` | Path from plan frontmatter (or "None") | "None" — disables success-criteria category 8 |
 
 The reviewer's first 7 categories (cross-component consistency, duplication, dead code, docs, errors, integration gaps, test coverage) run identically in both modes against the diff. Only category 8 (success-criteria fulfillment) and plan-doc bookkeeping are caliper-only.
