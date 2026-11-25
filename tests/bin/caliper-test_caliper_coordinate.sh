@@ -38,10 +38,9 @@ check_eq() {
 }
 run() {
   set +e
-  OUT="$("$SCRIPT" --ledger "$L" "$@" 2>"$BASE/err")"
+  OUT="$("$SCRIPT" --ledger "$L" "$@" 2>/dev/null)"
   RC=$?
   set -e
-  ERR="$(cat "$BASE/err")"
 }
 item() { jq -r --arg s "$1" ".items[] | select(.slug == \$s) | $2" "$L"; }
 
@@ -87,7 +86,7 @@ check_eq "ready: dep merged -> fix-b ready, fix-c still waits on pr:900" "fix-b"
 
 echo MERGED > "$FAKE/pr-900"
 run ready
-check_eq "ready: outside PR merged -> both ready, in add order" "fix-b fix-c" "$(echo $OUT)"
+check_eq "ready: outside PR merged -> both ready, in add order" "fix-b fix-c" "$(tr '\n' ' ' <<<"$OUT" | sed 's/ $//')"
 
 run set fix-b --hold "touches publish path"
 check_eq "set --hold: held" true "$(item fix-b .held)"
@@ -112,7 +111,7 @@ run set fix-b --status running
 run set fix-c --status at-bar
 run active
 check_eq "active: counts running, at-bar and merged (pane still open)" 3 "$OUT"
-run set fix-a --status done
+run set fix-a --status "done"
 run active
 check_eq "active: done items don't count" 2 "$OUT"
 
@@ -133,7 +132,7 @@ check_eq "status: table shows the PR" yes "$(grep -q '#77' <<<"$OUT" && echo yes
 
 echo CLOSED > "$FAKE/pr-55"
 run status
-check_eq "status: done items are left alone" done "$(item fix-a .status)"
+check_eq "status: done items are left alone" "done" "$(item fix-a .status)"
 
 # --- errors ---
 run frobnicate

@@ -49,6 +49,7 @@ VIEW="$(gh pr view "$PR" --json state,headRefOid,baseRefName,mergeable,statusChe
   || fail_read "gh pr view"
 
 # {owner}/{repo} are gh's own placeholders, filled from the current repo.
+# shellcheck disable=SC2016  # $owner etc. are GraphQL variables
 THREADS_QUERY='query($owner: String!, $name: String!, $n: Int!) {
   repository(owner: $owner, name: $name) { pullRequest(number: $n) {
     reviewThreads(first: 100) { nodes { isResolved comments { totalCount } } }

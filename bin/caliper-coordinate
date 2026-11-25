@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016  # jq filters are single-quoted on purpose: their $vars are jq variables
 set -euo pipefail
 
 # caliper-coordinate [--ledger PATH] <command> ...
