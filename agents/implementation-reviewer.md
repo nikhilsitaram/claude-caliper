@@ -117,7 +117,7 @@ Rules for the summary block:
 - `issues_found`: total count (including low/informational)
 - `severity`: counts per level (critical, high, medium, low)
 - `issues[]`: one entry per issue with id (sequential integer), severity, category (from cross-task category list), file (path:line or "N/A"), problem, fix
-- `non_dismissible` (optional bool): set `true` only for findings the non-dismissibility rule applies to (currently: category 7 "Inadequate integration test coverage" when both seam sides are modified). The orchestrator's Review Loop treats dismissal of these as an invalid review and re-dispatches.
+- `non_dismissible` (optional bool): set `true` only for findings the non-dismissibility rule applies to (currently: category 7 "Inadequate integration test coverage" when both seam sides are modified). The lead's Review Loop must fix these; dismissing one invalidates the review record.
 - If zero issues: `{"issues_found": 0, "severity": {"critical": 0, "high": 0, "medium": 0, "low": 0}, "verdict": "pass", "issues": []}`
 - This block must be the LAST fenced code block in your response -- the controller uses the last `json review-summary` block if multiple appear
 
