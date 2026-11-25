@@ -244,6 +244,24 @@ run add w --after z --soft-after y
 check_eq "cycle: an acyclic diamond is accepted" 0 "$RC"
 run set x --after pr:5
 check_eq "cycle: pr:N deps aren't followed" 0 "$RC"
+run set y --status merged
+run set x --soft-after y
+check_eq "cycle: a merged item waits on nothing, so no cycle runs through it" 0 "$RC"
+
+# A ledger written before the cycle check can already hold one.
+L="$BASE/oldcycle/coordinate.json"
+mkdir -p "$(dirname "$L")"
+jq -n '{version: 1, items: [
+  {slug: "a", issue: null, status: "queued", held: false, hold_reasons: [], after: ["b"],
+   pane: {name: null, session_id: null}, pr: {number: null, head: null},
+   created_at: "t", updated_at: "t", merged_at: null},
+  {slug: "b", issue: null, status: "queued", held: false, hold_reasons: [], after: ["a"],
+   pane: {name: null, session_id: null}, pr: {number: null, head: null},
+   created_at: "t", updated_at: "t", merged_at: null}]}' > "$L"
+run set a --hold "stuck in a cycle"
+check_eq "cycle: an existing cycle doesn't block a non-dependency set (--hold)" 0 "$RC"
+run set a --status dropped
+check_eq "cycle: an existing cycle doesn't block dropping an item in it" "0 dropped" "$RC $(item a .status)"
 check_eq "add: the --after error keeps its pr:N hint" yes \
   "$(ERR="$("$SCRIPT" --ledger "$L" add q --after nope 2>&1)"; grep -q '(or pr:N)' <<<"$ERR" && echo yes || echo no)"
 

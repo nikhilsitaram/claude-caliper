@@ -94,7 +94,7 @@ At each event, also run `check-usage.sh 99`. On exit 10:
 2. Queue your own resume the way usage-guard's `--queue` does: run `./skills/queue/scripts/compute-fire.sh`, then `CronCreate` with that `CRON`, `recurring: false`, `durable: true`, and a prompt to `cd <main checkout>` and run `/coordinate --resume`. The ledger carries the run, so the prompt only needs the directory and any decision you're waiting on from the user.
 3. Report.
 
-On resume, first check that you are the coordinator, since a durable job fires in whatever session is open. If your iTerm2 id (`$ITERM_SESSION_ID` after the colon) is an item's `pane.session_id`, you are a pane: don't act on the prompt, but forward it with `SendMessage` to the coordinator named in your brief, or tell the user if that session isn't listed. Otherwise, read `caliper-coordinate status`. If you aren't the session that sent the briefs, tell every open pane "coordinator moved: reply to <your session name>". Tell each running pane to continue, then run the spawn loop.
+On resume, first check that you are the coordinator, since a durable job fires in whatever session is open. If your iTerm2 id (`$ITERM_SESSION_ID` after the colon) is an item's `pane.session_id`, you are a pane: don't act on the prompt, but forward it with `SendMessage` to the coordinator named in your brief, or tell the user if that session isn't listed. Otherwise, read `caliper-coordinate status`. If you aren't the session that sent the briefs, tell every open pane "coordinator moved: reply to <your session name>". Tell each running pane to continue, re-send S4's message to any whose `soft_after` items have all merged (a repeat is harmless; a missed one strands it), then run the spawn loop.
 
 ## Status
 

@@ -103,9 +103,11 @@ check_deps() {  # <ledger-json> <slug>: refuse a slug both hard and soft, and an
   both="$(jq -r --arg s "$2" '.items[] | select(.slug == $s)
     | (.soft_after // []) as $soft | [.after[] | select(IN($soft[]))] | join(",")' <<<"$1")"
   [[ -z "$both" ]] || die "$2: '$both' can't be both --after and --soft-after"
-  # Hard or soft, a cycle deadlocks: each end waits for the other to merge.
+  # Hard or soft, a cycle deadlocks: each end waits for the other to merge. A
+  # merged, done or dropped item waits on nothing, so the walk stops there.
   jq -e --arg s "$2" '. as $l
     | def deps($x): [$l.items[] | select(.slug == $x)
+        | select(.status | IN("merged", "done", "dropped") | not)
         | (.after[] | select(startswith("pr:") | not)), (.soft_after // [])[]];
     {seen: [], todo: deps($s)}
     | until(.todo | length == 0;
@@ -155,7 +157,7 @@ case "$CMD" in
     SLUG="${1:-}"; [[ -n "$SLUG" ]] || usage "set needs a slug"; shift
     J="$(load)"
     has_item "$J" "$SLUG" || die "no item '$SLUG'"
-    F='.'
+    F='.' DEPS_EDITED=""
     ARGS=(--arg s "$SLUG" --arg t "$(now)")
     while [[ $# -gt 0 ]]; do
       [[ "$1" == --unhold || $# -ge 2 ]] || usage "$1 needs a value"
@@ -163,8 +165,8 @@ case "$CMD" in
         --status) valid_status "$2"; ARGS+=(--arg st "$2")
                   F+=' | .status = $st | if $st == "merged" and .merged_at == null then .merged_at = $t else . end' ;;
         --issue) valid_int --issue "$2"; ARGS+=(--argjson iss "$2"); F+=' | .issue = $iss' ;;
-        --after) ARGS+=(--argjson af "$(after_json "$J" "$SLUG" "$2")"); F+=' | .after = $af' ;;
-        --soft-after) ARGS+=(--argjson saf "$(after_json "$J" "$SLUG" "$2" --soft-after)"); F+=' | .soft_after = $saf' ;;
+        --after) DEPS_EDITED=1; ARGS+=(--argjson af "$(after_json "$J" "$SLUG" "$2")"); F+=' | .after = $af' ;;
+        --soft-after) DEPS_EDITED=1; ARGS+=(--argjson saf "$(after_json "$J" "$SLUG" "$2" --soft-after)"); F+=' | .soft_after = $saf' ;;
         --pane-name) ARGS+=(--arg pn "$2"); F+=' | .pane.name = $pn' ;;
         --session-id) ARGS+=(--arg sid "$2"); F+=' | .pane.session_id = $sid' ;;
         --pr) valid_int --pr "$2"; ARGS+=(--argjson prn "$2"); F+=' | .pr.number = $prn' ;;
@@ -176,7 +178,9 @@ case "$CMD" in
       shift 2
     done
     J="$(jq "${ARGS[@]}" "(.items[] | select(.slug == \$s)) |= ($F | .updated_at = \$t)" <<<"$J")"
-    check_deps "$J" "$SLUG"
+    # Only a dependency edit is checked, so a ledger holding a cycle from before
+    # the check existed can still drop or hold its items.
+    [[ -z "$DEPS_EDITED" ]] || check_deps "$J" "$SLUG"
     save "$J"
     ;;
 

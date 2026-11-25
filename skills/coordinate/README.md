@@ -2,7 +2,7 @@
 
 One coordinator session works a queue of issues through parallel `/handoff` panes, one PR per item. It does the following:
 - triages scope with you;
-- starts panes as dependencies merge and the usage window allows;
+- starts panes as hard dependencies merge (soft ones start at once) and the usage window allows;
 - re-checks every PR against the merge bar itself (`caliper-pr-at-bar`);
 - merges in the configured mode;
 - tells open panes when the base moves;
