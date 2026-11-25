@@ -29,13 +29,13 @@ Check tool availability before running Python install commands:
 
 ```bash
 if command -v uv >/dev/null 2>&1; then
-  uv venv && uv pip install -e '.[dev]'
+  { [ -d .venv ] || uv venv; } && uv pip install -e '.[dev]'
 else
-  python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+  { [ -d .venv ] || python3 -m venv .venv; } && .venv/bin/pip install -e '.[dev]'
 fi
 ```
 
-For `requirements.txt`, replace `-e '.[dev]'` with `-r requirements.txt`.
+For `requirements.txt`, replace `-e '.[dev]'` with `-r requirements.txt`. The `.venv` is created once, so with both manifests the second install adds to the first instead of recreating the environment.
 
 ## Failure Handling
 
