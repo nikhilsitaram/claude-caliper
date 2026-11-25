@@ -47,7 +47,12 @@ CWD_REPO=$(mktemp -d)
 git -C "$CWD_REPO" init -b "$CWD_BRANCH" >/dev/null 2>&1
 git -C "$CWD_REPO" -c user.email="test@test.com" -c user.name="Test" commit --allow-empty -m "init" >/dev/null 2>&1
 from_cwd_repo() { (cd "$CWD_REPO" && "$@"); }
-trap 'rm -rf "$TMPDIR" "$MOCK_BIN" "$CWD_REPO"' EXIT
+CWD_INTEGRATE_BRANCH="integrate/cwd-checkout"
+CWD_INTEGRATE_REPO=$(mktemp -d)
+git -C "$CWD_INTEGRATE_REPO" init -b "$CWD_INTEGRATE_BRANCH" >/dev/null 2>&1
+git -C "$CWD_INTEGRATE_REPO" -c user.email="test@test.com" -c user.name="Test" commit --allow-empty -m "init" >/dev/null 2>&1
+from_cwd_integrate_repo() { (cd "$CWD_INTEGRATE_REPO" && "$@"); }
+trap 'rm -rf "$TMPDIR" "$MOCK_BIN" "$CWD_REPO" "$CWD_INTEGRATE_REPO"' EXIT
 
 setup_plan_dir() {
   rm -rf "${TMPDIR:?}/"*
@@ -323,7 +328,7 @@ echo "Test 11c: single-phase pr-merge with --branch names that branch when unmer
 GH_MOCK_ONLY_BRANCH="$GONE_BRANCH" GH_MOCK_PR_COUNT=1 GH_MOCK_MERGED_COUNT=0 assert_fail "--branch used in the merged check" "PR not merged for $GONE_BRANCH" \
   from_cwd_repo "$VALIDATE" --check-workflow "$TMPDIR/plan.json" --branch "$GONE_BRANCH"
 
-echo "Test 11d: multi-phase pr-merge without --branch fails off the integration branch"
+echo "Test 11d: multi-phase pr-merge without --branch or integration_branch checks the CWD branch"
 setup_plan_dir
 write_two_phase_plan "pr-merge" "Complete"
 printf '%s' "$MULTI_REVIEWS" > "$TMPDIR/reviews.json"
@@ -351,6 +356,37 @@ assert_fail "--branch with an empty value exits non-zero" "--branch requires a b
 echo "Test 11h: --branch is refused outside --check-workflow"
 assert_fail "--branch with --consistency exits non-zero" "--branch only applies to --check-workflow" \
   "$VALIDATE" --consistency "$TMPDIR/plan.json" --branch "$GONE_BRANCH"
+
+echo ""
+echo "=== integration_branch fallback when --branch is omitted ==="
+
+set_integration_branch() {
+  jq --arg ib "$1" '.integration_branch = $ib' "$TMPDIR/plan.json" > "$TMPDIR/plan.json.tmp" && mv "$TMPDIR/plan.json.tmp" "$TMPDIR/plan.json"
+}
+
+echo "Test 12a: off an integrate/* checkout, the plan's integration_branch is checked"
+setup_plan_dir
+write_two_phase_plan "pr-merge" "Complete"
+printf '%s' "$MULTI_REVIEWS" > "$TMPDIR/reviews.json"
+set_integration_branch "$GONE_INTEGRATE"
+GH_MOCK_ONLY_BRANCH="$GONE_INTEGRATE" GH_MOCK_PR_COUNT=1 assert_pass "falls back to integration_branch from the default branch" \
+  from_cwd_repo "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo "Test 12b: the fallback runs the integrate/* phase-PR checks"
+GH_MOCK_PR_COUNT=0 assert_fail "phase PR check uses integration_branch as base" "no PR found for phase-a → $GONE_INTEGRATE" \
+  from_cwd_repo "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo "Test 12c: an integrate/* CWD branch wins over integration_branch"
+GH_MOCK_ONLY_BRANCH="$CWD_INTEGRATE_BRANCH" GH_MOCK_PR_COUNT=1 assert_pass "integrate/* CWD branch is checked" \
+  from_cwd_integrate_repo "$VALIDATE" --check-workflow "$TMPDIR/plan.json"
+
+echo "Test 12d: --branch matching integration_branch passes"
+GH_MOCK_ONLY_BRANCH="$GONE_INTEGRATE" GH_MOCK_PR_COUNT=1 assert_pass "--branch equal to integration_branch" \
+  from_cwd_repo "$VALIDATE" --check-workflow "$TMPDIR/plan.json" --branch "$GONE_INTEGRATE"
+
+echo "Test 12e: --branch contradicting integration_branch is refused"
+GH_MOCK_PR_COUNT=1 assert_fail "--branch differs from integration_branch" "contradicts plan.json's integration_branch '$GONE_INTEGRATE'" \
+  from_cwd_repo "$VALIDATE" --check-workflow "$TMPDIR/plan.json" --branch "$GONE_BRANCH"
 
 echo ""
 echo "=== error handling ==="

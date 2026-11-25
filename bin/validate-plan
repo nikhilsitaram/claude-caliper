@@ -1369,6 +1369,13 @@ do_check_workflow() {
     exit 1
   fi
 
+  local integration_branch
+  integration_branch=$(echo "$json" | jq -r '(.integration_branch | strings) // empty')
+  if [[ -n "$branch_override" && -n "$integration_branch" && "$branch_override" != "$integration_branch" ]]; then
+    echo "ERROR: --branch '$branch_override' contradicts plan.json's integration_branch '$integration_branch'" >&2
+    exit 2
+  fi
+
   local gate_errors=()
 
   local dr_result
@@ -1456,11 +1463,15 @@ do_check_workflow() {
     fi
   }
 
-  # --branch: pr-merge's cleanup leaves the CWD on the default branch, so the
-  # caller names the merged branch instead (gh issue #338).
+  # pr-merge's cleanup leaves the CWD on the default branch, so the CWD alone
+  # can't name the merged branch (gh issue #338). Resolution order: --branch;
+  # an integrate/* CWD branch; the plan's integration_branch; the CWD branch.
   local current_branch="$branch_override"
   if [[ -z "$current_branch" ]]; then
     current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    if [[ "$current_branch" != integrate/* && -n "$integration_branch" ]]; then
+      current_branch="$integration_branch"
+    fi
   fi
 
   if [[ "$current_branch" == integrate/* ]]; then
