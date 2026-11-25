@@ -69,7 +69,7 @@ Follow `./dispatch-subagents.md`: dispatch only what `validate-plan --ready "$PL
 After all tasks complete and their branches merge:
 1. Dispatch implementation-review over `PHASE_BASE_SHA..HEAD` with `model: "$IMPL_REVIEWER_MODEL"`; run the Review Loop Protocol (scope: `phase-{letter_lower}`).
 2. `validate-plan --check-review "$PLAN_JSON" --type impl-review --scope phase-{letter_lower}`
-3. Append the review changes to `${PHASE_DIR}/completion.md` (`cat >>`).
+3. Append the review changes to `${PHASE_DIR}/completion.md` (`cat >>`) under a `### Implementation Review Changes` heading, which `./parallel-phases.md` Reviews looks for.
 4. `validate-plan --criteria "$PLAN_JSON" --phase {LETTER}`
 5. **Record cross-phase handoff notes.** For each future-phase task whose `depends_on` names a task from this phase, record the shipped interface (names, paths, signatures, usage), including review-driven changes. It writes plan.json and re-renders plan.md:
 
