@@ -79,17 +79,20 @@ fi
 
 FORK_SHA="$(git -C "$PARENT" rev-parse HEAD)"
 CREATED=0
-# Undo only what this run made. --force is safe: the worktree is seconds old and
-# holds only the seeded memory copy (untracked where .claude/ isn't ignored,
-# which a bare remove refuses). The branch delete names FORK_SHA as the expected
-# old value, so it can't drop commits.
+# Undo only what this run made. The worktree is seconds old and holds only the
+# seeded memory copy, which clear-worktree-scratch removes (it's untracked where
+# .claude/ isn't ignored, and would block the bare remove). The branch delete
+# names FORK_SHA as the expected old value, so it can't drop commits. If either
+# step fails the task is still `pending` with a branch — Resuming settles it.
 rollback() {
   (( CREATED )) || return 0
-  git -C "$PARENT" worktree remove --force "$TASK_WORKTREE" >&2 \
-    || echo "ERROR: rollback: couldn't remove $TASK_WORKTREE — remove it by hand" >&2
-  git -C "$PARENT" update-ref -d "refs/heads/$BRANCH" "$FORK_SHA" \
-    || echo "ERROR: rollback: couldn't delete branch $BRANCH — delete it by hand" >&2
-  echo "Rolled back $TASK_WORKTREE; task $TASK_ID left pending" >&2
+  if "$BIN_DIR/clear-worktree-scratch" "$TASK_WORKTREE" >&2 \
+      && git -C "$PARENT" worktree remove "$TASK_WORKTREE" >&2 \
+      && git -C "$PARENT" update-ref -d "refs/heads/$BRANCH" "$FORK_SHA"; then
+    echo "Rolled back $TASK_WORKTREE; task $TASK_ID left pending" >&2
+  else
+    echo "ERROR: rollback incomplete: $TASK_WORKTREE / branch $BRANCH remain; task $TASK_ID is pending — settle per Resuming In-Flight Tasks" >&2
+  fi
 }
 trap rollback EXIT
 

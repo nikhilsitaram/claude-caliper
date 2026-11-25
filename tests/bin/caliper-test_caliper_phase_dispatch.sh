@@ -73,7 +73,8 @@ run() {
 }
 
 remove_task_wt() {  # <parent> <branch>
-  g -C "$1" worktree remove --force "$1/.claude/worktrees/$2"
+  "$REPO_ROOT/bin/clear-worktree-scratch" "$1/.claude/worktrees/$2" >/dev/null
+  g -C "$1" worktree remove "$1/.claude/worktrees/$2"
   g -C "$1" branch -D -q "$2"
 }
 
@@ -192,7 +193,8 @@ echo "=== a failed seed rolls back before the claim ==="
 single_plan
 FAKE_BIN="$BASE/fakebin"
 mkdir -p "$FAKE_BIN"
-cp "$SCRIPT" "$REPO_ROOT/bin/validate-plan" "$FAKE_BIN/"
+cp "$SCRIPT" "$REPO_ROOT/bin/validate-plan" "$REPO_ROOT/bin/clear-worktree-scratch" \
+  "$REPO_ROOT/bin/sync-agent-memory" "$REPO_ROOT/bin/caliper-main-root" "$FAKE_BIN/"
 printf '#!/usr/bin/env bash\necho "seed boom" >&2\nexit 1\n' > "$FAKE_BIN/seed-agent-memory"
 chmod +x "$FAKE_BIN"/*
 RC=0
