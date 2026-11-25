@@ -1,6 +1,11 @@
 # Misplaced-Commit Recovery
 
-Read this when Process Completions step 2 finds a misplaced commit, a count of 0, and no task merges listed: the implementer committed on the parent branch instead of its task branch. Three stages: capture, verify, rewind. Each is its own Bash call, so carry the printed values in as literals: `<PRE_TASK_SHA>` and `<PARENT_BRANCH>` from step 2, `<WRONG_HEAD>` from Stage 1. **If any stage fails, stop and surface it to the user.**
+Read this when Process Completions step 2 finds a misplaced commit, a count of 0, and no task merges listed: the implementer committed on the parent branch instead of its task branch. Three stages: capture, verify, rewind. Each is its own Bash call, so carry the printed values in as literals: `<PRE_TASK_SHA>` and `<PARENT_BRANCH>` from step 2, `<WRONG_HEAD>` from Stage 1. Start every call by re-deriving both paths, as Process Completions does: an unset `$TASK_WORKTREE` makes `git -C ""` run in the current directory, so Stage 1 would no-op on the parent, Stage 2 would pass, and Stage 3 would rewind the commit off every branch. **If any stage fails, stop and surface it to the user.**
+
+```bash
+PARENT_WORKTREE=<PARENT_WORKTREE>
+TASK_WORKTREE="$PARENT_WORKTREE/.claude/worktrees/{TASK_ID_LOWER}"
+```
 
 **Stage 1: capture the misplaced commit on the task branch.** The count of 0 means the task tip is an ancestor of parent HEAD, so a fast-forward should succeed; if it fails, a branch moved after that check. Print `<WRONG_HEAD>`, then fast-forward the task branch to it:
 

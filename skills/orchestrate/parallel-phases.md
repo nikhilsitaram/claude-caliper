@@ -8,7 +8,7 @@ At Setup, ask only if the plan wasn't drafted and plan-reviewed earlier in this 
 
 ## Start Each Ready Phase
 
-Run Prepare Phase for each listed phase in turn, from the integration worktree. Prepare Phase step 1's `--check-base` passes only on the integration branch, so between phases `cd` back with an absolute path: `cd "$MAIN_ROOT/.claude/worktrees/<feature>"`. Each phase gets its own nested worktree at `.claude/worktrees/phase-<letter>` and its own `--set-base --phase`, all forked from the same integration tip.
+Run Prepare Phase for each listed phase in turn, from the integration worktree. Prepare Phase step 1's `--check-base` checks against the integration branch, so between phases `cd` back with an absolute path: `cd "$MAIN_ROOT/.claude/worktrees/<feature>"`. Each phase gets its own nested worktree at `.claude/worktrees/phase-<letter>` and its own `--set-base --phase`, all forked from the same integration tip.
 
 ## One Dispatch Loop, Many Parents
 

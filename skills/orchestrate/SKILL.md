@@ -50,7 +50,7 @@ Multi-phase only; a single-phase plan goes to Single-Phase Plans. `validate-plan
 
 ### Prepare Phase
 
-1. Enter the phase worktree (multi-phase only; single-phase stays in the feature worktree). First, from the integration worktree root, re-run `validate-plan --check-base "$PLAN_JSON"`, which passes only on `integration_branch`, never on `phase-<letter>`. Then `git worktree prune` and reuse what a stopped run left:
+1. Enter the phase worktree (multi-phase only; single-phase stays in the feature worktree). First, from the integration worktree root, re-run `validate-plan --check-base "$PLAN_JSON"`: it checks the current branch against the plan's `integration_branch`, so it must run before you move to `phase-<letter>`. Then `git worktree prune` and reuse what a stopped run left:
    - A surviving branch (`git rev-parse --verify --quiet refs/heads/phase-<letter>` succeeds) must have forked from this plan: if `git merge-base --is-ancestor <BASE> phase-<letter>` fails, it's stale from another plan; stop and surface it. `<BASE>` is the phase's recorded `base_sha` (`jq -r --arg l {LETTER} '.phases[] | select(.letter == $l) | .base_sha // "HEAD"' "$PLAN_JSON"`) as a literal, not the integration tip, which a sibling's merge can move past the fork point.
    - If `git worktree list --porcelain` lists `branch refs/heads/phase-<letter>`, use that worktree (its `worktree` line is `PHASE_WORKTREE`); else if the branch exists, `git worktree add .claude/worktrees/phase-<letter> phase-<letter>` (no `-b`); else `git worktree add .claude/worktrees/phase-<letter> -b phase-<letter>`. It nests in the integration worktree, `PHASE_WORKTREE="$MAIN_ROOT/.claude/worktrees/<feature>/.claude/worktrees/phase-<letter>"`; a sibling under the main checkout is unusable under isolation.
    - `cd` into it and `seed-agent-memory "$PHASE_WORKTREE"` so the Phase Wrap-Up reviewer reads accumulated memory (synced back at step 7e).
@@ -125,7 +125,7 @@ Skip the integration branch and phase worktrees; work in the feature worktree. B
    - `"pr-create"`: create the final PR, `--check-workflow`, stop
    - `"pr-ready"`: create the final PR, pr-review --automated-fix, `--check-workflow`, stop
 
-Run continuously: only Rule 4 deviations stop the loop, and `pr-review --automated-merge` auto-fixes review feedback.
+Run continuously: beyond the stops named above, only Rule 4 deviations pause the loop, and `pr-review --automated-merge` auto-fixes review feedback.
 
 ## Integration
 
