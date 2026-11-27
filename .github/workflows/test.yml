@@ -58,6 +58,14 @@ jobs:
             bash "$t"
           done
 
+      - name: CI script tests
+        # Glob so new tests/ci/caliper-test_*.sh auto-enroll.
+        run: |
+          for t in tests/ci/caliper-test_*.sh; do
+            echo "== $t =="
+            bash "$t"
+          done
+
       - name: Validate-plan tests
         # Glob so new tests/validate-plan/caliper-test_*.sh auto-enroll — the
         # enumerated list had left most suites for bin/validate-plan out of CI.
@@ -66,3 +74,22 @@ jobs:
             echo "== $t =="
             bash "$t"
           done
+
+  version-bump:
+    # A PR that changes shipped files must declare a version above the base
+    # branch's current tip, or users stay on a stale plugin cache.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # fetch-depth: 0 so origin/<base> and the merge-base are present; the
+      # checked-out ref is the PR merged into the current base tip.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check version bump
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: .github/scripts/check-version-bump "origin/$BASE_REF"
