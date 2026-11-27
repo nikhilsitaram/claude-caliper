@@ -1,6 +1,6 @@
 # Dependency Bootstrap
 
-Install dependencies in a worktree so tests and tools work. Run once per worktree. Task worktrees nest inside it (`.claude/worktrees/<task>`), so they inherit only what resolves by walking up the directory tree, like `node_modules`; a Python `.venv` at the parent root isn't found from a task worktree.
+Install dependencies in a worktree so tests and tools work. Run once per worktree. Task worktrees nest inside it (`.claude/worktrees/<task>`), so they inherit only what resolves by walking up the directory tree, like `node_modules`. A Python `.venv` doesn't carry over, and sharing it would be wrong (its editable install imports the parent's source), so `caliper-phase-dispatch` builds each task worktree its own.
 
 ## Detection Order
 
@@ -18,24 +18,9 @@ Check tiers in order and stop at the first that matches, installing every matchi
 | `package-lock.json` | `npm ci` |
 | `yarn.lock` | `yarn install --frozen-lockfile` |
 | `pnpm-lock.yaml` | `pnpm install --frozen-lockfile` |
-| `pyproject.toml` with `[project]` | Python install (see fallback below) |
-| `requirements.txt` | Python install with `-r requirements.txt` (see fallback below) |
+| `pyproject.toml` with `[project]`, or `requirements.txt` | `caliper-python-bootstrap <dir>` — once per directory; it installs both into one `.venv`, with uv if present, else stdlib venv + pip |
 | `Cargo.toml` | `cargo fetch` |
 | `go.mod` | `go mod download` |
-
-## Python Tool Fallback
-
-Check tool availability before running Python install commands:
-
-```bash
-if command -v uv >/dev/null 2>&1; then
-  { [ -d .venv ] || uv venv; } && uv pip install -e '.[dev]'
-else
-  { [ -d .venv ] || python3 -m venv .venv; } && .venv/bin/pip install -e '.[dev]'
-fi
-```
-
-For `requirements.txt`, replace `-e '.[dev]'` with `-r requirements.txt`. The `.venv` is created once, so with both manifests the second install adds to the first instead of recreating the environment.
 
 ## Failure Handling
 
