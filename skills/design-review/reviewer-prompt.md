@@ -6,7 +6,7 @@ Use this template when dispatching a design-reviewer agent. The agent's static b
 
 - `{DESIGN_DOC_PATH}` — path to the design doc
 - `{REPO_PATH}` — repository root path (for reading existing files to verify paths)
-- `{DESIGN_REVIEWER_MODEL}` — model for the reviewer agent (from caliper-settings)
+- `{DESIGN_REVIEWER_MODEL}` — model for the reviewer agent: `caliper-settings get design_reviewer_model`
 
 ## Dispatch Example
 

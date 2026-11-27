@@ -9,7 +9,7 @@
     {
       "name": "caliper",
       "description": "All caliper skills and agents: the design-to-merge workflow plus codebase and test audits, skill eval, usage-window scheduling and session handoff",
-      "version": "3.0.2",
+      "version": "3.0.3",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",

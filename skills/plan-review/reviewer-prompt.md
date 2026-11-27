@@ -7,7 +7,7 @@ Use this template when dispatching a plan-reviewer agent. The agent's static beh
 - `{PLAN_DIR}` -- path to plan directory (contains plan.json + phase dirs)
 - `{DESIGN_DOC_PATH}` -- path to design doc (or "None" to skip design checks)
 - `{REPO_PATH}` -- repository root path (for reading existing files)
-- `{PLAN_REVIEWER_MODEL}` -- model for the reviewer agent (from caliper-settings)
+- `{PLAN_REVIEWER_MODEL}` -- model for the reviewer agent: `caliper-settings get plan_reviewer_model`
 
 ## Dispatch Example
 

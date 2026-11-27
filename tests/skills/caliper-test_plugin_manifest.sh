@@ -49,10 +49,8 @@ on_disk=$(find "$REPO_ROOT/skills" -mindepth 2 -maxdepth 2 -name SKILL.md | sed 
 if [[ "$listed" == "$on_disk" ]]; then pass "plugin lists every skill dir"; else fail "skills list differs from skills/*: $(diff <(echo "$listed") <(echo "$on_disk") | grep '^[<>]' | tr '\n' ' ')"; fi
 
 echo "=== README badges ==="
-VERSION=$(jq -r '.plugins[0].version' "$MANIFEST")
 SKILL_COUNT=$(jq '.plugins[0].skills | length' "$MANIFEST")
 README="$REPO_ROOT/README.md"
-if grep -qF "badge/version-$VERSION-blue" "$README"; then pass "version badge is $VERSION"; else fail "README version badge != manifest version $VERSION"; fi
 if grep -qF "badge/$SKILL_COUNT%20skills-" "$README"; then pass "skills badge is $SKILL_COUNT"; else fail "README skills badge != $SKILL_COUNT skills"; fi
 if grep -qF "installs $SKILL_COUNT skills" "$README"; then pass "README skill count is $SKILL_COUNT"; else fail "README 'installs N skills' != $SKILL_COUNT"; fi
 

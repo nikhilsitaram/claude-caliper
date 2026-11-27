@@ -30,7 +30,7 @@ Gather inputs:
 - **Design doc** — if one exists (or "None")
 - **Repo root** — the worktree the plan targets
 
-Dispatch with `model: "$PLAN_REVIEWER_MODEL"` — consistency checking requires strong reasoning.
+Dispatch with `model: "$PLAN_REVIEWER_MODEL"` (`PLAN_REVIEWER_MODEL=$(caliper-settings get plan_reviewer_model)`) — consistency checking requires strong reasoning.
 
 Use `subagent_type: "caliper:plan-reviewer"`. The agent's static behavior (7-point checklist, output format) is in the agent definition. The invocation prompt contains only the plan dir, design doc path, and codebase root.
 

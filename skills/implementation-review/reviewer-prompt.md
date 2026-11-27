@@ -13,7 +13,7 @@ The per-invocation context for an implementation-reviewer dispatch; the `caliper
 - `{PHASE_DIR}` — path to current phase directory (caliper only)
 - `{PHASE_CONTEXT}` — phase letter/name and downstream expectations, plus sibling phases' review changes when siblings ran in parallel (orchestrate `parallel-phases.md` Reviews); empty for final/single-phase; caliper only
 - `{DESIGN_DOC_PATH}` — path to design doc, or "None" (always "None" in standalone mode)
-- `{IMPL_REVIEWER_MODEL}` — model for the reviewer agent (from caliper-settings)
+- `{IMPL_REVIEWER_MODEL}` — model for the reviewer agent: `caliper-settings get implementation_reviewer_model`
 
 ## Dispatch Example
 

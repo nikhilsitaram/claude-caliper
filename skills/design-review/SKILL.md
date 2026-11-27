@@ -23,7 +23,7 @@ Gather inputs:
 - **Design doc** — absolute path under `$MAIN_ROOT/.claude/claude-caliper/YYYY-MM-DD-topic/design-topic.md` (main repo, not worktree)
 - **Repo root** — the worktree the design targets
 
-Dispatch with `model: "$DESIGN_REVIEWER_MODEL"` — review requires strong reasoning to catch blind spots the designer and user converged past.
+Dispatch with `model: "$DESIGN_REVIEWER_MODEL"` (`DESIGN_REVIEWER_MODEL=$(caliper-settings get design_reviewer_model)`) — review requires strong reasoning to catch blind spots the designer and user converged past.
 
 Use `subagent_type: "caliper:design-reviewer"`. **See:** reviewer-prompt.md for invocation template.
 

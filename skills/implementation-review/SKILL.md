@@ -54,7 +54,7 @@ If `git diff HEAD` is non-empty there are uncommitted changes the range won't co
 
 Use `subagent_type: "caliper:implementation-reviewer"` with the invocation template in `./reviewer-prompt.md`. The agent's static behavior (8-category cross-task checklist, output format) is in the agent definition.
 
-**Use `model: "$IMPL_REVIEWER_MODEL"`** — review requires strong reasoning to catch subtle cross-component issues.
+**Use `model: "$IMPL_REVIEWER_MODEL"`**, read with `IMPL_REVIEWER_MODEL=$(caliper-settings get implementation_reviewer_model)` — review requires strong reasoning to catch subtle cross-component issues.
 
 Fill the template variables:
 
