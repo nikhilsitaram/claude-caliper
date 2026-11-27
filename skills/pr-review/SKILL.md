@@ -98,10 +98,10 @@ Empty output = every root thread has a reply. Flatten pages with `--paginate --j
 **Wait for CI and bots** with the shared poller — hand-rolled loops are refused under worktree isolation and hang on states they miss (a conflicting PR never starts its checks):
 
 ```bash
-caliper-wait-pr $PR_NUMBER --timeout-min <review_wait_minutes> --min-wait-s 60
+caliper-wait-pr $PR_NUMBER --timeout-min <review_wait_minutes> --min-wait-s 30
 ```
 
-Minutes from `caliper-settings get review_wait_minutes` (default 5). Run it with `run_in_background: true`: it's minutes of idle polling that would pin a foreground call (capped at 10 min), and the harness re-invokes you when it exits — don't poll its output. Its last line opens with the state named in the table. If the Step 4 subagent finishes first, hold its result for Step 6 and keep waiting. `--min-wait-s 60` lets checks register after a fresh push; drop it for an untouched head. Only checks are awaited: `--require-check <name>` covers a bot check that registers late; when a bot with no check (e.g. `gemini-code-assist`) is active on the PR, set `--min-wait-s` to the whole window.
+Minutes from `caliper-settings get review_wait_minutes` (default 5). Run it with `run_in_background: true`: it's minutes of idle polling that would pin a foreground call (capped at 10 min), and the harness re-invokes you when it exits — don't poll its output. Its last line opens with the state named in the table. If the Step 4 subagent finishes first, hold its result for Step 6 and keep waiting. `--min-wait-s 30` lets checks register after a fresh push; drop it for an untouched head. Only checks are awaited: `--require-check <name>` covers a bot check that registers late; when a bot with no check (e.g. `gemini-code-assist`) is active on the PR, set `--min-wait-s` to the whole window.
 
 | Exit | Then |
 |---|---|
