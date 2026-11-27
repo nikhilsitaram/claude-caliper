@@ -140,7 +140,8 @@ In 3.0 the plugin is renamed `caliper`, because claude.ai rejects third-party pl
    for d in .claude/agent-memory/claude-caliper-*; do t=".claude/agent-memory/${d##*/claude-}"; [ -d "$d" ] && [ ! -e "$t" ] && mv "$d" "$t"; done
    ```
 
-4. Rename `/claude-caliper:<skill>` invocations and `claude-caliper:<agent>` references in your own skills or docs to `/caliper:<skill>` and `caliper:<agent>`.
+4. Saved `/caliper-settings` preferences live in the plugin's data dir, which is keyed by plugin name: move `~/.claude/plugins/data/claude-caliper-claude-caliper/` to `~/.claude/plugins/data/caliper-claude-caliper/`, or set them again.
+5. Rename `/claude-caliper:<skill>` invocations and `claude-caliper:<agent>` references in your own skills or docs to `/caliper:<skill>` and `caliper:<agent>`.
 
 Plan artifacts in `.claude/claude-caliper/` are unaffected.
 
