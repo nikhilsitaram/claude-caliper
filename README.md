@@ -132,9 +132,10 @@ Claude Code cloud sessions and scheduled routines load plugins only from your cl
 
 In 3.0 the plugin is renamed `caliper`, because claude.ai rejects third-party plugin names that start with `claude-`. The `-workflow` and `-tooling` bundles are folded into it: their skills dispatched agents under a different plugin prefix, which failed when only a bundle was installed. The marketplace is still `claude-caliper`.
 
-1. Uninstall whichever 2.x plugin you have, e.g. `/plugin uninstall claude-caliper@claude-caliper`, then `/plugin install caliper@claude-caliper`.
-2. In user and project `settings.json`, replace the old key under `enabledPlugins` with `"caliper@claude-caliper": true`.
-3. Agent memory is stored per agent name, and the names change from `claude-caliper:<agent>` (or `claude-caliper-workflow:<agent>`, `claude-caliper-tooling:<agent>`) to `caliper:<agent>`. Run this in each repo that has it to keep what the reviewers have learned. Finish or clean up in-flight caliper worktrees first: removing one syncs its seeded copy of the old dirs back into the main checkout, so run it again if any were still open.
+1. Saved `/caliper-settings` preferences live in the plugin's data dir, which is keyed by plugin name, and uninstalling deletes it. Before uninstalling, move `~/.claude/plugins/data/claude-caliper-claude-caliper/` (or `claude-caliper-workflow-claude-caliper/`) to `~/.claude/plugins/data/caliper-claude-caliper/`, or plan to set them again.
+2. Uninstall whichever 2.x plugin you have, e.g. `/plugin uninstall claude-caliper@claude-caliper`, then `/plugin install caliper@claude-caliper`.
+3. In user and project `settings.json`, replace the old key under `enabledPlugins` with `"caliper@claude-caliper": true`.
+4. Agent memory is stored per agent name, and the names change from `claude-caliper:<agent>` (or `claude-caliper-workflow:<agent>`, `claude-caliper-tooling:<agent>`) to `caliper:<agent>`. Run this in each repo that has it to keep what the reviewers have learned. Finish or clean up in-flight caliper worktrees first: removing one syncs its seeded copy of the old dirs back into the main checkout, so run it again if any were still open.
 
    ```bash
    for d in $(find .claude/agent-memory -mindepth 1 -maxdepth 1 -type d -name 'claude-caliper-*' 2>/dev/null); do
@@ -143,7 +144,6 @@ In 3.0 the plugin is renamed `caliper`, because claude.ai rejects third-party pl
    done
    ```
 
-4. Saved `/caliper-settings` preferences live in the plugin's data dir, which is keyed by plugin name: move `~/.claude/plugins/data/claude-caliper-claude-caliper/` (or `claude-caliper-workflow-claude-caliper/`) to `~/.claude/plugins/data/caliper-claude-caliper/`, or set them again.
 5. Rename `/claude-caliper:<skill>` invocations and `claude-caliper:<agent>` references in your own skills or docs to `/caliper:<skill>` and `caliper:<agent>`.
 
 Plan artifacts in `.claude/claude-caliper/` are unaffected.

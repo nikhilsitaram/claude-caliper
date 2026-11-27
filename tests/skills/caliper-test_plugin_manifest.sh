@@ -70,7 +70,8 @@ echo "=== skill invocation namespace ==="
 stale=""
 for skill_dir in "$REPO_ROOT"/skills/*/; do
   skill=$(basename "$skill_dir")
-  stale+=$(grep -rnoE "/[A-Za-z0-9_-]+:$skill\b" "${SEARCH[@]}" | grep -vE ":/$PLUGIN:$skill\$" || true)
+  # Slash command (/ns:skill) or Skill-tool name (ns:skill).
+  stale+=$(grep -rnoE "/?[A-Za-z0-9_-]+:$skill\b" "${SEARCH[@]}" | grep -vE "[:/]$PLUGIN:$skill\$" || true)
 done
 if [[ -z "$stale" ]]; then pass "every namespaced skill invocation is /$PLUGIN:<skill>"; else fail "wrong skill namespace: $stale"; fi
 
