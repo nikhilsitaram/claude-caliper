@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# caliper-python-bootstrap <dir>
+# caliper-python-bootstrap [--like <parent>] <dir>
 #
 # Build <dir>/.venv from <dir>'s Python manifests: an editable `.[dev]` install
 # for a pyproject.toml with a [project] table, then `-r requirements.txt`. uv
@@ -17,8 +17,23 @@ set -euo pipefail
 # < 3.13's venv doesn't), so it never shows as untracked content: that would
 # block a no-force `git worktree remove` and invite a `git add -A` commit.
 
-[[ $# -eq 1 ]] || { echo "Usage: caliper-python-bootstrap <dir>" >&2; exit 1; }
+usage() { echo "Usage: caliper-python-bootstrap [--like <parent>] <dir>" >&2; exit 1; }
+LIKE=""
+if [[ "${1:-}" == --like ]]; then
+  [[ $# -eq 3 ]] || usage
+  LIKE="$2"; shift 2
+  [[ -d "$LIKE" ]] || { echo "ERROR: not a directory: $LIKE" >&2; exit 1; }
+fi
+[[ $# -eq 1 ]] || usage
 [[ -d "$1" ]] || { echo "ERROR: not a directory: $1" >&2; exit 1; }
+
+# --like: mirror the parent's environment, so act only when it has a real root
+# .venv (dependency-bootstrap installed Python deps there). A symlinked one is
+# bootstrap's no-manifest fallback and subdirectory venvs aren't mirrored
+# (both out of scope, #337).
+if [[ -n "$LIKE" ]] && ! [[ -d "$LIKE/.venv" && ! -L "$LIKE/.venv" ]]; then
+  exit 0
+fi
 cd "$1"
 
 installs=()

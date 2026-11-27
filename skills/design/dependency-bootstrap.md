@@ -1,6 +1,6 @@
 # Dependency Bootstrap
 
-Install dependencies in a worktree so tests and tools work. Run once per worktree. Task worktrees nest inside it (`.claude/worktrees/<task>`), so they inherit only what resolves by walking up the directory tree, like `node_modules`. A Python `.venv` doesn't carry over, and sharing it would be wrong (its editable install imports the parent's source), so `caliper-phase-dispatch` builds each task worktree its own.
+Install dependencies in a worktree so tests and tools work. Run once per worktree. Task worktrees nest inside it (`.claude/worktrees/<task>`), so they inherit only what resolves by walking up the directory tree, like `node_modules`. A Python `.venv` doesn't carry over, and sharing it would be wrong (its editable install imports the parent's source), so `caliper-phase-dispatch` builds each task worktree its own when the parent has a real root `.venv` (subdirectory venvs and the symlink fallback aren't mirrored). Commands that need the environment call `.venv/bin/<tool>` or `uv run <tool>`: a bare `pytest` resolves through PATH, not the worktree's `.venv`.
 
 ## Detection Order
 

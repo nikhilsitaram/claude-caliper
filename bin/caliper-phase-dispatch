@@ -92,10 +92,11 @@ CREATED=0
 # failing post-checkout hook). The worktree holds only the seeded memory copy,
 # which clear-worktree-scratch removes (it's untracked where .claude/ isn't
 # ignored, and would block the bare remove), and possibly a .venv, which
-# caliper-python-bootstrap makes ignore itself so the bare remove deletes it. The branch delete names FORK_SHA as
-# the expected old value, so it can't drop commits. If the claim's plan.json
-# write landed before validate-plan failed, nothing is undone: the task is
-# in_progress with a branch, which Resuming settles.
+# caliper-python-bootstrap makes ignore itself so the bare remove deletes it.
+# The branch delete names FORK_SHA as the expected old value, so it can't drop
+# commits. If the claim's plan.json write landed before validate-plan failed,
+# nothing is undone: the task is in_progress with a branch, which Resuming
+# settles.
 rollback() {
   (( CREATED )) || return 0
   if [[ "$(jq -r --arg id "$TASK_ID" '.phases[].tasks[] | select(.id == $id) | .status' "$PLAN_JSON")" != "pending" ]]; then
@@ -117,12 +118,9 @@ git -C "$PARENT" branch "$BRANCH" "$FORK_SHA"
 CREATED=1
 git -C "$PARENT" worktree add "$TASK_WORKTREE" "$BRANCH" >&2
 "$BIN_DIR/seed-agent-memory" "$TASK_WORKTREE" >&2
-# A real parent .venv means dependency-bootstrap installed Python deps there.
-# The task can't use it: its editable install imports the parent's source.
-# A symlinked one (bootstrap's no-manifest fallback) is out of scope (#337).
-if [[ -d "$PARENT/.venv" && ! -L "$PARENT/.venv" ]]; then
-  "$BIN_DIR/caliper-python-bootstrap" "$TASK_WORKTREE" >&2
-fi
+# The task can't share the parent's .venv: its editable install imports the
+# parent's source. --like builds the task its own only when the parent has one.
+"$BIN_DIR/caliper-python-bootstrap" --like "$PARENT" "$TASK_WORKTREE" >&2
 "$BIN_DIR/validate-plan" --update-status "$PLAN_JSON" --task "$TASK_ID" --status in_progress >&2
 CREATED=0
 trap - EXIT

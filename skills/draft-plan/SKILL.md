@@ -106,7 +106,7 @@ Every task is a single plan.json entry — no split prose file. The two fields t
 | **intent** | 2–4 sentences: *what* to build and *why*. Names the component and its behavior; states how it fits the phase. No pasted code. | "Add JWT validation middleware that rejects expired/invalid tokens before the handler runs, so protected routes can trust `req.user`. Consumed by every task in Phase B." |
 | **avoid** | Array of `{rule, why}` — each pitfall with its reason | `{"rule": "Use jose not jsonwebtoken", "why": "jsonwebtoken has CJS/Edge issues on the target runtime"}` |
 | **files** | Exact paths (create/modify/test) | `{"create": ["src/auth/login.ts"], "test": ["tests/auth/login.test.ts"]}` |
-| **verification** | Runnable command, <60s | `pytest tests/auth/ -v` |
+| **verification** | Runnable command, <60s. Python tools via `.venv/bin/<tool>` or `uv run`, so they use the task worktree's own venv, not whatever PATH finds | `.venv/bin/pytest tests/auth/ -v` |
 | **done_when** | Measurable end state | `login returns JWT, 4/4 tests pass` |
 | **depends_on** | Task IDs this consumes | `["A1"]` (same phase for ordering, a phase in this phase's `depends_on` for cross-phase deps) |
 | **complexity** | Enum: low, medium, high | `"medium"` |
