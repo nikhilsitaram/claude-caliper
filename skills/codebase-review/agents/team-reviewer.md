@@ -1,6 +1,6 @@
 # Team-Reviewer Dispatch (team mode, both phases)
 
-Dispatch body for the `claude-caliper:codebase-auditor` agent in team-mode Phases 1 and 2. The agent definition supplies the 5 review categories, severity definitions, output Finding template, quality bar, and hard rules — this file holds only team-mode specifics (phase instructions, mailbox protocol, dispute ordering, ERROR convention).
+Dispatch body for the `caliper:codebase-auditor` agent in team-mode Phases 1 and 2. The agent definition supplies the 5 review categories, severity definitions, output Finding template, quality bar, and hard rules — this file holds only team-mode specifics (phase instructions, mailbox protocol, dispute ordering, ERROR convention).
 
 Each of the 3 named teammates (`cbr-rev-1`, `cbr-rev-2`, `cbr-rev-3`) reads this same prompt and persists across both phases.
 

@@ -1,14 +1,15 @@
 {
   "name": "claude-caliper",
+  "description": "Composable agent skills for Claude Code: size-routed design, TDD implementation, parallel orchestration, review gates and the PR chain, plus codebase/test audits and session tooling",
   "owner": {
     "name": "Nikhil Sitaram",
     "email": "nikhil5890@gmail.com"
   },
   "plugins": [
     {
-      "name": "claude-caliper",
-      "description": "claude-caliper bundle",
-      "version": "2.14.0",
+      "name": "caliper",
+      "description": "All caliper skills and agents: the design-to-merge workflow plus codebase and test audits, skill eval, usage-window scheduling and session handoff",
+      "version": "3.0.0",
       "source": "./",
       "author": {
         "name": "Nikhil Sitaram",
@@ -35,50 +36,6 @@
         "./skills/usage-guard",
         "./skills/handoff",
         "./skills/coordinate"
-      ]
-    },
-    {
-      "name": "claude-caliper-workflow",
-      "description": "End-to-end development workflow: design routes by size → implement (small/medium fast path) or draft-plan → orchestrate (large) → review → pr-create → pr-review → pr-merge",
-      "version": "1.59.0",
-      "source": "./",
-      "author": {
-        "name": "Nikhil Sitaram",
-        "email": "nikhil5890@gmail.com"
-      },
-      "strict": false,
-      "skills": [
-        "./skills/design",
-        "./skills/conversate",
-        "./skills/design-review",
-        "./skills/implement",
-        "./skills/draft-plan",
-        "./skills/plan-review",
-        "./skills/orchestrate",
-        "./skills/implementation-review",
-        "./skills/pr-create",
-        "./skills/pr-review",
-        "./skills/pr-merge",
-        "./skills/caliper-settings"
-      ]
-    },
-    {
-      "name": "claude-caliper-tooling",
-      "description": "Standalone tools: codebase audit, test audit, skill evaluation, usage-window scheduling (queue / usage-guard), and session handoff",
-      "version": "1.60.0",
-      "source": "./",
-      "author": {
-        "name": "Nikhil Sitaram",
-        "email": "nikhil5890@gmail.com"
-      },
-      "strict": false,
-      "skills": [
-        "./skills/codebase-review",
-        "./skills/test-audit",
-        "./skills/skill-eval",
-        "./skills/queue",
-        "./skills/usage-guard",
-        "./skills/handoff"
       ]
     }
   ]

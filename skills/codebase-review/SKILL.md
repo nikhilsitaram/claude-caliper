@@ -50,14 +50,14 @@ Branch on `MODE` for the remainder of Phases 1-3. Phase 4 is mode-agnostic.
 
 ### Phase 2 — Parallel Scope Reviews
 
-Dispatch one **`claude-caliper:codebase-auditor`** subagent per review unit using `agents/reviewer.md` as the prompt body:
+Dispatch one **`caliper:codebase-auditor`** subagent per review unit using `agents/reviewer.md` as the prompt body:
 - `{SCOPE_PATH}` = directory to review
 
 All subagents run in parallel. Each returns structured findings with category, severity, fix complexity.
 
 ### Phase 3 — Cross-Scope Reconciliation
 
-After Phase 2 completes, dispatch one **`claude-caliper:codebase-auditor`** subagent using `agents/cross-scope-reviewer.md` as the prompt body:
+After Phase 2 completes, dispatch one **`caliper:codebase-auditor`** subagent using `agents/cross-scope-reviewer.md` as the prompt body:
 - `{ALL_FINDINGS}` = concatenated Phase 2 findings
 - `{FILE_MANIFEST}` = all files in repo
 - `{SCOPE_PATH}` = root scope
@@ -99,7 +99,7 @@ Spawn all 3 reviewer teammates in a single message via three `Agent(...)` calls 
 Agent({
   team_name: "<TEAM_NAME>",
   name: "cbr-rev-1",
-  subagent_type: "claude-caliper:codebase-auditor",
+  subagent_type: "caliper:codebase-auditor",
   model: "opus",
   mode: "auto",
   description: "Team-mode reviewer 1 of 3",
@@ -213,4 +213,4 @@ Single mode uses the team-mode master-doc schema above, minus the `Tier` column 
 
 ## Categories
 
-The five categories (DRY, YAGNI, Simplicity & Efficiency, Refactoring Opportunities, Consistency), their full definitions, the severity rubric, and the output Finding template live in the `claude-caliper:codebase-auditor` agent's system prompt — that agent is dispatched in both modes.
+The five categories (DRY, YAGNI, Simplicity & Efficiency, Refactoring Opportunities, Consistency), their full definitions, the severity rubric, and the output Finding template live in the `caliper:codebase-auditor` agent's system prompt — that agent is dispatched in both modes.

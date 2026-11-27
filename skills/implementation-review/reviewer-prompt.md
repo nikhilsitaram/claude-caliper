@@ -1,6 +1,6 @@
 # Implementation Reviewer Invocation Template
 
-The per-invocation context for an implementation-reviewer dispatch; the `claude-caliper:implementation-reviewer` agent definition holds its static behavior (8-category checklist, output and review-summary formats). It serves **caliper mode** (a plan drove the work) and **standalone mode** (diff-only branch review; see Standalone Mode).
+The per-invocation context for an implementation-reviewer dispatch; the `caliper:implementation-reviewer` agent definition holds its static behavior (8-category checklist, output and review-summary formats). It serves **caliper mode** (a plan drove the work) and **standalone mode** (diff-only branch review; see Standalone Mode).
 
 ## Variables
 
@@ -19,7 +19,7 @@ The per-invocation context for an implementation-reviewer dispatch; the `claude-
 
 ```text
 Agent(
-  subagent_type: "claude-caliper:implementation-reviewer",
+  subagent_type: "caliper:implementation-reviewer",
   model: "{IMPL_REVIEWER_MODEL}",
   prompt: "Review the complete feature implementation.
 

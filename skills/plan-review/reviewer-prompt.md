@@ -1,6 +1,6 @@
 # Plan Reviewer Invocation Template
 
-Use this template when dispatching a plan-reviewer agent. The agent's static behavior (7-point plan checklist, output format, severity mapping, review-summary format) is defined in the `claude-caliper:plan-reviewer` agent definition. This template provides only the dynamic per-invocation context.
+Use this template when dispatching a plan-reviewer agent. The agent's static behavior (7-point plan checklist, output format, severity mapping, review-summary format) is defined in the `caliper:plan-reviewer` agent definition. This template provides only the dynamic per-invocation context.
 
 ## Variables
 
@@ -13,7 +13,7 @@ Use this template when dispatching a plan-reviewer agent. The agent's static beh
 
 ```text
 Agent(
-  subagent_type: "claude-caliper:plan-reviewer",
+  subagent_type: "caliper:plan-reviewer",
   model: "{PLAN_REVIEWER_MODEL}",
   prompt: "Review the implementation plan at {PLAN_DIR}/plan.json
 

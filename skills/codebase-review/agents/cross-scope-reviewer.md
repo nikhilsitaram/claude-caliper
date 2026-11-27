@@ -1,6 +1,6 @@
 # Cross-Scope Reconciliation Dispatch (single mode)
 
-Cross-scope reconciliation dispatch body for the `claude-caliper:codebase-auditor` agent in single-mode Phase 3. Find issues that only become visible when looking across directory boundaries. Per-directory reviewers have already checked each directory in Phase 2 — your job is to catch what they couldn't see from within a single scope.
+Cross-scope reconciliation dispatch body for the `caliper:codebase-auditor` agent in single-mode Phase 3. Find issues that only become visible when looking across directory boundaries. Per-directory reviewers have already checked each directory in Phase 2 — your job is to catch what they couldn't see from within a single scope.
 
 ## Inputs
 

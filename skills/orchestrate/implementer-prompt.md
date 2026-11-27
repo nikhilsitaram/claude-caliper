@@ -1,6 +1,6 @@
 # Implementer Prompt
 
-The `prompt` for each `claude-caliper:task-implementer` dispatch (the Agent call itself is in `./dispatch-subagents.md`). The agent definition carries the static behaviour: worktree and branch checks, reading the codebase and design doc, TDD, deviation rules, self-review, completion notes. This prompt carries only the per-task context.
+The `prompt` for each `caliper:task-implementer` dispatch (the Agent call itself is in `./dispatch-subagents.md`). The agent definition carries the static behaviour: worktree and branch checks, reading the codebase and design doc, TDD, deviation rules, self-review, completion notes. This prompt carries only the per-task context.
 
 **Variables:**
 - `{TASK_ID}` / `{TASK_ID_LOWER}`: e.g. `A1` / `a1`; `[task name]` is the task's `name`

@@ -40,10 +40,10 @@ Team mode without `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` set in the environmen
 Phase 1: Resolve scope → discover review units (top-level directories)
          |
          v
-Phase 2: Parallel scope reviews (one claude-caliper:codebase-auditor subagent per directory)
+Phase 2: Parallel scope reviews (one caliper:codebase-auditor subagent per directory)
          |
          v
-Phase 3: Cross-scope reconciliation (one claude-caliper:codebase-auditor subagent, sees all findings)
+Phase 3: Cross-scope reconciliation (one caliper:codebase-auditor subagent, sees all findings)
          |
          v
 Phase 4: Aggregate + route (write report; inline fixes implemented directly, complex fixes → issues or draft-plan)
@@ -77,11 +77,11 @@ Determines the review boundary: either a path argument or the git root. Discover
 
 ### Phase 2 — Parallel Scope Reviews
 
-One `claude-caliper:codebase-auditor` subagent dispatch per review unit, using `agents/reviewer.md` as the prompt body, all dispatched in parallel. Each reads every file in its directory and reports findings across 5 categories with severity and fix complexity classifications.
+One `caliper:codebase-auditor` subagent dispatch per review unit, using `agents/reviewer.md` as the prompt body, all dispatched in parallel. Each reads every file in its directory and reports findings across 5 categories with severity and fix complexity classifications.
 
 ### Phase 3 — Cross-Scope Reconciliation
 
-A single `claude-caliper:codebase-auditor` dispatch using `agents/cross-scope-reviewer.md` as the prompt body reads all Phase 2 findings plus the full file manifest. It looks for issues that individual reviewers couldn't detect from within a single directory: cross-module duplication, naming drift between directories, and inconsistent patterns across module boundaries. It also deduplicates findings flagged independently by multiple reviewers.
+A single `caliper:codebase-auditor` dispatch using `agents/cross-scope-reviewer.md` as the prompt body reads all Phase 2 findings plus the full file manifest. It looks for issues that individual reviewers couldn't detect from within a single directory: cross-module duplication, naming drift between directories, and inconsistent patterns across module boundaries. It also deduplicates findings flagged independently by multiple reviewers.
 
 ### Phase 4 — Aggregate & Route
 
@@ -134,7 +134,7 @@ Summary: X findings (N Critical, N High, N Medium, N Low) | Y deferred → GH is
 | File | Purpose |
 |------|---------|
 | `SKILL.md` | Skill trigger and execution instructions |
-| `agents/codebase-auditor.md` (plugin root) | Plugin-root agent definition for `claude-caliper:codebase-auditor` — centralizes review categories, severity, output format, and quality bar |
+| `agents/codebase-auditor.md` (plugin root) | Plugin-root agent definition for `caliper:codebase-auditor` — centralizes review categories, severity, output format, and quality bar |
 | `skills/codebase-review/agents/cross-scope-reviewer.md` | Cross-directory reconciliation dispatch prompt (single mode Phase 3) |
 | `skills/codebase-review/agents/reviewer.md` | Per-directory scope dispatch prompt (single mode Phase 2) |
 | `skills/codebase-review/agents/team-reviewer.md` | Team-mode dispatch prompt — Phase 1 + Phase 2 + dispute protocol |

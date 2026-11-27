@@ -121,7 +121,7 @@ First, resolve the script paths (do this once per session):
 PLUGIN_ROOT=$(python3 -c "
 import json, os
 p = json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))
-print(p['plugins']['claude-caliper@claude-caliper'][0]['installPath'])
+print(p['plugins']['caliper@claude-caliper'][0]['installPath'])
 ")
 EVAL_ROOT=~/.claude/skill-evals
 SKILL_EVAL_SCRIPT=$PLUGIN_ROOT/skills/skill-eval/scripts/run_eval.py

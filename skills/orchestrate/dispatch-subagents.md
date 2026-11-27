@@ -26,7 +26,7 @@ esac
 Dispatch **all ready implementers in a single message**, one Agent call per task: splitting them across turns breaks parallelism and reloads the cache for each agent.
 
 ```text
-Agent(name: "impl-{TASK_ID_LOWER}", subagent_type: "claude-caliper:task-implementer", model: "{TASK_IMPLEMENTER_MODEL}", mode: "acceptEdits", prompt: "<implementer-prompt.md with every {VARIABLE} filled>")
+Agent(name: "impl-{TASK_ID_LOWER}", subagent_type: "caliper:task-implementer", model: "{TASK_IMPLEMENTER_MODEL}", mode: "acceptEdits", prompt: "<implementer-prompt.md with every {VARIABLE} filled>")
 ... (one per ready task)
 ```
 
