@@ -91,8 +91,9 @@ CREATED=0
 # from a `worktree add` that registered the worktree and then failed (e.g. a
 # failing post-checkout hook). The worktree holds only the seeded memory copy,
 # which clear-worktree-scratch removes (it's untracked where .claude/ isn't
-# ignored, and would block the bare remove), and possibly a .venv, which
-# caliper-python-bootstrap makes ignore itself so the bare remove deletes it.
+# ignored, and would block the bare remove), and possibly a .venv and its
+# install's build dirs (e.g. <pkg>.egg-info/), which caliper-python-bootstrap
+# makes ignore themselves so the bare remove deletes them.
 # The branch delete names FORK_SHA as the expected old value, so it can't drop
 # commits. If the claim's plan.json write landed before validate-plan failed,
 # nothing is undone: the task is in_progress with a branch, which Resuming

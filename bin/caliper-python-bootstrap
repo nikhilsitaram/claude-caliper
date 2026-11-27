@@ -16,6 +16,9 @@ set -euo pipefail
 # A venv this run creates gets a `*` .gitignore (uv writes one itself; Python
 # < 3.13's venv doesn't), so it never shows as untracked content: that would
 # block a no-force `git worktree remove` and invite a `git add -A` commit.
+# Inside a git worktree the same goes for untracked directories the install
+# itself leaves (setuptools' `<pkg>.egg-info/`); a new untracked file can't be
+# made to ignore itself, so it's named in a warning instead.
 
 usage() { echo "Usage: caliper-python-bootstrap [--like <parent>] <dir>" >&2; exit 1; }
 LIKE=""
@@ -46,11 +49,23 @@ if (( ${#installs[@]} == 0 )); then
   exit 0
 fi
 
-# An inherited VIRTUAL_ENV (an activated parent venv) must not catch the
-# install: uv pip honors it over ./.venv, so the target is always named.
+# An activated venv's VIRTUAL_ENV must not reach the installer: uv pip prefers
+# it over ./.venv. The target is also named explicitly below.
 unset VIRTUAL_ENV
 have_uv=0
 command -v uv >/dev/null 2>&1 && have_uv=1
+
+untracked() {
+  git status --porcelain -z --untracked-files=normal | while IFS= read -r -d '' e; do
+    [[ "$e" == '?? '* ]] && printf '%s\n' "${e#?? }"
+  done
+}
+in_git=0
+before=""
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  in_git=1
+  before="$(untracked)"
+fi
 
 if [[ ! -d .venv ]]; then
   if (( have_uv )); then uv venv .venv; else python3 -m venv .venv; fi
@@ -65,3 +80,14 @@ for spec in "${installs[@]}"; do
     .venv/bin/pip install "$flag" "$arg"
   fi
 done
+
+(( in_git )) || exit 0
+while IFS= read -r path; do
+  [[ -n "$path" ]] || continue
+  grep -qxF -- "$path" <<<"$before" && continue
+  if [[ "$path" == */ ]]; then
+    echo '*' > "${path}.gitignore"
+  else
+    echo "WARNING: the install left untracked $PWD/$path; it blocks a no-force git worktree remove until ignored or deleted" >&2
+  fi
+done <<<"$(untracked)"

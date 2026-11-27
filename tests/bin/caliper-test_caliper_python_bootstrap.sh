@@ -14,6 +14,7 @@ TMPDIR_BASE="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 BASE="$(cd "$TMPDIR_BASE" && pwd -P)"
 LOG="$BASE/log"
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1   # no user excludesFile hiding artifacts
 
 check_eq() {
   local desc="$1" expected="$2" actual="$3"
@@ -25,14 +26,21 @@ check_eq() {
 }
 
 # uv stub: `uv venv <path>` makes the venv (with uv's own self-ignoring
-# .gitignore); `uv pip …` logs. UV_FAIL makes pip installs fail.
+# .gitignore); `uv pip …` logs, and records the VIRTUAL_ENV it saw. UV_FAIL
+# makes pip installs fail; UV_EGG makes them leave a setuptools-style
+# p.egg-info/ behind, and UV_STRAY a stray top-level file.
 UV_BIN="$BASE/uvbin"
 mkdir -p "$UV_BIN"
 cat > "$UV_BIN/uv" <<EOF
 #!/usr/bin/env bash
 echo "uv \$* [cwd=\$(pwd -P)]" >> "$LOG"
 if [[ "\$1" == venv ]]; then mkdir -p "\$2/bin" && echo '*' > "\$2/.gitignore"; fi
-if [[ "\$1" == pip && -n "\${UV_FAIL:-}" ]]; then echo "uv boom" >&2; exit 1; fi
+if [[ "\$1" == pip ]]; then
+  echo "VIRTUAL_ENV=\${VIRTUAL_ENV:-}" >> "$BASE/venvlog"
+  [[ -z "\${UV_FAIL:-}" ]] || { echo "uv boom" >&2; exit 1; }
+  [[ -z "\${UV_EGG:-}" ]] || { mkdir -p p.egg-info && echo x > p.egg-info/PKG-INFO; }
+  [[ -z "\${UV_STRAY:-}" ]] || echo x > stray.txt
+fi
 exit 0
 EOF
 # python3 stub: `python3 -m venv <path>` makes a venv with a logging pip and,
@@ -82,9 +90,28 @@ check_eq "uv's own .gitignore kept" '*' "$(cat "$D/.venv/.gitignore")"
 
 echo "=== uv: inherited VIRTUAL_ENV can't redirect the install ==="
 D="$(proj uvve pyproject)"
+: > "$BASE/venvlog"
 VIRTUAL_ENV="$BASE/elsewhere" run "$UV_BIN:$PY_BIN" "$D"
 check_eq "exit 0" 0 "$RC"
-check_eq "install pinned to the target's venv" 1 "$(grep -c -- '--python .venv/bin/python' "$LOG")"
+check_eq "installer runs with VIRTUAL_ENV cleared" "VIRTUAL_ENV=" "$(cat "$BASE/venvlog")"
+
+echo "=== build artifacts in a git worktree don't read as untracked ==="
+D="$(proj egg pyproject)"
+git -C "$D" init -q
+git -C "$D" add -A
+git -C "$D" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q -m init
+mkdir -p "$D/preexisting" && echo x > "$D/preexisting/f"   # untracked before: not ours to hide
+UV_EGG=1 run "$UV_BIN:$PY_BIN" "$D"
+check_eq "exit 0" 0 "$RC"
+check_eq "only the pre-existing untracked dir remains" "?? preexisting/" "$(git -C "$D" status --porcelain)"
+check_eq "egg-info ignores itself" '*' "$(cat "$D/p.egg-info/.gitignore" 2>/dev/null)"
+rm -rf "$D/preexisting"
+D2="$(proj stray pyproject)"
+git -C "$D2" init -q
+git -C "$D2" add -A
+git -C "$D2" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q -m init
+OUT="$(UV_STRAY=1 PATH="$UV_BIN:/usr/bin:/bin" "$SCRIPT" "$D2" 2>&1)" || true
+check_eq "a new untracked file is named in a warning" 1 "$(grep -c 'WARNING.*stray.txt' <<<"$OUT")"
 
 echo "=== uv: requirements.txt only ==="
 D="$(proj uvr requirements)"
