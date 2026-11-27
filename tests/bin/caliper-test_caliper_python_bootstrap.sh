@@ -50,12 +50,13 @@ fi
 EOF
 chmod +x "$UV_BIN/uv" "$PY_BIN/python3"
 
-# Sets OUT (stdout+stderr) and RC. $1 is the PATH prefix; rest are args.
+# Sets RC. $1 is the PATH prefix; rest are args. The script's own output is
+# dropped: the stubs' log is what the checks read.
 run() {
   local prefix="$1"; shift
   : > "$LOG"
   RC=0
-  OUT="$(PATH="$prefix:/usr/bin:/bin" "$SCRIPT" "$@" 2>&1)" || RC=$?
+  PATH="$prefix:/usr/bin:/bin" "$SCRIPT" "$@" >/dev/null 2>&1 || RC=$?
 }
 proj() {  # <name> [pyproject|requirements|both|tooling]... -> fresh dir
   local d="$BASE/$1"; shift
