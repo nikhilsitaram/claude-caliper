@@ -23,12 +23,12 @@ The same wrong-assumption failures that unexamined plans cause on a large featur
 
 1. **Challenge the framing** — what problem does this solve, is there a simpler alternative? (mirrors design's Challenging Assumptions).
 2. **Ask clarifying questions only if genuinely ambiguous** — don't manufacture questions for a request that's already clear.
-3. **Present a mini-design**: 2-5 sentences covering what changes, where, and why this approach — no formal doc, no file written.
-4. **Resolve workflow + approval in one AskUserQuestion** — settle the workflow now, alongside approval, so the choice is made before implementing instead of surfaced after the work is already done. Run `caliper-settings get workflow`:
-   - If a value is returned, note it ("Using your configured workflow: <value>") and ask a single **Approval** question (Approve / Needs changes).
-   - If `PROMPT_REQUIRED`, ask two questions in one call — **Workflow** (Create PR / Ready to merge / Merge PR / Stop after review) and **Approval** (Approve / Needs changes).
+3. **Present a mini-design in your response text**: 2-5 sentences covering what changes, where, and why this approach — no formal doc, no file written.
+4. **Ask for approval in plain text, ending that same response** — not AskUserQuestion: its dialog can hide the text above it, so the user would approve a design they can't read. Settle the workflow in the same ask, so the choice is made before implementing instead of surfaced after the work is done. Run `caliper-settings get workflow`:
+   - If a value is returned, note it ("Using your configured workflow: <value>") and ask "Approve, or what should change?"
+   - If `PROMPT_REQUIRED`, also list the workflows — Create PR (default) / Ready to merge / Merge PR / Stop after review — and ask the user to approve and name one; a bare approval means Create PR.
 
-   Wait for approval before writing any code. "Needs changes" loops back to step 3; the resolved workflow value carries forward to the review hand-off.
+   Wait for the reply before writing any code. Requested changes loop back to step 3; the resolved workflow value carries forward to the review hand-off.
 
 ## Worktree Setup
 
@@ -73,7 +73,7 @@ Map the `workflow` setting to implementation-review's continuation flag (all fiv
 Resolve the value:
 - **Downstream of design:** the value is already resolved from design's workflow question earlier in this session — reuse it, don't re-prompt or re-read settings.
 - **Conversate hand-off or coordinate brief:** always `pr-ready` — their fixed contract, regardless of the setting. The exception is a brief whose SOFT LINK rules name `orchestrate` for a soft dependent: the brief releases it to `pr-ready` once its dependency merges.
-- **Direct invocation:** the Compressed Design Gate already resolved it (from settings, or the workflow question asked at approval) — reuse that value, don't re-prompt or re-read settings.
+- **Direct invocation:** the Compressed Design Gate already resolved it (from settings, or the workflow named at approval) — reuse that value, don't re-prompt or re-read settings.
 
 ## Integration
 
