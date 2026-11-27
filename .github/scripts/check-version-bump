@@ -22,7 +22,9 @@ BASE_REF="$1"
 MANIFEST=.claude-plugin/marketplace.json
 git rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null || die "unknown base ref: $BASE_REF"
 
-SHIPPED="$(git diff --name-only "$BASE_REF...HEAD" \
+# --no-renames: a file moved out of a shipped tree (a retired skill) must count
+# by its old path, which rename detection would hide behind the new one.
+SHIPPED="$(git diff --name-only --no-renames "$BASE_REF...HEAD" \
   | grep -E '^(skills|agents|bin|hooks)/|^defaults\.json$' || true)"
 if [[ -z "$SHIPPED" ]]; then
   echo "No shipped files changed; no version bump needed."

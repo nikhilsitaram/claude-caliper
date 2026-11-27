@@ -94,6 +94,14 @@ g add -A; g commit -q -m ci
 run main
 check_eq "exit 0" 0 "$RC"
 
+echo "=== moving a file out of a shipped tree requires a bump ==="
+fresh 3.0.4
+g mv skills/x/SKILL.md docs/moved.md
+g commit -q -m "retire skill"
+run main
+check_eq "exit 1 (the old shipped path counts, not just the rename target)" 1 "$RC"
+check_match "names the removed shipped path" "*skills/x/SKILL.md*" "$OUT"
+
 echo "=== base moved to the PR's version after it forked ==="
 fresh 3.0.4
 set_version 3.0.5
