@@ -9,7 +9,7 @@
 A Claude Code plugin that turns your goal into a PR with as little friction as possible. It sizes the work first and applies only as much process as it needs, and every integrated diff is reviewed by a fresh-context subagent. You get a design-gated, test-driven PR — with three human decisions.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.0.1-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
+[![Version](https://img.shields.io/badge/version-3.0.2-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-6E40C9?logo=anthropic&logoColor=white)](https://claude.ai/code)
 [![Skills](https://img.shields.io/badge/19%20skills-included-2ea44f)](skills/)
 
@@ -515,7 +515,7 @@ Skills degrade silently. A prompt tweak that looks better might fail on edge cas
 Yes. Skills are language-agnostic. They auto-detect test runners, respect project conventions, and work with any git repository.
 
 **Can I stop after the plan?**
-Yes. After approving the design, you choose: **Create PR** (execute and open PR for human review), **Ready to merge** (execute, open PR, review and fix it until every bot comment is addressed and CI is green, stop before merging), **Merge PR** (execute, open PR, review, and merge), or **Plan only** (stop after planning).
+Yes. After approving the design, you choose: **Create PR** (execute and open PR for human review), **Ready to merge** (execute, open PR, review and fix it until every bot comment is addressed and CI is green, stop before merging), **Merge PR** (execute, open PR, review, and merge), **Orchestrate only** (stop after implementation review, work stays in the worktree), or, on the large tier, **Plan only** (stop after planning).
 
 **What if the design is wrong?**
 The design skill waits for explicit approval. Say "needs changes" and iterate. Nothing proceeds until you approve.

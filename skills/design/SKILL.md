@@ -43,11 +43,11 @@ Complete in order:
    - Single-phase: branch name `<feature>` is correct as-is; execution works here directly, PRs to main
    1. Bootstrap dependencies per **See:** ./dependency-bootstrap.md
    2. Run tests to establish a clean baseline
-7. **Configure and approve in plain text** — end the response that presents the design with one text ask, not AskUserQuestion: its dialog can hide the design above it, so the user would approve something they can't read. The ask covers:
+7. **Configure and approve in plain text** — once step 6 is done, end the response with a short recap of the design and one text ask, not AskUserQuestion: its dialog can hide the design above it, so the user would approve something they can't see. The ask covers:
 
     - **Tier** — the one recommended in step 5, with the alternatives: **Small** (no design doc, hand off straight to `implement`), **Medium** (short design doc + one design-reviewer pass, then `implement`), **Large** (design-review, draft-plan, plan-review, orchestrate).
     - **Workflow** — run `caliper-settings get workflow`. If a value is returned, just say "Using your configured workflow: <value>". If `PROMPT_REQUIRED`, list: **Create PR** (default; → pr-create), **Ready to merge** (→ pr-create → pr-review until bot comments are addressed and CI is green, stop before merge), **Merge PR** (→ pr-create → pr-review → pr-merge), **Orchestrate only** (stop after implementation review, work stays in worktree), and on the Large tier only **Plan only** (stop after plan-review — meaningless on the plan-less Small/Medium path).
-    - **Approval** — "Approve, or what should change?" A bare approval means the recommended tier and Create PR.
+    - **Approval** — "Approve, or what should change?" A bare approval means the recommended tier and the configured workflow (Create PR when `PROMPT_REQUIRED`).
 
     Wait for the reply. Requested changes return to step 5.
 
@@ -138,7 +138,7 @@ Agent(
 
 ## Route Workflow
 
-Map the Q1 answer to a schema value: `Create PR` → `pr-create`, `Ready to merge` → `pr-ready`, `Merge PR` → `pr-merge`, `Orchestrate only` → `orchestrate`, `Plan only` → `plan-only` (large tier only).
+Map the workflow from step 7 (chosen or configured) to a schema value: `Create PR` → `pr-create`, `Ready to merge` → `pr-ready`, `Merge PR` → `pr-merge`, `Orchestrate only` → `orchestrate`, `Plan only` → `plan-only` (large tier only).
 
 - **Small/Medium:** No plan.json exists. Invoke the `implement` skill directly, passing the mapped workflow value so it knows how to chain after implementation-review.
 - **Large:** Write `.workflow` into plan.json: `jq --arg w "<workflow>" '.workflow = $w' "$PLAN_DIR/plan.json" > "$PLAN_DIR/plan.json.tmp" && mv "$PLAN_DIR/plan.json.tmp" "$PLAN_DIR/plan.json"`
