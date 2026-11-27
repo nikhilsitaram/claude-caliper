@@ -32,7 +32,7 @@ Gather inputs:
 
 Dispatch with `model: "$PLAN_REVIEWER_MODEL"` — consistency checking requires strong reasoning.
 
-Use `subagent_type: "claude-caliper:plan-reviewer"`. The agent's static behavior (7-point checklist, output format) is in the agent definition. The invocation prompt contains only the plan dir, design doc path, and codebase root.
+Use `subagent_type: "caliper:plan-reviewer"`. The agent's static behavior (7-point checklist, output format) is in the agent definition. The invocation prompt contains only the plan dir, design doc path, and codebase root.
 
 **See:** reviewer-prompt.md
 

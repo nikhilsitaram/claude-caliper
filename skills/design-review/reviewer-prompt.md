@@ -1,6 +1,6 @@
 # Design Reviewer Invocation Template
 
-Use this template when dispatching a design-reviewer agent. The agent's static behavior (9-point design checklist, output format, severity mapping, review-summary format) is defined in the `claude-caliper:design-reviewer` agent definition. This template provides only the dynamic per-invocation context.
+Use this template when dispatching a design-reviewer agent. The agent's static behavior (9-point design checklist, output format, severity mapping, review-summary format) is defined in the `caliper:design-reviewer` agent definition. This template provides only the dynamic per-invocation context.
 
 ## Variables
 
@@ -12,7 +12,7 @@ Use this template when dispatching a design-reviewer agent. The agent's static b
 
 ```text
 Agent(
-  subagent_type: "claude-caliper:design-reviewer",
+  subagent_type: "caliper:design-reviewer",
   model: "{DESIGN_REVIEWER_MODEL}",
   prompt: "Review the design doc at {DESIGN_DOC_PATH}
 

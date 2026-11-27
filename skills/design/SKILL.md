@@ -119,7 +119,7 @@ Read the design reviewer model: `DESIGN_REVIEWER_MODEL=$(caliper-settings get de
 
 ```text
 Agent(
-  subagent_type: "claude-caliper:design-reviewer",
+  subagent_type: "caliper:design-reviewer",
   model: "$DESIGN_REVIEWER_MODEL",
   prompt: "Review the design doc at $PLAN_DIR/design-<topic>.md
 
@@ -133,7 +133,7 @@ Read the planner model: `PLANNER_MODEL=$(caliper-settings get planner_model)`
 
 ```text
 Agent(
-  subagent_type: "claude-caliper:plan-drafter",
+  subagent_type: "caliper:plan-drafter",
   model: "$PLANNER_MODEL",
   mode: "acceptEdits",
   prompt: "Read the design doc at $PLAN_DIR/design-<topic>.md and write
@@ -150,7 +150,7 @@ Read the plan reviewer model: `PLAN_REVIEWER_MODEL=$(caliper-settings get plan_r
 
 ```text
 Agent(
-  subagent_type: "claude-caliper:plan-reviewer",
+  subagent_type: "caliper:plan-reviewer",
   model: "$PLAN_REVIEWER_MODEL",
   prompt: "Review the implementation plan at $PLAN_DIR/plan.json
 

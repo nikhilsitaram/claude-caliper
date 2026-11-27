@@ -12,11 +12,8 @@ Evaluate skill output quality with assertion-based grading, blind before/after c
 1. **Resolve paths** — run once at the start of any eval session:
 
    ```bash
-   PLUGIN_ROOT=$(python3 -c "
-   import json, os
-   p = json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))
-   print(p['plugins']['claude-caliper@claude-caliper'][0]['installPath'])
-   ")
+   # Any enabled caliper install (marketplace or claude.ai-synced), under any CLAUDE_CONFIG_DIR.
+   PLUGIN_ROOT=$(claude plugin list --json | jq -r '[.[] | select(.enabled and (.id | startswith("caliper@")))][0].installPath')
    EVAL_ROOT=~/.claude/skill-evals
    SKILL_EVAL_SCRIPT=$PLUGIN_ROOT/skills/skill-eval/scripts/run_eval.py
    AGGREGATE_SCRIPT=$PLUGIN_ROOT/skills/skill-eval/scripts/aggregate_benchmark.py

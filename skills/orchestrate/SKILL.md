@@ -9,7 +9,7 @@ Execute a plan by dispatching task-implementer subagents in parallel, each in it
 
 There is no per-task review: the gate is the per-phase implementation-review over the integrated diff, plus a final review across all phases.
 
-Templates: `./implementer-prompt.md` (for `claude-caliper:task-implementer`), `skills/implementation-review/reviewer-prompt.md` (for `claude-caliper:implementation-reviewer`), `./dispatch-subagents.md` (dispatch protocol).
+Templates: `./implementer-prompt.md` (for `caliper:task-implementer`), `skills/implementation-review/reviewer-prompt.md` (for `caliper:implementation-reviewer`), `./dispatch-subagents.md` (dispatch protocol).
 
 ## Progress Tracking
 

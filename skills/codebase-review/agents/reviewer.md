@@ -1,6 +1,6 @@
 # Scope Reviewer Dispatch (single mode)
 
-Per-directory dispatch body for the `claude-caliper:codebase-auditor` agent in single-mode Phase 2. The agent definition supplies the 5 review categories, Severity definitions, output Finding template, and quality bar — this file holds only the per-directory specifics.
+Per-directory dispatch body for the `caliper:codebase-auditor` agent in single-mode Phase 2. The agent definition supplies the 5 review categories, Severity definitions, output Finding template, and quality bar — this file holds only the per-directory specifics.
 
 ## Inputs
 
