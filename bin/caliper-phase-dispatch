@@ -6,11 +6,12 @@ set -euo pipefail
 # Orchestrate's per-task dispatch in one call (issue #321): add the task's
 # worktree nested under <parent-worktree> at .claude/worktrees/<task_lower> on a
 # new branch <task_lower> forked from the parent's HEAD, seed agent memory into
-# it, then claim the task in_progress. On success stdout is exactly one line —
-# the task worktree's absolute path — and git/validate-plan chatter goes to
+# it, build its own Python .venv when the parent has one (issue #337), then
+# claim the task in_progress. On success stdout is exactly one line — the task
+# worktree's absolute path — and git/installer/validate-plan chatter goes to
 # stderr. Under worktree isolation the lead can't loop over task ids or chain
-# calls across two phase worktrees, so the three steps are bundled into one
-# call per task.
+# calls across two phase worktrees, so the steps are bundled into one call per
+# task.
 #
 # <parent-worktree> is the feature worktree (single-phase plan) or the task's
 # own phase worktree, on branch phase-<letter_lower> (multi-phase plan). Refused:
@@ -22,7 +23,7 @@ set -euo pipefail
 # directory already exists (stranded work — settle it per Resuming In-Flight
 # Tasks in skills/orchestrate/dispatch-subagents.md; this never re-attaches).
 #
-# Order is add -> seed -> claim. The claim is the only step --ready sees, so it
+# Order is add -> seed -> venv -> claim. The claim is the only step --ready sees, so it
 # goes last: any failure before it leaves the task `pending` and rolls back the
 # worktree and branch this run created (nothing pre-existing is touched). A hard
 # kill between add and claim leaves "pending with a branch", which Resuming
@@ -90,7 +91,8 @@ CREATED=0
 # from a `worktree add` that registered the worktree and then failed (e.g. a
 # failing post-checkout hook). The worktree holds only the seeded memory copy,
 # which clear-worktree-scratch removes (it's untracked where .claude/ isn't
-# ignored, and would block the bare remove). The branch delete names FORK_SHA as
+# ignored, and would block the bare remove), and possibly a .venv, which
+# caliper-python-bootstrap makes ignore itself so the bare remove deletes it. The branch delete names FORK_SHA as
 # the expected old value, so it can't drop commits. If the claim's plan.json
 # write landed before validate-plan failed, nothing is undone: the task is
 # in_progress with a branch, which Resuming settles.
@@ -115,6 +117,12 @@ git -C "$PARENT" branch "$BRANCH" "$FORK_SHA"
 CREATED=1
 git -C "$PARENT" worktree add "$TASK_WORKTREE" "$BRANCH" >&2
 "$BIN_DIR/seed-agent-memory" "$TASK_WORKTREE" >&2
+# A real parent .venv means dependency-bootstrap installed Python deps there.
+# The task can't use it: its editable install imports the parent's source.
+# A symlinked one (bootstrap's no-manifest fallback) is out of scope (#337).
+if [[ -d "$PARENT/.venv" && ! -L "$PARENT/.venv" ]]; then
+  "$BIN_DIR/caliper-python-bootstrap" "$TASK_WORKTREE" >&2
+fi
 "$BIN_DIR/validate-plan" --update-status "$PLAN_JSON" --task "$TASK_ID" --status in_progress >&2
 CREATED=0
 trap - EXIT

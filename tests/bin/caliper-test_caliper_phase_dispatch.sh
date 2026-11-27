@@ -245,6 +245,77 @@ check_eq "exit 0" 0 "$RC"
 check_eq "task worktree created under the named parent" "$FEAT/.claude/worktrees/a1" "$OUT"
 remove_task_wt "$FEAT" a1
 
+# Python .venv mirroring (issue #337). The stub stands in for
+# caliper-python-bootstrap: it logs its target and builds a .venv there with
+# the helper's self-ignoring .gitignore. PY_FAIL makes it fail.
+VENV_BIN="$BASE/venvbin"
+mkdir -p "$VENV_BIN"
+cp "$REPO_ROOT"/bin/* "$VENV_BIN/"   # real siblings; only the Python bootstrap is stubbed
+cat > "$VENV_BIN/caliper-python-bootstrap" <<EOF
+#!/usr/bin/env bash
+echo "\$*" >> "$BASE/pylog"
+echo "installing…"
+[[ -z "\${PY_FAIL:-}" ]] || { echo "py boom" >&2; exit 1; }
+mkdir -p "\$1/.venv/bin" && echo '*' > "\$1/.venv/.gitignore" && touch "\$1/.venv/bin/python"
+EOF
+chmod +x "$VENV_BIN"/*
+run_venv() {
+  : > "$BASE/pylog"
+  RC=0
+  OUT="$(cd "$MAIN" && "$VENV_BIN/caliper-phase-dispatch" "$@" 2>"$BASE/err")" || RC=$?
+  ERR="$(cat "$BASE/err")"
+}
+
+echo "=== a parent .venv is mirrored by a task-local one ==="
+single_plan
+mkdir -p "$FEAT/.venv"
+run_venv "$PLAN" "$FEAT" A1
+check_eq "exit 0" 0 "$RC"
+check_eq "stdout is still exactly the task worktree path" "$FEAT/.claude/worktrees/a1" "$OUT"
+check_eq "bootstrap ran on the task worktree" "$FEAT/.claude/worktrees/a1" "$(cat "$BASE/pylog")"
+check_eq "task worktree has its own .venv" yes "$([[ -d "$OUT/.venv" && ! -L "$OUT/.venv" ]] && echo yes || echo no)"
+check_eq "task claimed in_progress" in_progress "$(status_of A1)"
+remove_task_wt "$FEAT" a1   # no-force remove succeeds: the .venv ignores itself
+
+echo "=== no parent .venv: no bootstrap ==="
+rm -rf "$FEAT/.venv"
+single_plan
+run_venv "$PLAN" "$FEAT" A1
+check_eq "exit 0" 0 "$RC"
+check_eq "bootstrap not run" "" "$(cat "$BASE/pylog")"
+remove_task_wt "$FEAT" a1
+
+echo "=== a symlinked parent .venv is left alone ==="
+single_plan
+mkdir -p "$BASE/shared-venv"
+ln -s "$BASE/shared-venv" "$FEAT/.venv"
+run_venv "$PLAN" "$FEAT" A1
+check_eq "exit 0" 0 "$RC"
+check_eq "bootstrap not run" "" "$(cat "$BASE/pylog")"
+remove_task_wt "$FEAT" a1
+rm "$FEAT/.venv"
+
+echo "=== a failed bootstrap rolls back before the claim ==="
+single_plan
+mkdir -p "$FEAT/.venv"
+PY_FAIL=1 run_venv "$PLAN" "$FEAT" A1
+check_eq "exit nonzero" 1 "$((RC != 0))"
+check_eq "nothing on stdout" "" "$OUT"
+check_match "relays the bootstrap's error" "*py boom*" "$ERR"
+check_eq "task never claimed" pending "$(status_of A1)"
+check_eq "task branch removed" no "$(has_branch a1)"
+check_eq "task worktree removed" no "$([[ -e "$FEAT/.claude/worktrees/a1" ]] && echo yes || echo no)"
+
+echo "=== a failed claim rolls back a worktree holding a built .venv ==="
+single_plan
+run_venv "$PLAN" "$FEAT" A2    # depends on A1: the claim refuses after the bootstrap
+check_eq "exit nonzero" 1 "$((RC != 0))"
+check_eq "bootstrap ran first" "$FEAT/.claude/worktrees/a2" "$(cat "$BASE/pylog")"
+check_eq "task stays pending" pending "$(status_of A2)"
+check_eq "task branch removed" no "$(has_branch a2)"
+check_eq "task worktree removed" no "$([[ -e "$FEAT/.claude/worktrees/a2" ]] && echo yes || echo no)"
+rm -rf "$FEAT/.venv"
+
 echo "=== usage ==="
 run "$PLAN" "$FEAT"
 check_eq "two args: exit 1" 1 "$RC"
