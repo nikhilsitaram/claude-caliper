@@ -44,8 +44,8 @@ while IFS= read -r name; do
 done < <(jq -r '.plugins[].name' "$MANIFEST")
 
 # The one plugin must ship every skill, since there's no other bundle to carry it.
-listed=$(jq -r '.plugins[0].skills[]' "$MANIFEST" | sed 's#^\./skills/##' | sort)
-on_disk=$(find "$REPO_ROOT/skills" -mindepth 2 -maxdepth 2 -name SKILL.md | sed "s#^$REPO_ROOT/skills/##; s#/SKILL.md\$##" | sort)
+listed=$(jq -r '.plugins[0].skills[]' "$MANIFEST" | sort)
+on_disk=$(find "$REPO_ROOT/skills" -mindepth 2 -maxdepth 2 -name SKILL.md | sed "s#^$REPO_ROOT/#./#; s#/SKILL.md\$##" | sort)
 if [[ "$listed" == "$on_disk" ]]; then pass "plugin lists every skill dir"; else fail "skills list differs from skills/*: $(diff <(echo "$listed") <(echo "$on_disk") | grep '^[<>]' | tr '\n' ' ')"; fi
 
 echo "=== README badges ==="
