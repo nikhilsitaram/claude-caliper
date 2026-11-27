@@ -9,7 +9,7 @@
 A Claude Code plugin that turns your goal into a PR with as little friction as possible. It sizes the work first and applies only as much process as it needs, and every integrated diff is reviewed by a fresh-context subagent. You get a design-gated, test-driven PR — with three human decisions.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.0.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
+[![Version](https://img.shields.io/badge/version-3.0.1-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-6E40C9?logo=anthropic&logoColor=white)](https://claude.ai/code)
 [![Skills](https://img.shields.io/badge/19%20skills-included-2ea44f)](skills/)
 
@@ -135,7 +135,7 @@ In 3.0 the plugin is renamed `caliper`, because claude.ai rejects third-party pl
 1. Saved `/caliper-settings` preferences live in the plugin's data dir, which is keyed by plugin name, and uninstalling deletes it. Before uninstalling, move `~/.claude/plugins/data/claude-caliper-claude-caliper/` (or `claude-caliper-workflow-claude-caliper/`) to `~/.claude/plugins/data/caliper-claude-caliper/`, or plan to set them again.
 2. Uninstall whichever 2.x plugin you have, e.g. `/plugin uninstall claude-caliper@claude-caliper`, then `/plugin install caliper@claude-caliper`.
 3. In user and project `settings.json`, replace the old key under `enabledPlugins` with `"caliper@claude-caliper": true`.
-4. Agent memory is stored per agent name, and the names change from `claude-caliper:<agent>` (or `claude-caliper-workflow:<agent>`, `claude-caliper-tooling:<agent>`) to `caliper:<agent>`. Run this in each repo that has it to keep what the reviewers have learned. Finish or clean up in-flight caliper worktrees first: removing one syncs its seeded copy of the old dirs back into the main checkout, so run it again if any were still open.
+4. Agent memory is stored per agent name, and the names change from `claude-caliper:<agent>` (or `claude-caliper-workflow:<agent>`, `claude-caliper-tooling:<agent>`) to `caliper:<agent>`. Run this in each repo that has it to keep what the reviewers have learned. Finish or clean up in-flight caliper worktrees first: removing one syncs its seeded copy of the old dirs back into the main checkout, so run it again if any were still open. If the repo commits its agent memory (`git ls-files .claude/agent-memory` lists files), a plain `mv` shows up as deleted files on your main branch: rename the dir with `git mv` on a branch and open a PR instead.
 
    ```bash
    for d in $(find .claude/agent-memory -mindepth 1 -maxdepth 1 -type d -name 'claude-caliper-*' 2>/dev/null); do
