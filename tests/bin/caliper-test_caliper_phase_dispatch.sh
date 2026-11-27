@@ -316,6 +316,37 @@ check_eq "task branch removed" no "$(has_branch a2)"
 check_eq "task worktree removed" no "$([[ -e "$FEAT/.claude/worktrees/a2" ]] && echo yes || echo no)"
 rm -rf "$FEAT/.venv"
 
+echo "=== seam: the real caliper-python-bootstrap, with only uv stubbed ==="
+# The repo has no .gitignore, so only the helper's self-ignoring .venv keeps
+# the no-force removes (rollback and clean-up) working.
+UV_STUB="$BASE/uvstub"
+mkdir -p "$UV_STUB"
+cat > "$UV_STUB/uv" <<EOF
+#!/usr/bin/env bash
+echo "uv \$* [cwd=\$(pwd -P)]" >> "$BASE/uvlog"
+if [[ "\$1" == venv ]]; then mkdir -p "\$2/bin" && echo '*' > "\$2/.gitignore"; fi
+EOF
+chmod +x "$UV_STUB/uv"
+printf '[project]\nname = "p"\n' > "$FEAT/pyproject.toml"
+g -C "$FEAT" add pyproject.toml
+g -C "$FEAT" commit -q -m pyproject
+mkdir -p "$FEAT/.venv"
+single_plan
+: > "$BASE/uvlog"
+PATH="$UV_STUB:$PATH" run "$PLAN" "$FEAT" A1
+check_eq "exit 0" 0 "$RC"
+check_eq "venv built and installed in the task worktree" \
+  "uv venv .venv [cwd=$OUT]
+uv pip install --python .venv/bin/python -e .[dev] [cwd=$OUT]" "$(cat "$BASE/uvlog")"
+check_eq "task .venv isn't untracked content" "" "$(g -C "$OUT" status --porcelain -- .venv)"
+remove_task_wt "$FEAT" a1
+check_eq "no-force clean-up removed it" no "$([[ -e "$FEAT/.claude/worktrees/a1" ]] && echo yes || echo no)"
+PATH="$UV_STUB:$PATH" run "$PLAN" "$FEAT" A2   # claim refuses after the venv is built
+check_eq "failed claim: exit nonzero" 1 "$((RC != 0))"
+check_eq "failed claim: worktree with its .venv rolled back" no "$([[ -e "$FEAT/.claude/worktrees/a2" ]] && echo yes || echo no)"
+check_eq "failed claim: branch removed" no "$(has_branch a2)"
+rm -rf "$FEAT/.venv"
+
 echo "=== usage ==="
 run "$PLAN" "$FEAT"
 check_eq "two args: exit 1" 1 "$RC"
