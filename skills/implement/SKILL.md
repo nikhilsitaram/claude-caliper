@@ -25,7 +25,7 @@ The same wrong-assumption failures that unexamined plans cause on a large featur
 2. **Ask clarifying questions only if genuinely ambiguous** — don't manufacture questions for a request that's already clear.
 3. **Present a mini-design in your response text**: 2-5 sentences covering what changes, where, and why this approach — no formal doc, no file written.
 4. **Ask for approval in plain text, ending that same response** — not AskUserQuestion: its dialog can hide the text above it, so the user would approve a design they can't read. Settle the workflow in the same ask, so the choice is made before implementing instead of surfaced after the work is done. Run `caliper-settings get workflow` before writing the step-3 text, so no tool call separates the design from the ask:
-   - If a value is returned, note it ("Using your configured workflow: <value>") and ask "Approve, or what should change?"
+   - If a value is returned, note it ("Using your configured workflow: <value>"; for `plan-only`, add that this plan-less path treats it as `orchestrate`) and ask "Approve, or what should change?"
    - If `PROMPT_REQUIRED`, also list the workflows — Create PR (default, `pr-create`) / Ready to merge (`pr-ready`) / Merge PR (`pr-merge`) / Orchestrate only (`orchestrate`, stop after review) — and ask the user to approve and name one; a bare approval means Create PR.
 
    Wait for the reply before writing any code. Requested changes loop back to step 3; the resolved workflow value carries forward to the review hand-off.

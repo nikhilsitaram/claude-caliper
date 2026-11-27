@@ -49,7 +49,7 @@ Complete in order:
     - **Workflow** — run `caliper-settings get workflow`. If a value is returned, just say "Using your configured workflow: <value>". If `PROMPT_REQUIRED`, list: **Create PR** (default; → pr-create), **Ready to merge** (→ pr-create → pr-review until bot comments are addressed and CI is green, stop before merge), **Merge PR** (→ pr-create → pr-review → pr-merge), **Orchestrate only** (stop after implementation review, work stays in worktree), and **Plan only** (Large tier only — stop after plan-review; meaningless on the plan-less Small/Medium path). List it even when recommending Small/Medium, since the user may switch tiers in the same reply.
     - **Approval** — "Approve, or what should change?" A bare approval means the recommended tier and the configured workflow (Create PR when `PROMPT_REQUIRED`).
 
-    Wait for the reply. Requested changes return to step 5.
+    Wait for the reply. Requested changes return to step 5; on the way back through step 6, reuse the existing worktree rather than re-adding it.
 
     Approval leaves the permission mode alone. On the Large tier, background subagents (plan-drafter, task implementers) can't answer a prompt, so in a default-mode session their would-be prompts are denied: suggest the user switch to auto mode, or at least acceptEdits (shift+tab), before routing.
 8. **Route by tier:**
