@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# check-version-bump <base-ref>
+#
+# Fails a PR that changes what the plugin ships (skills/, agents/, bin/,
+# hooks/, defaults.json) without a marketplace.json version strictly above the
+# base branch's CURRENT tip. The installer compares cached vs declared version,
+# so a missing bump leaves users on a stale cache.
+#
+# Comparing to the tip rather than the merge-base catches the silent failure
+# mode: when main ships the same bump first, a rebase drops the PR's identical
+# hunk without a conflict, and the PR ends up with no bump at all. CI re-runs
+# only on a push, so a base that moves after the last push is caught at the
+# next rebase push (caliper-pr-at-bar requires the branch to be up to date).
+#
+# Exit 0: bump present or not needed. 1: bump missing. 2: usage or read error.
+
+die() { echo "ERROR: $*" >&2; exit 2; }
+[[ $# -eq 1 ]] || die "usage: check-version-bump <base-ref>"
+BASE_REF="$1"
+MANIFEST=.claude-plugin/marketplace.json
+git rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null || die "unknown base ref: $BASE_REF"
+
+SHIPPED="$(git diff --name-only "$BASE_REF...HEAD" \
+  | grep -E '^(skills|agents|bin|hooks)/|^defaults\.json$' || true)"
+if [[ -z "$SHIPPED" ]]; then
+  echo "No shipped files changed; no version bump needed."
+  exit 0
+fi
+
+version_at() {
+  git show "$1:$MANIFEST" | jq -er '.plugins[0].version' \
+    || die "can't read .plugins[0].version from $MANIFEST at $1"
+}
+BASE_V="$(version_at "$BASE_REF")"
+HEAD_V="$(version_at HEAD)"
+for v in "$BASE_V" "$HEAD_V"; do
+  [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "not an X.Y.Z version: $v"
+done
+
+# 0 when $1 > $2, numerically field by field.
+greater() {
+  local a b i
+  IFS=. read -r -a a <<<"$1"
+  IFS=. read -r -a b <<<"$2"
+  for i in 0 1 2; do
+    (( 10#${a[i]} > 10#${b[i]} )) && return 0
+    (( 10#${a[i]} < 10#${b[i]} )) && return 1
+  done
+  return 1
+}
+
+if greater "$HEAD_V" "$BASE_V"; then
+  echo "Version bump OK: $BASE_REF is at $BASE_V, this branch declares $HEAD_V."
+  exit 0
+fi
+echo "ERROR: $MANIFEST declares $HEAD_V, but $BASE_REF is already at $BASE_V." >&2
+echo "This branch changes shipped files, so bump the version above $BASE_V:" >&2
+while IFS= read -r f; do echo "  $f" >&2; done <<<"$SHIPPED"
+exit 1
