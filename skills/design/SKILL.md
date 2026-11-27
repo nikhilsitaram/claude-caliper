@@ -43,36 +43,13 @@ Complete in order:
    - Single-phase: branch name `<feature>` is correct as-is; execution works here directly, PRs to main
    1. Bootstrap dependencies per **See:** ./dependency-bootstrap.md
    2. Run tests to establish a clean baseline
-7. **Configure and approve** — single AskUserQuestion with 3 questions:
+7. **Configure and approve in plain text** — once step 6 is done, end the response with a short recap of the design and one text ask, not AskUserQuestion: its dialog can hide the design above it, so the user would approve something they can't see. The ask covers:
 
-    **Q1 — Workflow** (header: "Workflow"):
-    Run `caliper-settings get workflow`.
-    - If a value is returned (e.g. `pr-create`): skip this question. Message: "Using your configured workflow: <value>".
-    - If `PROMPT_REQUIRED`: options depend on the tier recommended in step 5 (mark the recommended option "(Recommended)"):
-      - **Small or Medium tier:** `Plan only` is meaningless on the plan-less fast path — omit it:
-        - **Create PR** — Implement → pr-create (Recommended)
-        - **Ready to merge** — Implement → pr-create → pr-review (automated fix, until bot comments are addressed and CI is green), stop before merge
-        - **Merge PR** — Implement → pr-create → pr-review → pr-merge
-        - **Orchestrate only** — Implement → stop after implementation review (work stays in worktree)
-      - **Large tier:** five workflows, but AskUserQuestion takes at most four options, so the two early stops share one:
-        - **Create PR** — Orchestrate → pr-create (Recommended)
-        - **Ready to merge** — Orchestrate → pr-create → pr-review (automated fix, until bot comments are addressed and CI is green), stop before merge
-        - **Merge PR** — Orchestrate → pr-create → pr-review → pr-merge
-        - **Stop early** — then ask a follow-up: **Orchestrate only** (stop after implementation review, work stays in worktree) or **Plan only** (stop after plan is reviewed)
+    - **Tier** — the one recommended in step 5, with the alternatives: **Small** (no design doc, hand off straight to `implement`), **Medium** (short design doc + one design-reviewer pass, then `implement`), **Large** (design-review, draft-plan, plan-review, orchestrate).
+    - **Workflow** — run `caliper-settings get workflow`. If a value is returned, just say "Using your configured workflow: <value>". If `PROMPT_REQUIRED`, list: **Create PR** (default; → pr-create), **Ready to merge** (→ pr-create → pr-review until bot comments are addressed and CI is green, stop before merge), **Merge PR** (→ pr-create → pr-review → pr-merge), **Orchestrate only** (stop after implementation review, work stays in worktree), and **Plan only** (Large tier only — stop after plan-review; meaningless on the plan-less Small/Medium path). List it even when recommending Small/Medium, since the user may switch tiers in the same reply.
+    - **Approval** — "Approve, or what should change?" A bare approval means the recommended tier and the configured workflow (Create PR when `PROMPT_REQUIRED`).
 
-    **Q2 — Tier** (header: "Tier"):
-    Mark the tier recommended in step 5 "(Recommended)". Options:
-    - **Small** — no design doc; approve now, hand off straight to `implement`
-    - **Medium** — short design doc + one design-reviewer pass, then hand off to `implement`
-    - **Large** — full ceremony: design-review, draft-plan, plan-review, orchestrate
-
-    If the answer moves the tier across the small/medium ↔ large boundary from what Q1's options assumed, ask one quick follow-up AskUserQuestion to confirm the workflow choice with the corrected option set before proceeding.
-
-    **Q3 — Approval** (header: "Approval"):
-    - **Approve design**
-    - **Needs changes**
-
-    If "Needs changes" on Q3, return to step 5.
+    Wait for the reply. Requested changes return to step 5; on the way back through step 6, reuse the existing worktree rather than re-adding it.
 
     Approval leaves the permission mode alone. On the Large tier, background subagents (plan-drafter, task implementers) can't answer a prompt, so in a default-mode session their would-be prompts are denied: suggest the user switch to auto mode, or at least acceptEdits (shift+tab), before routing.
 8. **Route by tier:**
@@ -161,7 +138,7 @@ Agent(
 
 ## Route Workflow
 
-Map the Q1 answer to a schema value: `Create PR` → `pr-create`, `Ready to merge` → `pr-ready`, `Merge PR` → `pr-merge`, `Orchestrate only` → `orchestrate`, `Plan only` → `plan-only` (large tier only).
+Map the workflow from step 7 (chosen or configured) to a schema value: `Create PR` → `pr-create`, `Ready to merge` → `pr-ready`, `Merge PR` → `pr-merge`, `Orchestrate only` → `orchestrate`, `Plan only` → `plan-only` (large tier only).
 
 - **Small/Medium:** No plan.json exists. Invoke the `implement` skill directly, passing the mapped workflow value so it knows how to chain after implementation-review.
 - **Large:** Write `.workflow` into plan.json: `jq --arg w "<workflow>" '.workflow = $w' "$PLAN_DIR/plan.json" > "$PLAN_DIR/plan.json.tmp" && mv "$PLAN_DIR/plan.json.tmp" "$PLAN_DIR/plan.json"`
@@ -184,7 +161,7 @@ Before clarifying questions, challenge the framing like a senior PM:
 
 ## Smart Question Batching
 
-- **Text questions** (word-described choices): batch up to 4 per AskUserQuestion
+- **Text questions** (step 3 clarifying choices): batch up to 4 per AskUserQuestion
 - **Visual questions** (need ASCII mockups): one at a time, use `markdown` preview
 - Text first, visual last
 - Each question gets its own options — never "all correct / not correct" toggles
@@ -193,15 +170,13 @@ Before clarifying questions, challenge the framing like a senior PM:
 ## Presenting the Design
 
 - Scale sections to complexity (few sentences to 200-300 words)
-- Ask after each section: "Does this look right?"
+- Ask after each section: "Does this look right?" — in plain text at the end of the response, never AskUserQuestion, for the same reason as step 7 (the dialog hides the section being approved); the phasing check below too
 - Cover: architecture, components, data flow, error handling, testing
 - Note shared foundations as **phasing candidates**
 
 **Phasing** (after all sections, large tier only):
 - Simple: "Single phase, no dependency layers. Sound right?"
 - Complex: "N dependency layers. Phase 1 — [name], Phase 2 — ... Adjust?"
-
-Use AskUserQuestion with "Looks good" / "Adjust phases" options.
 
 ## Design Doc Contents
 
