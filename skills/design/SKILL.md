@@ -161,7 +161,7 @@ Before clarifying questions, challenge the framing like a senior PM:
 
 ## Smart Question Batching
 
-- **Text questions** (word-described choices): batch up to 4 per AskUserQuestion
+- **Text questions** (step 3 clarifying choices): batch up to 4 per AskUserQuestion
 - **Visual questions** (need ASCII mockups): one at a time, use `markdown` preview
 - Text first, visual last
 - Each question gets its own options — never "all correct / not correct" toggles
@@ -170,15 +170,13 @@ Before clarifying questions, challenge the framing like a senior PM:
 ## Presenting the Design
 
 - Scale sections to complexity (few sentences to 200-300 words)
-- Ask after each section: "Does this look right?"
+- Ask after each section: "Does this look right?" — in plain text at the end of the response, never AskUserQuestion, for the same reason as step 7 (the dialog hides the section being approved); the phasing check below too
 - Cover: architecture, components, data flow, error handling, testing
 - Note shared foundations as **phasing candidates**
 
 **Phasing** (after all sections, large tier only):
 - Simple: "Single phase, no dependency layers. Sound right?"
 - Complex: "N dependency layers. Phase 1 — [name], Phase 2 — ... Adjust?"
-
-Ask in plain text at the end of the response, for the same reason as step 7.
 
 ## Design Doc Contents
 
