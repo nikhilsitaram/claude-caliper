@@ -39,7 +39,7 @@ There is exactly one `completion.md` per phase — the point where the orchestra
       "depends_on": [],
       "rationale": "Foundation layer needed before consumers",
       "success_criteria": [
-        { "run": "pytest tests/integration/ -v", "expect_exit": 0 }
+        { "run": ".venv/bin/pytest tests/integration/ -v", "expect_exit": 0 }
       ],
       "tasks": [
         {
