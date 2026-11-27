@@ -150,7 +150,12 @@ Plan artifacts in `.claude/claude-caliper/` are unaffected.
 
 ### Updating
 
-Re-run the install command to update to the latest version. Claude Code compares your cached version against the declared version and pulls the new one.
+Re-running the install command doesn't update an installed plugin. Refresh the marketplace, then update the plugin, and restart Claude Code:
+
+```bash
+claude plugin marketplace update claude-caliper
+claude plugin update caliper@claude-caliper
+```
 
 ---
 
@@ -528,7 +533,7 @@ It uses feature branches, worktrees for isolation, and squash merges. It never c
 Restart Claude Code after installing, then start a **new session**. Existing sessions don't pick up plugin changes. If it still doesn't fire, verify the plugin is loaded: run `/plugin` and check that caliper appears in the list.
 
 **How do I update to a newer version?**
-Re-run `/plugin install caliper@claude-caliper`. Claude Code compares your cached version against the declared version and pulls the update. Check the [releases page](https://github.com/nikhilsitaram/claude-caliper/releases) for changelogs.
+Run `claude plugin marketplace update claude-caliper`, then `claude plugin update caliper@claude-caliper`, and restart Claude Code. Re-running `install` on an installed plugin leaves the old version in place. Check the [releases page](https://github.com/nikhilsitaram/claude-caliper/releases) for changelogs.
 
 ---
 
