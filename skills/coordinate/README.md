@@ -11,8 +11,6 @@ One coordinator session works a queue of issues through parallel `/handoff` pane
 
 Dependencies come in two kinds. `--after` waits for the other item to merge. `--soft-after` starts as soon as the other item has started (so parked dependents never take its slot), building against what it expects the other item's interface to be, and rebases and checks those assumptions once that item merges.
 
-It ships only in the full `claude-caliper` bundle, because its panes run the workflow skills: implement, then implementation-review, pr-create and pr-review.
-
 ## Requirements
 
 - **macOS + iTerm2.** Panes come from `handoff`, so its requirements and one-time Automation grant apply. See [handoff/README](../handoff/README.md).

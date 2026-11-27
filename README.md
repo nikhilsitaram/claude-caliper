@@ -9,7 +9,7 @@
 A Claude Code plugin that turns your goal into a PR with as little friction as possible. It sizes the work first and applies only as much process as it needs, and every integrated diff is reviewed by a fresh-context subagent. You get a design-gated, test-driven PR — with three human decisions.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.53.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue)](https://github.com/nikhilsitaram/claude-caliper/releases)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-6E40C9?logo=anthropic&logoColor=white)](https://claude.ai/code)
 [![Skills](https://img.shields.io/badge/18%20skills-included-2ea44f)](skills/)
 
@@ -111,7 +111,7 @@ flowchart TD
 
 ```bash
 /plugin marketplace add nikhilsitaram/claude-caliper
-/plugin install claude-caliper@claude-caliper
+/plugin install caliper@claude-caliper
 ```
 
 Restart Claude Code.
@@ -124,15 +124,25 @@ Start a new session and describe something you want to build. The design skill f
 
 If Claude immediately starts discussing approaches and trade-offs instead of writing code, the plugin is working.
 
-### Packages
+### Cloud sessions and routines
 
-Install only what you need:
+Claude Code cloud sessions and scheduled routines load plugins only from your claude.ai account. Go to **claude.ai/customize/plugins → Add marketplace → `nikhilsitaram/claude-caliper`** and install `caliper`.
 
-| Package | What you get | Install command |
-|---------|-------------|-----------------|
-| **claude-caliper** | All 19 skills | `/plugin install claude-caliper@claude-caliper` |
-| **claude-caliper-workflow** | Design-to-merge pipeline (12 skills) | `/plugin install claude-caliper-workflow@claude-caliper` |
-| **claude-caliper-tooling** | Codebase review + test audit + skill eval + queue + usage-guard + session handoff (6 skills) | `/plugin install claude-caliper-tooling@claude-caliper` |
+### Migrating from 2.x (`claude-caliper`, `-workflow`, `-tooling`)
+
+In 3.0 the plugin is renamed `caliper`, because claude.ai rejects third-party plugin names that start with `claude-`. The `-workflow` and `-tooling` bundles are folded into it: their skills dispatched agents under a different plugin prefix, which failed when only a bundle was installed. The marketplace is still `claude-caliper`.
+
+1. Uninstall whichever 2.x plugin you have, e.g. `/plugin uninstall claude-caliper@claude-caliper`, then `/plugin install caliper@claude-caliper`.
+2. In user and project `settings.json`, replace the old key under `enabledPlugins` with `"caliper@claude-caliper": true`.
+3. Agent memory is stored per agent name, and the names change from `claude-caliper:<agent>` to `caliper:<agent>`. Run this in each repo that has it to keep what the reviewers have learned:
+
+   ```bash
+   for d in .claude/agent-memory/claude-caliper-*; do t=".claude/agent-memory/${d##*/claude-}"; [ -d "$d" ] && [ ! -e "$t" ] && mv "$d" "$t"; done
+   ```
+
+4. Rename `/claude-caliper:<skill>` invocations and `claude-caliper:<agent>` references in your own skills or docs to `/caliper:<skill>` and `caliper:<agent>`.
+
+Plan artifacts in `.claude/claude-caliper/` are unaffected.
 
 ### Updating
 
@@ -184,7 +194,7 @@ Delegate scoped work to a fresh, visible Claude session in a new pane. **macOS +
 | Skill | Trigger | What it does |
 |-------|---------|-------------|
 | [handoff](skills/handoff/) | `/handoff <slug>` | Splits the iTerm2 pane it was invoked from, launches a fresh `claude` in the new pane, and relays a self-contained brief to it over cross-session messaging — a peer session you can watch and steer, unlike a background subagent |
-| [coordinate](skills/coordinate/) | `/coordinate [--focused] [--resume] [issues...]` | Works a queue of issues through parallel handoff panes, one PR each. It triages scope with you, starts panes as hard dependencies merge (soft ones once the other has started) and usage allows, re-checks every PR with `caliper-pr-at-bar`, then merges per `coordinate_merge` (`confirm` waits for your say-so; `auto-merge` merges unless a hold applies). It also tells open panes when the base moves, and keeps a durable ledger (`caliper-coordinate`). Full `claude-caliper` bundle only — see [coordinate/README](skills/coordinate/README.md) |
+| [coordinate](skills/coordinate/) | `/coordinate [--focused] [--resume] [issues...]` | Works a queue of issues through parallel handoff panes, one PR each. It triages scope with you, starts panes as hard dependencies merge (soft ones once the other has started) and usage allows, re-checks every PR with `caliper-pr-at-bar`, then merges per `coordinate_merge` (`confirm` waits for your say-so; `auto-merge` merges unless a hold applies). It also tells open panes when the base moves, and keeps a durable ledger (`caliper-coordinate`). See [coordinate/README](skills/coordinate/README.md) |
 
 ---
 
@@ -511,10 +521,10 @@ The design skill sizes the work and routes it into one of three tiers. **Small**
 It uses feature branches, worktrees for isolation, and squash merges. It never commits directly to main. All changes go through PRs.
 
 **The design skill isn't firing — Claude just starts coding.**
-Restart Claude Code after installing, then start a **new session**. Existing sessions don't pick up plugin changes. If it still doesn't fire, verify the plugin is loaded: run `/plugin` and check that claude-caliper appears in the list.
+Restart Claude Code after installing, then start a **new session**. Existing sessions don't pick up plugin changes. If it still doesn't fire, verify the plugin is loaded: run `/plugin` and check that caliper appears in the list.
 
 **How do I update to a newer version?**
-Re-run `/plugin install claude-caliper@claude-caliper`. Claude Code compares your cached version against the declared version and pulls the update. Check the [releases page](https://github.com/nikhilsitaram/claude-caliper/releases) for changelogs.
+Re-run `/plugin install caliper@claude-caliper`. Claude Code compares your cached version against the declared version and pulls the update. Check the [releases page](https://github.com/nikhilsitaram/claude-caliper/releases) for changelogs.
 
 ---
 
