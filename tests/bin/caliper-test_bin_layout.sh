@@ -28,6 +28,7 @@ check "bin/caliper-wait-pr exists" test -f "$REPO_ROOT/bin/caliper-wait-pr"
 check "bin/caliper-pr-at-bar exists" test -f "$REPO_ROOT/bin/caliper-pr-at-bar"
 check "bin/caliper-coordinate exists" test -f "$REPO_ROOT/bin/caliper-coordinate"
 check "bin/caliper-phase-dispatch exists" test -f "$REPO_ROOT/bin/caliper-phase-dispatch"
+check "bin/caliper-python-bootstrap exists" test -f "$REPO_ROOT/bin/caliper-python-bootstrap"
 check "bin/validate-plan is executable" test -x "$REPO_ROOT/bin/validate-plan"
 check "bin/caliper-settings is executable" test -x "$REPO_ROOT/bin/caliper-settings"
 check "bin/seed-agent-memory is executable" test -x "$REPO_ROOT/bin/seed-agent-memory"
@@ -40,6 +41,7 @@ check "bin/caliper-wait-pr is executable" test -x "$REPO_ROOT/bin/caliper-wait-p
 check "bin/caliper-pr-at-bar is executable" test -x "$REPO_ROOT/bin/caliper-pr-at-bar"
 check "bin/caliper-coordinate is executable" test -x "$REPO_ROOT/bin/caliper-coordinate"
 check "bin/caliper-phase-dispatch is executable" test -x "$REPO_ROOT/bin/caliper-phase-dispatch"
+check "bin/caliper-python-bootstrap is executable" test -x "$REPO_ROOT/bin/caliper-python-bootstrap"
 check "retired bin/link-agent-memory is gone" test ! -e "$REPO_ROOT/bin/link-agent-memory"
 check "scripts/ directory does not exist" test ! -d "$REPO_ROOT/scripts"
 check_shebang() {
@@ -59,6 +61,7 @@ check "bin/caliper-wait-pr has bash shebang" check_shebang "$REPO_ROOT/bin/calip
 check "bin/caliper-pr-at-bar has bash shebang" check_shebang "$REPO_ROOT/bin/caliper-pr-at-bar"
 check "bin/caliper-coordinate has bash shebang" check_shebang "$REPO_ROOT/bin/caliper-coordinate"
 check "bin/caliper-phase-dispatch has bash shebang" check_shebang "$REPO_ROOT/bin/caliper-phase-dispatch"
+check "bin/caliper-python-bootstrap has bash shebang" check_shebang "$REPO_ROOT/bin/caliper-python-bootstrap"
 
 echo ""
 echo "Results: $pass passed, $fail failed"

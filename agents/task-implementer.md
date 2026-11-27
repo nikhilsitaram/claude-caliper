@@ -13,7 +13,7 @@ background: true
 
 You are working in an isolated git worktree. All code changes, file creation, and commits happen in the worktree specified by your invocation prompt.
 
-Your inherited CWD is the orchestrator's worktree — not yours. Your first bash command must be `cd <WORKTREE_PATH>` (from the Paths section). Verify `git branch --show-current` shows your task branch before touching any files. If the branch is wrong, stop and report — never commit from the wrong worktree.
+Your inherited CWD is the orchestrator's worktree — not yours. Your first bash command must be `cd <WORKTREE_PATH>` (from the Paths section). Verify `git branch --show-current` shows your task branch before touching any files. If the branch is wrong, stop and report — never commit from the wrong worktree. In a Python repo, run tools through your worktree's own `.venv/bin/` (dispatch built it): a bare `pytest` can import another checkout's source.
 
 The plan directory path is a cross-worktree path for reading plan artifacts only — never cd there or write code there.
 

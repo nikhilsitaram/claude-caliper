@@ -245,6 +245,99 @@ check_eq "exit 0" 0 "$RC"
 check_eq "task worktree created under the named parent" "$FEAT/.claude/worktrees/a1" "$OUT"
 remove_task_wt "$FEAT" a1
 
+# Python .venv mirroring (issue #337). The stub stands in for
+# caliper-python-bootstrap: it logs its argv and builds a .venv in its target
+# ($3, after --like <parent>) with the helper's self-ignoring .gitignore.
+# PY_FAIL makes it fail. Whether --like acts on a given parent is the helper's
+# own test; the seam block below runs the real one.
+VENV_BIN="$BASE/venvbin"
+mkdir -p "$VENV_BIN"
+cp "$REPO_ROOT"/bin/* "$VENV_BIN/"   # real siblings; only the Python bootstrap is stubbed
+cat > "$VENV_BIN/caliper-python-bootstrap" <<EOF
+#!/usr/bin/env bash
+echo "\$*" >> "$BASE/pylog"
+echo "installing…"
+[[ -z "\${PY_FAIL:-}" ]] || { echo "py boom" >&2; exit 1; }
+mkdir -p "\$3/.venv/bin" && echo '*' > "\$3/.venv/.gitignore" && touch "\$3/.venv/bin/python"
+EOF
+chmod +x "$VENV_BIN"/*
+run_venv() {
+  : > "$BASE/pylog"
+  RC=0
+  OUT="$(cd "$MAIN" && "$VENV_BIN/caliper-phase-dispatch" "$@" 2>"$BASE/err")" || RC=$?
+  ERR="$(cat "$BASE/err")"
+}
+
+echo "=== a parent .venv is mirrored by a task-local one ==="
+single_plan
+mkdir -p "$FEAT/.venv"
+run_venv "$PLAN" "$FEAT" A1
+check_eq "exit 0" 0 "$RC"
+check_eq "stdout is still exactly the task worktree path" "$FEAT/.claude/worktrees/a1" "$OUT"
+check_eq "bootstrap ran on the task worktree, like the parent" "--like $FEAT $FEAT/.claude/worktrees/a1" "$(cat "$BASE/pylog")"
+check_eq "task worktree has its own .venv" yes "$([[ -d "$OUT/.venv" && ! -L "$OUT/.venv" ]] && echo yes || echo no)"
+check_eq "task claimed in_progress" in_progress "$(status_of A1)"
+remove_task_wt "$FEAT" a1   # no-force remove succeeds: the .venv ignores itself
+
+echo "=== a failed bootstrap rolls back before the claim ==="
+single_plan
+mkdir -p "$FEAT/.venv"
+PY_FAIL=1 run_venv "$PLAN" "$FEAT" A1
+check_eq "exit nonzero" 1 "$((RC != 0))"
+check_eq "nothing on stdout" "" "$OUT"
+check_match "relays the bootstrap's error" "*py boom*" "$ERR"
+check_eq "task never claimed" pending "$(status_of A1)"
+check_eq "task branch removed" no "$(has_branch a1)"
+check_eq "task worktree removed" no "$([[ -e "$FEAT/.claude/worktrees/a1" ]] && echo yes || echo no)"
+
+echo "=== a failed claim rolls back a worktree holding a built .venv ==="
+single_plan
+run_venv "$PLAN" "$FEAT" A2    # depends on A1: the claim refuses after the bootstrap
+check_eq "exit nonzero" 1 "$((RC != 0))"
+check_eq "bootstrap ran first" "--like $FEAT $FEAT/.claude/worktrees/a2" "$(cat "$BASE/pylog")"
+check_eq "task stays pending" pending "$(status_of A2)"
+check_eq "task branch removed" no "$(has_branch a2)"
+check_eq "task worktree removed" no "$([[ -e "$FEAT/.claude/worktrees/a2" ]] && echo yes || echo no)"
+rm -rf "$FEAT/.venv"
+
+echo "=== seam: the real caliper-python-bootstrap, with only uv stubbed ==="
+# The repo has no .gitignore, so only the helper's self-ignoring .venv keeps
+# the no-force removes (rollback and clean-up) working.
+UV_STUB="$BASE/uvstub"
+mkdir -p "$UV_STUB"
+cat > "$UV_STUB/uv" <<EOF
+#!/usr/bin/env bash
+echo "uv \$* [cwd=\$(pwd -P)]" >> "$BASE/uvlog"
+if [[ "\$1" == venv ]]; then mkdir -p "\$2/bin" && echo '*' > "\$2/.gitignore"; fi
+EOF
+chmod +x "$UV_STUB/uv"
+printf '[project]\nname = "p"\n' > "$FEAT/pyproject.toml"
+g -C "$FEAT" add pyproject.toml
+g -C "$FEAT" commit -q -m pyproject
+single_plan
+: > "$BASE/uvlog"
+PATH="$UV_STUB:$PATH" run "$PLAN" "$FEAT" A1
+check_eq "no parent .venv: exit 0" 0 "$RC"
+check_eq "no parent .venv: nothing installed" "" "$(cat "$BASE/uvlog")"
+check_eq "no parent .venv: task gets none" no "$([[ -e "$OUT/.venv" ]] && echo yes || echo no)"
+remove_task_wt "$FEAT" a1
+mkdir -p "$FEAT/.venv"
+single_plan
+: > "$BASE/uvlog"
+PATH="$UV_STUB:$PATH" run "$PLAN" "$FEAT" A1
+check_eq "exit 0" 0 "$RC"
+check_eq "venv built and installed in the task worktree" \
+  "uv venv .venv [cwd=$OUT]
+uv pip install --python .venv/bin/python -e .[dev] [cwd=$OUT]" "$(cat "$BASE/uvlog")"
+check_eq "task .venv isn't untracked content" "" "$(g -C "$OUT" status --porcelain -- .venv)"
+remove_task_wt "$FEAT" a1
+check_eq "no-force clean-up removed it" no "$([[ -e "$FEAT/.claude/worktrees/a1" ]] && echo yes || echo no)"
+PATH="$UV_STUB:$PATH" run "$PLAN" "$FEAT" A2   # claim refuses after the venv is built
+check_eq "failed claim: exit nonzero" 1 "$((RC != 0))"
+check_eq "failed claim: worktree with its .venv rolled back" no "$([[ -e "$FEAT/.claude/worktrees/a2" ]] && echo yes || echo no)"
+check_eq "failed claim: branch removed" no "$(has_branch a2)"
+rm -rf "$FEAT/.venv"
+
 echo "=== usage ==="
 run "$PLAN" "$FEAT"
 check_eq "two args: exit 1" 1 "$RC"

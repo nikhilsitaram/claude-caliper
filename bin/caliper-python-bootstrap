@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# caliper-python-bootstrap [--like <parent>] <dir>
+#
+# Build <dir>/.venv from <dir>'s Python manifests: an editable `.[dev]` install
+# for a pyproject.toml with a [project] table, then `-r requirements.txt`. uv
+# when it's on PATH, else `python3 -m venv` + the venv's pip. An existing .venv
+# is reused, so both manifests land in one environment. No manifest: no-op.
+#
+# Used by dependency-bootstrap (feature/phase worktrees) and by
+# caliper-phase-dispatch (issue #337): a task worktree nested in the parent
+# can't share the parent's .venv, because its editable install points imports
+# at the parent's source, not the task's.
+#
+# A venv this run creates gets a `*` .gitignore (uv writes one itself; Python
+# < 3.13's venv doesn't), so it never shows as untracked content: that would
+# block a no-force `git worktree remove` and invite a `git add -A` commit.
+# Inside a git worktree the same goes for untracked directories the install
+# itself leaves (setuptools' `<pkg>.egg-info/`); a new untracked file can't be
+# made to ignore itself, so it's named in a warning instead.
+
+usage() { echo "Usage: caliper-python-bootstrap [--like <parent>] <dir>" >&2; exit 1; }
+LIKE=""
+if [[ "${1:-}" == --like ]]; then
+  [[ $# -eq 3 ]] || usage
+  LIKE="$2"; shift 2
+  [[ -d "$LIKE" ]] || { echo "ERROR: not a directory: $LIKE" >&2; exit 1; }
+fi
+[[ $# -eq 1 ]] || usage
+[[ -d "$1" ]] || { echo "ERROR: not a directory: $1" >&2; exit 1; }
+
+# --like: mirror the parent's environment, so act only when it has a real root
+# .venv (dependency-bootstrap installed Python deps there). A symlinked one is
+# bootstrap's no-manifest fallback and subdirectory venvs aren't mirrored
+# (both out of scope, #337).
+if [[ -n "$LIKE" ]] && ! [[ -d "$LIKE/.venv" && ! -L "$LIKE/.venv" ]]; then
+  exit 0
+fi
+cd "$1"
+
+installs=()
+if [[ -f pyproject.toml ]] && grep -q '^\[project\]' pyproject.toml; then
+  installs+=("-e .[dev]")
+fi
+[[ -f requirements.txt ]] && installs+=("-r requirements.txt")
+if (( ${#installs[@]} == 0 )); then
+  echo "caliper-python-bootstrap: no Python manifest in $PWD; nothing to do" >&2
+  exit 0
+fi
+
+# An activated venv's VIRTUAL_ENV must not reach the installer: uv pip prefers
+# it over ./.venv. The target is also named explicitly below.
+unset VIRTUAL_ENV
+have_uv=0
+command -v uv >/dev/null 2>&1 && have_uv=1
+
+untracked() {
+  git status --porcelain -z --untracked-files=normal | while IFS= read -r -d '' e; do
+    [[ "$e" == '?? '* ]] && printf '%s\n' "${e#?? }"
+  done
+}
+in_git=0
+before=""
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  in_git=1
+  before="$(untracked)"
+fi
+
+if [[ ! -d .venv ]]; then
+  if (( have_uv )); then uv venv .venv; else python3 -m venv .venv; fi
+  [[ -e .venv/.gitignore ]] || echo '*' > .venv/.gitignore
+fi
+
+for spec in "${installs[@]}"; do
+  read -r flag arg <<<"$spec"
+  if (( have_uv )); then
+    uv pip install --python .venv/bin/python "$flag" "$arg"
+  else
+    .venv/bin/pip install "$flag" "$arg"
+  fi
+done
+
+(( in_git )) || exit 0
+while IFS= read -r path; do
+  [[ -n "$path" ]] || continue
+  grep -qxF -- "$path" <<<"$before" && continue
+  if [[ "$path" == */ ]]; then
+    echo '*' > "${path}.gitignore"
+  else
+    echo "WARNING: the install left untracked $PWD/$path; it blocks a no-force git worktree remove until ignored or deleted" >&2
+  fi
+done <<<"$(untracked)"

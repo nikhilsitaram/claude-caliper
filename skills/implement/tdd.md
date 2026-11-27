@@ -8,8 +8,10 @@ If the task doesn't specify test patterns, find them:
 ls -la tests/ || ls -la test/ || ls -la *_test.* || ls -la *.test.*
 cat pytest.ini 2>/dev/null || cat pyproject.toml 2>/dev/null | grep -A10 tool.pytest
 cat package.json 2>/dev/null | grep -A5 '"test"'
-pytest --collect-only 2>/dev/null | head -20
+.venv/bin/pytest --collect-only 2>/dev/null | head -20
 ```
+
+In a Python worktree, run tools through its own `.venv/bin/`: a bare `pytest` resolves through PATH, which can be another checkout's environment importing that checkout's source.
 
 Match existing patterns (runner, file structure, class vs function style).
 
