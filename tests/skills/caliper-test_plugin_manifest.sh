@@ -28,7 +28,10 @@ if [[ "$PLUGIN_COUNT" -eq 1 ]]; then pass "one plugin ($PLUGIN)"; else fail "exp
 
 if [[ -n "$(jq -r '.description // empty' "$MANIFEST")" ]]; then pass "marketplace description set"; else fail "marketplace description missing"; fi
 
-# The validator's reserved-name rule, as its error message states it.
+# The validator's reserved-name rule, copied from its error message (Claude Code
+# 2.1.332). CI has no claude CLI, so this copy is the only guard there and can
+# drift if the rule changes; the `claude plugin validate` check below is the real
+# one wherever the CLI is installed.
 reserved() {
   local n="$1"
   [[ "$n" =~ ^(claude|anthropic|anthropics|cc-plugin)- ]] && return 0
@@ -45,20 +48,37 @@ listed=$(jq -r '.plugins[0].skills[]' "$MANIFEST" | sed 's#^\./skills/##' | sort
 on_disk=$(find "$REPO_ROOT/skills" -mindepth 2 -maxdepth 2 -name SKILL.md | sed "s#^$REPO_ROOT/skills/##; s#/SKILL.md\$##" | sort)
 if [[ "$listed" == "$on_disk" ]]; then pass "plugin lists every skill dir"; else fail "skills list differs from skills/*: $(diff <(echo "$listed") <(echo "$on_disk") | grep '^[<>]' | tr '\n' ' ')"; fi
 
+echo "=== README badges ==="
+VERSION=$(jq -r '.plugins[0].version' "$MANIFEST")
+SKILL_COUNT=$(jq '.plugins[0].skills | length' "$MANIFEST")
+README="$REPO_ROOT/README.md"
+if grep -qF "badge/version-$VERSION-blue" "$README"; then pass "version badge is $VERSION"; else fail "README version badge != manifest version $VERSION"; fi
+if grep -qF "badge/$SKILL_COUNT%20skills-" "$README"; then pass "skills badge is $SKILL_COUNT"; else fail "README skills badge != $SKILL_COUNT skills"; fi
+if grep -qF "installs $SKILL_COUNT skills" "$README"; then pass "README skill count is $SKILL_COUNT"; else fail "README 'installs N skills' != $SKILL_COUNT"; fi
+
 echo "=== agent dispatch namespace ==="
-SEARCH=("$REPO_ROOT/skills" "$REPO_ROOT/agents" "$REPO_ROOT/README.md" "$REPO_ROOT/hooks" "$REPO_ROOT/bin")
+SEARCH=("$REPO_ROOT/skills" "$REPO_ROOT/agents" "$REPO_ROOT/README.md" "$REPO_ROOT/CLAUDE.md" "$REPO_ROOT/hooks" "$REPO_ROOT/bin" "$REPO_ROOT/.github")
 for agent_file in "$REPO_ROOT"/agents/*.md; do
   agent=$(basename "$agent_file" .md)
-  # Any <ns>:<agent> whose namespace isn't the plugin name.
+  # Any <ns>:<agent> whose namespace isn't the plugin name, or a bare-name dispatch.
   stale=$(grep -rnoE "[A-Za-z0-9_-]+:$agent\b" "${SEARCH[@]}" | grep -vE ":$PLUGIN:$agent\$" || true)
-  if [[ -z "$stale" ]]; then pass "$agent dispatched as $PLUGIN:$agent"; else fail "$agent with wrong namespace: $stale"; fi
+  stale+=$(grep -rnE "subagent_type: *\"$agent\"" "${SEARCH[@]}" || true)
+  if [[ -z "$stale" ]]; then pass "$agent dispatched as $PLUGIN:$agent"; else fail "$agent with wrong or missing namespace: $stale"; fi
 done
 
+echo "=== skill invocation namespace ==="
+stale=""
+for skill_dir in "$REPO_ROOT"/skills/*/; do
+  skill=$(basename "$skill_dir")
+  stale+=$(grep -rnoE "/[A-Za-z0-9_-]+:$skill\b" "${SEARCH[@]}" | grep -vE ":/$PLUGIN:$skill\$" || true)
+done
+if [[ -z "$stale" ]]; then pass "every namespaced skill invocation is /$PLUGIN:<skill>"; else fail "wrong skill namespace: $stale"; fi
+
 echo "=== install ids ==="
-# Migration notes name the retired ids in `/plugin uninstall` steps; that's the one allowed use.
+# Migration notes name a retired id right after `/plugin uninstall`; that token is the one allowed use.
 stale=""
 while IFS= read -r hit; do
-  [[ "$hit" == *"/plugin uninstall "* ]] && continue
+  hit=$(sed -E 's#/plugin uninstall [A-Za-z0-9_@-]+##g' <<<"$hit")
   bad=$(grep -oE "[A-Za-z0-9_-]+@$MARKETPLACE\b" <<<"$hit" | grep -vxE "$PLUGIN@$MARKETPLACE" || true)
   [[ -n "$bad" ]] && stale+="${hit%%:*}: $bad; "
 done < <(grep -rnE "@$MARKETPLACE\b" "${SEARCH[@]}" || true)
